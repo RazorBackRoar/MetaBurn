@@ -17,6 +17,10 @@ import {
   EmptyStateActions,
   EmptyStateMedia,
   Callout,
+  CollapsibleRoot,
+  CollapsibleTrigger,
+  CollapsibleChevron,
+  CollapsibleContent,
 } from "@glaze/core/components";
 import { ShieldCheck, UploadCloud, Loader2, CheckCircle2, XCircle, Ban } from "lucide-react";
 
@@ -36,10 +40,16 @@ interface CleanResult {
   path: string;
   status: CleanStatus;
   reason?: string;
+  removedTags?: string[];
 }
 
 interface LogEntry extends CleanResult {
   id: number;
+}
+
+interface ScanSummary {
+  fileCount: number;
+  totalBytes: number;
 }
 
 interface StateEvent {
@@ -47,6 +57,7 @@ interface StateEvent {
   state: RunState | "exiftool-missing";
   counters: Counters;
   message?: string;
+  scanSummary?: ScanSummary;
 }
 
 interface ProgressEvent {
@@ -82,6 +93,18 @@ const BADGE_COLOR: Record<CleanStatus, "green" | "orange" | "secondary" | "red">
   failed: "red",
 };
 
+function formatBytes(bytes: number): string {
+  if (bytes <= 0) return "0 KB";
+  const units = ["KB", "MB", "GB"] as const;
+  let value = bytes / 1024;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unitIndex]}`;
+}
+
 function summarizeCounters(counters: Counters): string {
   const cleaned = `${counters.cleaned} ${counters.cleaned === 1 ? "file" : "files"} cleaned`;
   const extras: string[] = [];
@@ -99,6 +122,7 @@ export function HomeView() {
   const [runState, setRunState] = useState<RunState>("waiting");
   const [counters, setCounters] = useState<Counters>(EMPTY_COUNTERS);
   const [runMessage, setRunMessage] = useState<string | undefined>(undefined);
+  const [scanSummary, setScanSummary] = useState<ScanSummary | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -134,6 +158,7 @@ export function HomeView() {
       }
       setRunMessage(evt.message);
       setRunState(evt.state);
+      if (evt.scanSummary) setScanSummary(evt.scanSummary);
     });
 
     const offProgress = window.glazeAPI.glaze.ipc.onNotification("clean:progress", (raw) => {
@@ -183,6 +208,7 @@ export function HomeView() {
       setLog([]);
       setCounters(EMPTY_COUNTERS);
       setRunMessage(undefined);
+      setScanSummary(null);
       setRunState("scanning");
       void window.glazeAPI.glaze.ipc.invoke("clean:start", { paths });
     },
@@ -200,8 +226,25 @@ export function HomeView() {
     setLog([]);
     setCounters(EMPTY_COUNTERS);
     setRunMessage(undefined);
+    setScanSummary(null);
     setRunState("waiting");
   }, []);
+
+  // ── Keyboard shortcuts: ⌘K clears the log, ⌘. cancels a running job ────
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!e.metaKey) return;
+      if (e.key.toLowerCase() === "k" && !processing && log.length > 0) {
+        e.preventDefault();
+        handleClearLog();
+      } else if (e.key === "." && processing) {
+        e.preventDefault();
+        handleCancel();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [processing, log.length, handleClearLog, handleCancel]);
 
   const handleInstall = useCallback(async () => {
     setInstalling(true);
@@ -305,7 +348,11 @@ export function HomeView() {
             </Text>
           </div>
           <div className="flex items-center gap-4 tabular-nums">
-            <Counter label="Found" value={counters.supported} color="secondary" />
+            <Counter
+              label={scanSummary && scanSummary.totalBytes > 0 ? `Found · ${formatBytes(scanSummary.totalBytes)}` : "Found"}
+              value={counters.supported}
+              color="secondary"
+            />
             <Counter label="Cleaned" value={counters.cleaned} color="success" />
             <Counter label="Skipped" value={counters.skipped} color="secondary" />
             <Counter label="Partial" value={counters.partial} color="warning" />
@@ -385,24 +432,56 @@ function Counter({
 
 function LogRow({ entry }: { entry: LogEntry }) {
   const name = entry.path.split("/").pop() || entry.path;
-  return (
-    <div className="flex items-start gap-3 px-3 py-2 border-b border-separator last:border-b-0">
-      <Badge color={BADGE_COLOR[entry.status]} size="small">
-        {entry.status}
-      </Badge>
-      <div className="flex-1 min-w-0 flex flex-col">
-        <Text variant="small-strong" color="primary" className="truncate" title={entry.path}>
-          {name}
+  const hasPreview = !!entry.removedTags && entry.removedTags.length > 0;
+
+  const details = (
+    <div className="flex-1 min-w-0 flex flex-col">
+      <Text variant="small-strong" color="primary" className="truncate" title={entry.path}>
+        {name}
+      </Text>
+      <Text variant="small" color="tertiary" className="truncate" title={entry.path}>
+        {entry.path}
+      </Text>
+      {entry.reason ? (
+        <Text variant="small" color="secondary">
+          {entry.reason}
         </Text>
-        <Text variant="small" color="tertiary" className="truncate" title={entry.path}>
-          {entry.path}
-        </Text>
-        {entry.reason ? (
-          <Text variant="small" color="secondary">
-            {entry.reason}
-          </Text>
-        ) : null}
-      </div>
+      ) : null}
     </div>
+  );
+
+  if (!hasPreview) {
+    return (
+      <div className="flex items-start gap-3 px-3 py-2 border-b border-separator last:border-b-0">
+        <Badge color={BADGE_COLOR[entry.status]} size="small">
+          {entry.status}
+        </Badge>
+        {details}
+      </div>
+    );
+  }
+
+  return (
+    <CollapsibleRoot className="border-b border-separator last:border-b-0">
+      <CollapsibleTrigger className="w-full flex items-start gap-3 px-3 py-2 text-left">
+        <Badge color={BADGE_COLOR[entry.status]} size="small">
+          {entry.status}
+        </Badge>
+        {details}
+        <CollapsibleChevron className="size-3.5 shrink-0 text-tertiary mt-0.5" />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="pl-3 pr-3 pb-2 pt-0 flex flex-col gap-0.5">
+          <Text variant="small" color="tertiary">
+            Metadata found before cleaning:
+          </Text>
+          {entry.removedTags!.map((tag) => (
+            <Text key={tag} variant="small" color="secondary">
+              {tag}
+            </Text>
+          ))}
+        </div>
+      </CollapsibleContent>
+    </CollapsibleRoot>
   );
 }

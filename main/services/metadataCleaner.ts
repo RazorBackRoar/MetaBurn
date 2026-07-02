@@ -35,6 +35,46 @@ export interface CleanResult {
   path: string;
   status: CleanStatus;
   reason?: string;
+  /** Human-readable identifying fields found before cleaning (e.g. "GPS: ..."). */
+  removedTags?: string[];
+}
+
+/** Identifying tags worth surfacing to the user before they're stripped. */
+const PREVIEW_TAGS: Array<{ tag: string; label: string }> = [
+  { tag: "GPSPosition", label: "GPS location" },
+  { tag: "Make", label: "Camera make" },
+  { tag: "Model", label: "Camera model" },
+  { tag: "LensModel", label: "Lens" },
+  { tag: "Software", label: "Software" },
+  { tag: "DateTimeOriginal", label: "Date taken" },
+  { tag: "Artist", label: "Artist" },
+  { tag: "OwnerName", label: "Owner name" },
+  { tag: "SerialNumber", label: "Camera serial" },
+];
+
+/** Read a compact set of identifying tags before they're stripped. Never throws. */
+async function readPreviewTags(exiftoolPath: string, filePath: string): Promise<string[]> {
+  try {
+    const { stdout } = await execFileAsync(
+      exiftoolPath,
+      ["-j", ...PREVIEW_TAGS.map((t) => `-${t.tag}`), filePath],
+      EXEC_OPTS,
+    );
+    const parsed = JSON.parse(stdout) as Array<Record<string, unknown>>;
+    const record = parsed[0] ?? {};
+    const found: string[] = [];
+    for (const { tag, label } of PREVIEW_TAGS) {
+      const value = record[tag];
+      if (typeof value === "string" && value.trim().length > 0) {
+        found.push(`${label}: ${value.trim()}`);
+      } else if (typeof value === "number") {
+        found.push(`${label}: ${value}`);
+      }
+    }
+    return found;
+  } catch {
+    return [];
+  }
 }
 
 let cachedExiftoolPath: string | null | undefined;
@@ -103,11 +143,13 @@ export async function cleanFile(exiftoolPath: string, filePath: string): Promise
     };
   }
 
+  const removedTags = await readPreviewTags(exiftoolPath, filePath);
   const args = buildArgs(info.kind, filePath);
 
   try {
     const { stdout, stderr } = await execFileAsync(exiftoolPath, args, EXEC_OPTS);
-    return interpretOutput(filePath, `${stdout}\n${stderr}`);
+    const result = interpretOutput(filePath, `${stdout}\n${stderr}`);
+    return removedTags.length > 0 ? { ...result, removedTags } : result;
   } catch (err) {
     // execFile rejects on non-zero exit; exiftool leaves the file unchanged.
     const e = err as { stdout?: string; stderr?: string; message?: string };

@@ -20,6 +20,8 @@ export interface ScanResult {
   files: string[];
   /** Paths skipped during scanning with a human-readable reason. */
   skipped: Array<{ path: string; reason: string }>;
+  /** Combined size in bytes of `files`, for a pre-clean estimate. */
+  totalBytes: number;
 }
 
 /**
@@ -97,7 +99,22 @@ export async function buildFileList(droppedPaths: string[]): Promise<ScanResult>
     }
   }
 
-  return { files: dedupe(files), skipped };
+  const deduped = dedupe(files);
+  const totalBytes = await sumSizes(deduped);
+  return { files: deduped, skipped, totalBytes };
+}
+
+async function sumSizes(paths: string[]): Promise<number> {
+  let total = 0;
+  for (const p of paths) {
+    try {
+      const stat = await fs.promises.stat(p);
+      total += stat.size;
+    } catch {
+      // File may have vanished between scan and stat; ignore for the estimate.
+    }
+  }
+  return total;
 }
 
 function dedupe(paths: string[]): string[] {

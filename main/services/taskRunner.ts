@@ -10,7 +10,7 @@
  * updates happen at safe boundaries between files.
  */
 
-import { ipcMain, logger } from "@glaze/core/backend";
+import { ipcMain, logger, Notification } from "@glaze/core/backend";
 
 import { buildFileList } from "./scanner.js";
 import { cleanFile, resolveExiftool, type CleanResult, type CleanStatus } from "./metadataCleaner.js";
@@ -38,6 +38,11 @@ export interface Summary {
   message?: string;
 }
 
+export interface ScanSummary {
+  fileCount: number;
+  totalBytes: number;
+}
+
 interface ActiveJob {
   id: string;
   cancelled: boolean;
@@ -56,12 +61,31 @@ function tally(counters: Counters, status: CleanStatus): void {
   else if (status === "partial") counters.partial += 1;
 }
 
-function broadcastState(summary: Summary): void {
-  ipcMain.broadcast("clean:state", summary);
+function broadcastState(summary: Summary, scanSummary?: ScanSummary): void {
+  ipcMain.broadcast("clean:state", scanSummary ? { ...summary, scanSummary } : summary);
 }
 
 function broadcastProgress(jobId: string, result: CleanResult, counters: Counters): void {
   ipcMain.broadcast("clean:progress", { jobId, result, counters });
+}
+
+function summarizeForNotification(counters: Counters): string {
+  const parts = [`${counters.cleaned} cleaned`];
+  if (counters.skipped > 0) parts.push(`${counters.skipped} skipped`);
+  if (counters.partial > 0) parts.push(`${counters.partial} partial`);
+  if (counters.failed > 0) parts.push(`${counters.failed} failed`);
+  return parts.join(" · ");
+}
+
+function notifyCompletion(state: RunState, counters: Counters, message?: string): void {
+  if (!Notification.isSupported()) return;
+  const body =
+    state === "done"
+      ? summarizeForNotification(counters)
+      : state === "cancelled"
+        ? `Cancelled — ${summarizeForNotification(counters)}`
+        : message || "Cleaning failed";
+  new Notification({ title: "MetaCleaner", body }).show();
 }
 
 /** Run a full cleaning job over the dropped paths. Returns the final summary. */
@@ -84,7 +108,7 @@ export async function runClean(jobId: string, droppedPaths: string[]): Promise<S
 
     // ── Scan ──────────────────────────────────────────────────────────
     broadcastState({ jobId, state: "scanning", counters });
-    const { files, skipped } = await buildFileList(droppedPaths);
+    const { files, skipped, totalBytes } = await buildFileList(droppedPaths);
 
     // Report scan-time skips (symlinks, unreadable entries) in the log.
     for (const s of skipped) {
@@ -95,12 +119,13 @@ export async function runClean(jobId: string, droppedPaths: string[]): Promise<S
     counters.supported = files.length;
 
     // ── Clean ─────────────────────────────────────────────────────────
-    broadcastState({ jobId, state: "cleaning", counters });
+    broadcastState({ jobId, state: "cleaning", counters }, { fileCount: files.length, totalBytes });
 
     for (const file of files) {
       if (activeJob?.cancelled) {
         const summary: Summary = { jobId, state: "cancelled", counters };
         broadcastState(summary);
+        notifyCompletion(summary.state, counters);
         return summary;
       }
 
@@ -112,6 +137,7 @@ export async function runClean(jobId: string, droppedPaths: string[]): Promise<S
     const finalState: RunState = activeJob?.cancelled ? "cancelled" : "done";
     const summary: Summary = { jobId, state: finalState, counters };
     broadcastState(summary);
+    notifyCompletion(summary.state, counters);
     return summary;
   } catch (err) {
     logger.error("taskRunner", "Cleaning run failed", err);
@@ -122,6 +148,7 @@ export async function runClean(jobId: string, droppedPaths: string[]): Promise<S
       message: err instanceof Error ? err.message : String(err),
     };
     broadcastState(summary);
+    notifyCompletion(summary.state, counters, summary.message);
     return summary;
   } finally {
     if (activeJob?.id === jobId) activeJob = null;
