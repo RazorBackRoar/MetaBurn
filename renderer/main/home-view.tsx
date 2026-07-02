@@ -221,7 +221,7 @@ export function HomeView() {
   // ── Missing-dependency view ───────────────────────────────────────────
   if (exiftoolReady === false) {
     return (
-      <div className="h-full flex flex-col border-2 border-support-red">
+      <div className="h-full flex flex-col">
         <Toolbar>
           <ToolbarContent>
             <ToolbarTitle>MetaCleaner</ToolbarTitle>
@@ -252,7 +252,7 @@ export function HomeView() {
 
   // ── Main view ─────────────────────────────────────────────────────────
   return (
-    <div className="h-full flex flex-col border-2 border-support-red">
+    <div className="h-full flex flex-col">
       <Toolbar>
         <ToolbarContent>
           <ToolbarTitle>MetaCleaner</ToolbarTitle>
