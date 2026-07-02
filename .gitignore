@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Agent context (auto-generated, not worth versioning)
+.glaze_memory/
+
+# App icons (binary, auto-generated)
+app-icon.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Glaze agent temporary files
+tmp/*
