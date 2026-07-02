@@ -17,6 +17,8 @@
  */
 
 import { execFile } from "node:child_process";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { promisify } from "util";
 
 import { classify } from "./supportedTypes.js";
@@ -24,60 +26,94 @@ import { classify } from "./supportedTypes.js";
 const execFileAsync = promisify(execFile);
 
 const EXEC_OPTS = { timeout: 60_000, maxBuffer: 10 * 1024 * 1024 } as const;
+const MUTE_OPTS = { timeout: 5 * 60_000, maxBuffer: 10 * 1024 * 1024 } as const;
 
 /** Known Homebrew install locations, tried before falling back to `which`. */
 const EXIFTOOL_CANDIDATES = ["/opt/homebrew/bin/exiftool", "/usr/local/bin/exiftool"];
+const FFMPEG_CANDIDATES = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"];
 const BREW_CANDIDATES = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"];
 
 export type CleanStatus = "cleaned" | "skipped" | "failed" | "partial";
+
+export interface MetadataEntry {
+  tag: string;
+  value: string;
+}
 
 export interface CleanResult {
   path: string;
   status: CleanStatus;
   reason?: string;
-  /** Human-readable identifying fields found before cleaning (e.g. "GPS: ..."). */
-  removedTags?: string[];
+  /** Full metadata found on the file before any changes were made. */
+  metadataBefore?: MetadataEntry[];
+  /** Full metadata remaining on the file after cleaning (and muting, if requested). */
+  metadataAfter?: MetadataEntry[];
 }
 
-/** Identifying tags worth surfacing to the user before they're stripped. */
-const PREVIEW_TAGS: Array<{ tag: string; label: string }> = [
-  { tag: "GPSPosition", label: "GPS location" },
-  { tag: "Make", label: "Camera make" },
-  { tag: "Model", label: "Camera model" },
-  { tag: "LensModel", label: "Lens" },
-  { tag: "Software", label: "Software" },
-  { tag: "DateTimeOriginal", label: "Date taken" },
-  { tag: "Artist", label: "Artist" },
-  { tag: "OwnerName", label: "Owner name" },
-  { tag: "SerialNumber", label: "Camera serial" },
-];
+/** Filesystem/tool-version fields that aren't embedded file metadata. */
+const METADATA_BLOCKLIST = new Set([
+  "SourceFile",
+  "ExifToolVersion",
+  "FileName",
+  "Directory",
+  "FileSize",
+  "FileModifyDate",
+  "FileAccessDate",
+  "FileInodeChangeDate",
+  "FilePermissions",
+  "FileType",
+  "FileTypeExtension",
+  "MIMEType",
+  "Warning",
+  "Error",
+]);
 
-/** Read a compact set of identifying tags before they're stripped. Never throws. */
-async function readPreviewTags(exiftoolPath: string, filePath: string): Promise<string[]> {
+/** Read every metadata tag ExifTool can find on a file. Never throws. */
+async function readMetadata(exiftoolPath: string, filePath: string): Promise<MetadataEntry[]> {
   try {
-    const { stdout } = await execFileAsync(
-      exiftoolPath,
-      ["-j", ...PREVIEW_TAGS.map((t) => `-${t.tag}`), filePath],
-      EXEC_OPTS,
-    );
+    const { stdout } = await execFileAsync(exiftoolPath, ["-j", filePath], EXEC_OPTS);
     const parsed = JSON.parse(stdout) as Array<Record<string, unknown>>;
     const record = parsed[0] ?? {};
-    const found: string[] = [];
-    for (const { tag, label } of PREVIEW_TAGS) {
-      const value = record[tag];
-      if (typeof value === "string" && value.trim().length > 0) {
-        found.push(`${label}: ${value.trim()}`);
-      } else if (typeof value === "number") {
-        found.push(`${label}: ${value}`);
-      }
+    const entries: MetadataEntry[] = [];
+    for (const [tag, value] of Object.entries(record)) {
+      if (METADATA_BLOCKLIST.has(tag) || value === null || value === undefined) continue;
+      const text = typeof value === "string" ? value : Array.isArray(value) ? value.join(", ") : String(value);
+      if (text.trim().length === 0) continue;
+      entries.push({ tag, value: text.trim() });
     }
-    return found;
+    entries.sort((a, b) => a.tag.localeCompare(b.tag));
+    return entries;
   } catch {
     return [];
   }
 }
 
+/**
+ * Permanently remove the audio track from a video by remuxing video-only
+ * streams into a temp file, then replacing the original in place. `-c copy`
+ * avoids re-encoding (fast, lossless for the kept video stream); dropping the
+ * audio stream entirely (not just silencing it) makes it unrecoverable.
+ */
+export async function muteVideo(ffmpegPath: string, filePath: string): Promise<{ success: boolean; reason?: string }> {
+  const dir = path.dirname(filePath);
+  const ext = path.extname(filePath);
+  const base = path.basename(filePath, ext);
+  const tempPath = path.join(dir, `.${base}.muted.tmp${ext}`);
+
+  try {
+    await execFileAsync(ffmpegPath, ["-y", "-i", filePath, "-map", "0:v", "-c", "copy", "-an", tempPath], MUTE_OPTS);
+    await fs.promises.rename(tempPath, filePath);
+    return { success: true };
+  } catch (err) {
+    await fs.promises.rm(tempPath, { force: true }).catch(() => {});
+    const e = err as { stderr?: string; message?: string };
+    const reason = e.stderr ? firstIssueLine(e.stderr) : e.message || "ffmpeg failed";
+    return { success: false, reason };
+  }
+}
+
 let cachedExiftoolPath: string | null | undefined;
+let cachedFfmpegPath: string | null | undefined;
 
 /** Locate the system ExifTool binary, caching the result. Returns null if absent. */
 export async function resolveExiftool(): Promise<string | null> {
@@ -91,13 +127,24 @@ export function invalidateExiftoolCache(): void {
   cachedExiftoolPath = undefined;
 }
 
+/** Locate the system ffmpeg binary, caching the result. Returns null if absent. */
+export async function resolveFfmpeg(): Promise<string | null> {
+  if (cachedFfmpegPath !== undefined) return cachedFfmpegPath;
+  cachedFfmpegPath = await resolveBinary("ffmpeg", FFMPEG_CANDIDATES);
+  return cachedFfmpegPath;
+}
+
+/** Clear the cached ffmpeg path (e.g. after an install). */
+export function invalidateFfmpegCache(): void {
+  cachedFfmpegPath = undefined;
+}
+
 /** Locate the Homebrew binary for one-click install. Returns null if absent. */
 export async function resolveBrew(): Promise<string | null> {
   return resolveBinary("brew", BREW_CANDIDATES);
 }
 
 async function resolveBinary(name: string, candidates: string[]): Promise<string | null> {
-  const fs = await import("fs");
   for (const candidate of candidates) {
     try {
       await fs.promises.access(candidate, fs.constants.X_OK);
@@ -128,8 +175,15 @@ function buildArgs(kind: "photo" | "video", filePath: string): string[] {
   return ["-all=", "-overwrite_original", filePath];
 }
 
+export interface CleanOptions {
+  /** Strip the audio track from videos (unrecoverable — dropped, not just silenced). */
+  muteAudio: boolean;
+  /** Resolved ffmpeg path, or null if unavailable. Only needed when muteAudio is true. */
+  ffmpegPath: string | null;
+}
+
 /** Clean one file in place. Never throws — always resolves to a CleanResult. */
-export async function cleanFile(exiftoolPath: string, filePath: string): Promise<CleanResult> {
+export async function cleanFile(exiftoolPath: string, filePath: string, options: CleanOptions): Promise<CleanResult> {
   const info = classify(filePath);
 
   if (info.kind === "unsupported") {
@@ -143,20 +197,38 @@ export async function cleanFile(exiftoolPath: string, filePath: string): Promise
     };
   }
 
-  const removedTags = await readPreviewTags(exiftoolPath, filePath);
-  const args = buildArgs(info.kind, filePath);
+  const metadataBefore = await readMetadata(exiftoolPath, filePath);
 
+  let muteReason: string | undefined;
+  if (options.muteAudio && info.kind === "video") {
+    if (!options.ffmpegPath) {
+      muteReason = "ffmpeg not installed — audio not removed";
+    } else {
+      const muted = await muteVideo(options.ffmpegPath, filePath);
+      if (!muted.success) muteReason = `audio removal failed: ${muted.reason}`;
+    }
+  }
+
+  const args = buildArgs(info.kind, filePath);
+  let result: CleanResult;
   try {
     const { stdout, stderr } = await execFileAsync(exiftoolPath, args, EXEC_OPTS);
-    const result = interpretOutput(filePath, `${stdout}\n${stderr}`);
-    return removedTags.length > 0 ? { ...result, removedTags } : result;
+    result = interpretOutput(filePath, `${stdout}\n${stderr}`);
   } catch (err) {
     // execFile rejects on non-zero exit; exiftool leaves the file unchanged.
     const e = err as { stdout?: string; stderr?: string; message?: string };
     const combined = `${e.stdout ?? ""}\n${e.stderr ?? ""}`.trim();
     const reason = combined.length > 0 ? firstIssueLine(combined) : e.message || "exiftool failed";
-    return { path: filePath, status: "failed", reason };
+    result = { path: filePath, status: "failed", reason };
   }
+
+  const metadataAfter = await readMetadata(exiftoolPath, filePath);
+
+  if (muteReason && result.status === "cleaned") {
+    result = { ...result, status: "partial", reason: muteReason };
+  }
+
+  return { ...result, metadataBefore, metadataAfter };
 }
 
 /**

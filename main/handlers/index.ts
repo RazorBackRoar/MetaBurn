@@ -44,6 +44,10 @@ export function registerHandlers(): void {
     return await cleanHandlers.checkExiftool();
   });
 
+  ipcMain.handle("clean:checkFfmpeg", async () => {
+    return await cleanHandlers.checkFfmpeg();
+  });
+
   ipcMain.handle("clean:start", async (_event, params) => {
     return await cleanHandlers.start(params ?? {});
   });
@@ -54,6 +58,10 @@ export function registerHandlers(): void {
 
   ipcMain.handle("clean:installExiftool", async () => {
     return await cleanHandlers.installExiftool();
+  });
+
+  ipcMain.handle("clean:installFfmpeg", async () => {
+    return await cleanHandlers.installFfmpeg();
   });
 
   logger.info("handlers", "✓ IPC handlers registered");

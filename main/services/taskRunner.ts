@@ -13,7 +13,7 @@
 import { ipcMain, logger, Notification } from "@glaze/core/backend";
 
 import { buildFileList } from "./scanner.js";
-import { cleanFile, resolveExiftool, type CleanResult, type CleanStatus } from "./metadataCleaner.js";
+import { cleanFile, resolveExiftool, resolveFfmpeg, type CleanResult, type CleanStatus } from "./metadataCleaner.js";
 
 export type RunState =
   | "scanning"
@@ -89,12 +89,13 @@ function notifyCompletion(state: RunState, counters: Counters, message?: string)
 }
 
 /** Run a full cleaning job over the dropped paths. Returns the final summary. */
-export async function runClean(jobId: string, droppedPaths: string[]): Promise<Summary> {
+export async function runClean(jobId: string, droppedPaths: string[], muteAudio: boolean): Promise<Summary> {
   activeJob = { id: jobId, cancelled: false };
   const counters = emptyCounters();
 
   try {
     const exiftoolPath = await resolveExiftool();
+    const ffmpegPath = muteAudio ? await resolveFfmpeg() : null;
     if (!exiftoolPath) {
       const summary: Summary = {
         jobId,
@@ -129,7 +130,7 @@ export async function runClean(jobId: string, droppedPaths: string[]): Promise<S
         return summary;
       }
 
-      const result = await cleanFile(exiftoolPath, file);
+      const result = await cleanFile(exiftoolPath, file, { muteAudio, ffmpegPath });
       tally(counters, result.status);
       broadcastProgress(jobId, result, counters);
     }

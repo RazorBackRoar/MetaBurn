@@ -21,8 +21,9 @@ import {
   CollapsibleTrigger,
   CollapsibleChevron,
   CollapsibleContent,
+  Switch,
 } from "@glaze/core/components";
-import { ShieldCheck, UploadCloud, Loader2, CheckCircle2, XCircle, Ban } from "lucide-react";
+import { ShieldCheck, UploadCloud, Loader2, CheckCircle2, XCircle, Ban, VolumeX, TriangleAlert } from "lucide-react";
 
 // ── Types mirrored from the backend (main/services) ─────────────────────
 type CleanStatus = "cleaned" | "skipped" | "failed" | "partial";
@@ -36,11 +37,17 @@ interface Counters {
   partial: number;
 }
 
+interface MetadataEntry {
+  tag: string;
+  value: string;
+}
+
 interface CleanResult {
   path: string;
   status: CleanStatus;
   reason?: string;
-  removedTags?: string[];
+  metadataBefore?: MetadataEntry[];
+  metadataAfter?: MetadataEntry[];
 }
 
 interface LogEntry extends CleanResult {
@@ -119,6 +126,11 @@ export function HomeView() {
   const [canInstall, setCanInstall] = useState(false);
   const [installing, setInstalling] = useState(false);
 
+  const [muteAudio, setMuteAudio] = useState(false);
+  const [ffmpegReady, setFfmpegReady] = useState<boolean | null>(null);
+  const [canInstallFfmpeg, setCanInstallFfmpeg] = useState(false);
+  const [installingFfmpeg, setInstallingFfmpeg] = useState(false);
+
   const [runState, setRunState] = useState<RunState>("waiting");
   const [counters, setCounters] = useState<Counters>(EMPTY_COUNTERS);
   const [runMessage, setRunMessage] = useState<string | undefined>(undefined);
@@ -144,6 +156,31 @@ export function HomeView() {
   useEffect(() => {
     void checkExiftool();
   }, [checkExiftool]);
+
+  // ── Verify ffmpeg on mount (only needed if Mute Video is used) ─────────
+  const checkFfmpeg = useCallback(async () => {
+    const res = await window.glazeAPI.glaze.ipc.invoke<{
+      available: boolean;
+      canInstall: boolean;
+    }>("clean:checkFfmpeg");
+    setFfmpegReady(res.available);
+    setCanInstallFfmpeg(res.canInstall);
+  }, []);
+
+  useEffect(() => {
+    void checkFfmpeg();
+  }, [checkFfmpeg]);
+
+  const handleInstallFfmpeg = useCallback(async () => {
+    setInstallingFfmpeg(true);
+    try {
+      const res = await window.glazeAPI.glaze.ipc.invoke<{ success: boolean }>("clean:installFfmpeg");
+      if (res.success) setFfmpegReady(true);
+      else await checkFfmpeg();
+    } finally {
+      setInstallingFfmpeg(false);
+    }
+  }, [checkFfmpeg]);
 
   // ── Subscribe to live cleaning events ─────────────────────────────────
   useEffect(() => {
@@ -210,9 +247,9 @@ export function HomeView() {
       setRunMessage(undefined);
       setScanSummary(null);
       setRunState("scanning");
-      void window.glazeAPI.glaze.ipc.invoke("clean:start", { paths });
+      void window.glazeAPI.glaze.ipc.invoke("clean:start", { paths, muteAudio });
     },
-    [exiftoolReady, processing],
+    [exiftoolReady, processing, muteAudio],
   );
 
   // ── Actions ───────────────────────────────────────────────────────────
@@ -339,6 +376,34 @@ export function HomeView() {
           </Text>
         </div>
 
+        {/* Mute Video option */}
+        <div className="shrink-0 flex items-center justify-between gap-3 rounded-card border border-separator px-3 py-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <VolumeX className="size-4 text-tertiary shrink-0" />
+            <div className="flex flex-col min-w-0">
+              <Text variant="small-strong" color="primary">
+                Mute Video
+              </Text>
+              <Text variant="small" color="tertiary">
+                Permanently remove audio from videos before cleaning.
+              </Text>
+            </div>
+          </div>
+          <Switch checked={muteAudio} onCheckedChange={setMuteAudio} disabled={processing} />
+        </div>
+        {muteAudio && ffmpegReady === false ? (
+          <Callout color="orange" icon={<TriangleAlert className="size-4" />} className="shrink-0">
+            <Callout.Text className="flex items-center gap-2 flex-wrap">
+              <span>ffmpeg is required to mute audio.</span>
+              {canInstallFfmpeg ? (
+                <Button variant="transparent" size="small" onClick={handleInstallFfmpeg} disabled={installingFfmpeg}>
+                  {installingFfmpeg ? "Installing…" : "Install ffmpeg"}
+                </Button>
+              ) : null}
+            </Callout.Text>
+          </Callout>
+        ) : null}
+
         {/* Status + counters */}
         <div className="shrink-0 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -432,7 +497,9 @@ function Counter({
 
 function LogRow({ entry }: { entry: LogEntry }) {
   const name = entry.path.split("/").pop() || entry.path;
-  const hasPreview = !!entry.removedTags && entry.removedTags.length > 0;
+  const before = entry.metadataBefore ?? [];
+  const after = entry.metadataAfter ?? [];
+  const hasPreview = before.length > 0 || after.length > 0;
 
   const details = (
     <div className="flex-1 min-w-0 flex flex-col">
@@ -461,6 +528,8 @@ function LogRow({ entry }: { entry: LogEntry }) {
     );
   }
 
+  const afterTags = new Set(after.map((e) => e.tag));
+
   return (
     <CollapsibleRoot className="border-b border-separator last:border-b-0">
       <CollapsibleTrigger className="w-full flex items-start gap-3 px-3 py-2 text-left">
@@ -468,20 +537,57 @@ function LogRow({ entry }: { entry: LogEntry }) {
           {entry.status}
         </Badge>
         {details}
-        <CollapsibleChevron className="size-3.5 shrink-0 text-tertiary mt-0.5" />
+        <div className="shrink-0 flex items-center gap-1.5 mt-0.5">
+          <Text variant="small" color="tertiary">
+            {before.length} → {after.length}
+          </Text>
+          <CollapsibleChevron className="size-3.5 shrink-0 text-tertiary" />
+        </div>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="pl-3 pr-3 pb-2 pt-0 flex flex-col gap-0.5">
-          <Text variant="small" color="tertiary">
-            Metadata found before cleaning:
-          </Text>
-          {entry.removedTags!.map((tag) => (
-            <Text key={tag} variant="small" color="secondary">
-              {tag}
+        <div className="pl-3 pr-3 pb-2 pt-0 grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1 min-w-0">
+            <Text variant="small-strong" color="tertiary">
+              Before ({before.length})
             </Text>
-          ))}
+            <ScrollArea scrollbars="vertical" className="max-h-48">
+              <div className="flex flex-col gap-0.5 pr-2">
+                {before.length === 0 ? (
+                  <Text variant="small" color="tertiary">
+                    No metadata found
+                  </Text>
+                ) : (
+                  before.map((e) => <MetadataLine key={e.tag} entry={e} removed={!afterTags.has(e.tag)} />)
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+          <div className="flex flex-col gap-1 min-w-0">
+            <Text variant="small-strong" color="tertiary">
+              After ({after.length})
+            </Text>
+            <ScrollArea scrollbars="vertical" className="max-h-48">
+              <div className="flex flex-col gap-0.5 pr-2">
+                {after.length === 0 ? (
+                  <Text variant="small" color="tertiary">
+                    No metadata remaining
+                  </Text>
+                ) : (
+                  after.map((e) => <MetadataLine key={e.tag} entry={e} removed={false} />)
+                )}
+              </div>
+            </ScrollArea>
+          </div>
         </div>
       </CollapsibleContent>
     </CollapsibleRoot>
+  );
+}
+
+function MetadataLine({ entry, removed }: { entry: MetadataEntry; removed: boolean }) {
+  return (
+    <Text variant="small" color={removed ? "red" : "secondary"} truncate title={`${entry.tag}: ${entry.value}`}>
+      {entry.tag}: {entry.value}
+    </Text>
   );
 }
