@@ -8,3 +8,13 @@
 @source "./**/*.{ts,tsx}";
 @source not "./preload.ts";
 @source not "./dev/**/*";
+
+/* Thin red border framing every window's content area */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  border: 0.5px solid red;
+  pointer-events: none;
+  z-index: 9999;
+}
