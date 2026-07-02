@@ -1,9 +1,9 @@
-// MetaCleaner — drag photos/videos/folders in to strip metadata in place.
+// MetaBurn — drag photos/videos/folders in to strip metadata in place.
 
 import { type DragEvent as ReactDragEvent, useCallback, useEffect, useRef, useState } from "react";
 import {
   Toolbar,
-  ToolbarContent,
+  ToolbarRow,
   ToolbarTitle,
   ToolbarActions,
   Button,
@@ -303,9 +303,11 @@ export function HomeView() {
     return (
       <div className="h-full flex flex-col">
         <Toolbar>
-          <ToolbarContent>
-            <ToolbarTitle>MetaCleaner</ToolbarTitle>
-          </ToolbarContent>
+          <ToolbarRow className="relative">
+            <ToolbarTitle className="absolute left-1/2 -translate-x-1/2 pl-0 text-support-red">
+              MetaBurn
+            </ToolbarTitle>
+          </ToolbarRow>
         </Toolbar>
         <EmptyState placement="center">
           <EmptyStateMedia>
@@ -334,20 +336,22 @@ export function HomeView() {
   return (
     <div className="h-full flex flex-col">
       <Toolbar>
-        <ToolbarContent>
-          <ToolbarTitle>MetaCleaner</ToolbarTitle>
-        </ToolbarContent>
-        <ToolbarActions>
-          {processing ? (
-            <Button variant="transparent" onClick={handleCancel}>
-              Cancel
-            </Button>
-          ) : (
-            <Button variant="transparent" onClick={handleClearLog} disabled={log.length === 0}>
-              Clear Log
-            </Button>
-          )}
-        </ToolbarActions>
+        <ToolbarRow className="relative">
+          <ToolbarTitle className="absolute left-1/2 -translate-x-1/2 pl-0 text-support-red">
+            MetaBurn
+          </ToolbarTitle>
+          <ToolbarActions>
+            {processing ? (
+              <Button variant="transparent" onClick={handleCancel}>
+                Cancel
+              </Button>
+            ) : (
+              <Button variant="transparent" onClick={handleClearLog} disabled={log.length === 0}>
+                Clear Log
+              </Button>
+            )}
+          </ToolbarActions>
+        </ToolbarRow>
       </Toolbar>
 
       <div className="flex-1 min-h-0 flex flex-col gap-4 px-4 pb-4">

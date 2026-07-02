@@ -39,7 +39,7 @@ export function registerHandlers(): void {
     getSettingsWindow()?.close();
   });
 
-  // MetaCleaner handlers
+  // MetaBurn handlers
   ipcMain.handle("clean:checkExiftool", async () => {
     return await cleanHandlers.checkExiftool();
   });

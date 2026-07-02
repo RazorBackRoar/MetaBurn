@@ -85,7 +85,7 @@ function notifyCompletion(state: RunState, counters: Counters, message?: string)
       : state === "cancelled"
         ? `Cancelled — ${summarizeForNotification(counters)}`
         : message || "Cleaning failed";
-  new Notification({ title: "MetaCleaner", body }).show();
+  new Notification({ title: "MetaBurn", body }).show();
 }
 
 /** Run a full cleaning job over the dropped paths. Returns the final summary. */

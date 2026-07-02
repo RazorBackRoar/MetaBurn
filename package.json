@@ -1,8 +1,8 @@
 {
   "id": "1crd5dru",
-  "name": "metacleaner",
+  "name": "metaburn",
   "version": "1.0.0",
-  "productName": "MetaCleaner",
+  "productName": "MetaBurn",
   "description": "Remove metadata from photos and videos",
   "iconDescription": "A local privacy tool that strips sensitive metadata from photos and videos through drag-and-drop, removing EXIF, GPS, camera details, and device information while keeping files in place. Think of a photo or video file with sensitive data being scrubbed clean, a shield protecting privacy, or metadata layers being peeled away like an onion. Aesthetic: focused on privacy and security.",
   "private": true,
@@ -61,6 +61,6 @@
     "host": {
       "minVersion": "0.8.0.0"
     },
-    "updatedAt": 1783032775591
+    "updatedAt": 1783036393990
   }
 }
