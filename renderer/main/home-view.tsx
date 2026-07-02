@@ -16,8 +16,9 @@ import {
   EmptyStateDescription,
   EmptyStateActions,
   EmptyStateMedia,
+  Callout,
 } from "@glaze/core/components";
-import { ShieldCheck, UploadCloud, Loader2 } from "lucide-react";
+import { ShieldCheck, UploadCloud, Loader2, CheckCircle2, XCircle, Ban } from "lucide-react";
 
 // ── Types mirrored from the backend (main/services) ─────────────────────
 type CleanStatus = "cleaned" | "skipped" | "failed" | "partial";
@@ -81,6 +82,15 @@ const BADGE_COLOR: Record<CleanStatus, "green" | "orange" | "secondary" | "red">
   failed: "red",
 };
 
+function summarizeCounters(counters: Counters): string {
+  const cleaned = `${counters.cleaned} ${counters.cleaned === 1 ? "file" : "files"} cleaned`;
+  const extras: string[] = [];
+  if (counters.skipped > 0) extras.push(`${counters.skipped} skipped`);
+  if (counters.partial > 0) extras.push(`${counters.partial} partial`);
+  if (counters.failed > 0) extras.push(`${counters.failed} failed`);
+  return extras.length > 0 ? `${cleaned} · ${extras.join(" · ")}` : cleaned;
+}
+
 export function HomeView() {
   const [exiftoolReady, setExiftoolReady] = useState<boolean | null>(null);
   const [canInstall, setCanInstall] = useState(false);
@@ -88,6 +98,7 @@ export function HomeView() {
 
   const [runState, setRunState] = useState<RunState>("waiting");
   const [counters, setCounters] = useState<Counters>(EMPTY_COUNTERS);
+  const [runMessage, setRunMessage] = useState<string | undefined>(undefined);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -121,6 +132,7 @@ export function HomeView() {
         setRunState("failed");
         return;
       }
+      setRunMessage(evt.message);
       setRunState(evt.state);
     });
 
@@ -170,6 +182,7 @@ export function HomeView() {
       // Fresh run: reset the log and counters, then auto-start cleaning.
       setLog([]);
       setCounters(EMPTY_COUNTERS);
+      setRunMessage(undefined);
       setRunState("scanning");
       void window.glazeAPI.glaze.ipc.invoke("clean:start", { paths });
     },
@@ -186,6 +199,7 @@ export function HomeView() {
   const handleClearLog = useCallback(() => {
     setLog([]);
     setCounters(EMPTY_COUNTERS);
+    setRunMessage(undefined);
     setRunState("waiting");
   }, []);
 
@@ -207,7 +221,7 @@ export function HomeView() {
   // ── Missing-dependency view ───────────────────────────────────────────
   if (exiftoolReady === false) {
     return (
-      <div className="h-full flex flex-col">
+      <div className="h-full flex flex-col border-2 border-support-red">
         <Toolbar>
           <ToolbarContent>
             <ToolbarTitle>MetaCleaner</ToolbarTitle>
@@ -238,7 +252,7 @@ export function HomeView() {
 
   // ── Main view ─────────────────────────────────────────────────────────
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col border-2 border-support-red">
       <Toolbar>
         <ToolbarContent>
           <ToolbarTitle>MetaCleaner</ToolbarTitle>
@@ -298,6 +312,21 @@ export function HomeView() {
             <Counter label="Failed" value={counters.failed} color="error" />
           </div>
         </div>
+
+        {/* Results summary — a distinct outcome banner once a batch finishes */}
+        {runState === "done" ? (
+          <Callout color="green" icon={<CheckCircle2 className="size-4" />} className="shrink-0">
+            <Callout.Text>Done — {summarizeCounters(counters)}</Callout.Text>
+          </Callout>
+        ) : runState === "failed" ? (
+          <Callout color="red" icon={<XCircle className="size-4" />} className="shrink-0">
+            <Callout.Text>Failed — {runMessage ?? summarizeCounters(counters)}</Callout.Text>
+          </Callout>
+        ) : runState === "cancelled" ? (
+          <Callout color="secondary" icon={<Ban className="size-4" />} className="shrink-0">
+            <Callout.Text>Cancelled — {summarizeCounters(counters)}</Callout.Text>
+          </Callout>
+        ) : null}
 
         {/* Live log */}
         <div className="flex-1 min-h-0 rounded-card border border-separator overflow-hidden">
