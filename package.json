@@ -60,6 +60,7 @@
     "lastMigration": "cli-js-entry",
     "host": {
       "minVersion": "0.8.0.0"
-    }
+    },
+    "updatedAt": 1783026652793
   }
 }

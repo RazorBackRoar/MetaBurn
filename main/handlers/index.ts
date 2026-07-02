@@ -8,6 +8,7 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 
 import { appHandlers } from "./app.js";
+import { cleanHandlers } from "./clean.js";
 import { getSettingsWindow, openSettingsWindow } from "../windows/settings-window.js";
 
 import { ipcMain, logger } from "@glaze/core/backend";
@@ -36,6 +37,23 @@ export function registerHandlers(): void {
 
   ipcMain.handle("window:closeSettings", async (_event) => {
     getSettingsWindow()?.close();
+  });
+
+  // MetaCleaner handlers
+  ipcMain.handle("clean:checkExiftool", async () => {
+    return await cleanHandlers.checkExiftool();
+  });
+
+  ipcMain.handle("clean:start", async (_event, params) => {
+    return await cleanHandlers.start(params ?? {});
+  });
+
+  ipcMain.handle("clean:cancel", async (_event, params) => {
+    return await cleanHandlers.cancel(params ?? {});
+  });
+
+  ipcMain.handle("clean:installExiftool", async () => {
+    return await cleanHandlers.installExiftool();
   });
 
   logger.info("handlers", "✓ IPC handlers registered");
