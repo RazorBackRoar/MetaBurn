@@ -9,7 +9,8 @@
 @source not "./preload.ts";
 @source not "./dev/**/*";
 
-/* Nudge the base font size up so all rem-based text scales a little larger. */
-html {
-  font-size: 17px;
+/* Scale the whole UI up ~1.4x (zoom reliably enlarges text the design system
+   sizes in fixed units, which a root font-size change alone did not affect). */
+body {
+  zoom: 1.4;
 }
