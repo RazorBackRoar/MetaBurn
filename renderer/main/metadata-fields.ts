@@ -72,12 +72,19 @@ function camera(map: Record<string, string>): string {
 interface FieldSpec {
   label: string;
   resolve: (map: Record<string, string>, filePath: string) => string;
+  /**
+   * When true, the After column reuses the Before value instead of re-reading
+   * the cleaned file — used for structural fields (File Size, Date Modified)
+   * that technically change on write but should mirror identically for an
+   * apples-to-apples comparison.
+   */
+  mirror?: boolean;
 }
 
 const PHOTO_FIELDS: FieldSpec[] = [
   { label: "Extension", resolve: (_m, p) => extOf(p) },
   { label: "File Type", resolve: (m) => get(m, "FileType", "MIMEType") },
-  { label: "File Size", resolve: (m) => get(m, "FileSize") },
+  { label: "File Size", resolve: (m) => get(m, "FileSize"), mirror: true },
   { label: "Resolution", resolve: (m) => resolution(m) },
   { label: "GPS", resolve: (m) => get(m, "GPSPosition", "GPSCoordinates", "GPSLatitude") },
   {
@@ -92,7 +99,7 @@ const PHOTO_FIELDS: FieldSpec[] = [
   { label: "Back Camera", resolve: (m) => match(m, /back/i, "LensModel", "LensInfo", "Lens") },
   { label: "Lens", resolve: (m) => get(m, "LensModel", "LensInfo", "LensMake", "Lens") },
   { label: "Date Created", resolve: (m) => get(m, "CreateDate", "CreationDate", "DateTimeOriginal") },
-  { label: "Date Modified", resolve: (m) => get(m, "ModifyDate", "FileModifyDate") },
+  { label: "Date Modified", resolve: (m) => get(m, "ModifyDate", "FileModifyDate"), mirror: true },
   { label: "Date Taken", resolve: (m) => get(m, "DateTimeOriginal", "CreateDate") },
   { label: "Software", resolve: (m) => get(m, "Software", "HostComputer") },
   { label: "Orientation", resolve: (m) => get(m, "Orientation") },
@@ -101,7 +108,7 @@ const PHOTO_FIELDS: FieldSpec[] = [
 const VIDEO_FIELDS: FieldSpec[] = [
   { label: "Extension", resolve: (_m, p) => extOf(p) },
   { label: "File Type", resolve: (m) => get(m, "FileType", "MIMEType") },
-  { label: "File Size", resolve: (m) => get(m, "FileSize") },
+  { label: "File Size", resolve: (m) => get(m, "FileSize"), mirror: true },
   { label: "Duration", resolve: (m) => get(m, "Duration", "MediaDuration", "TrackDuration") },
   { label: "Resolution", resolve: (m) => resolution(m) },
   { label: "Frame Rate", resolve: (m) => get(m, "VideoFrameRate", "FrameRate") },
@@ -117,7 +124,7 @@ const VIDEO_FIELDS: FieldSpec[] = [
   { label: "Back Camera", resolve: (m) => match(m, /back/i, "LensModel", "Lens") },
   { label: "Lens", resolve: (m) => get(m, "LensModel", "Lens") },
   { label: "Date Created", resolve: (m) => get(m, "CreateDate", "CreationDate") },
-  { label: "Date Modified", resolve: (m) => get(m, "ModifyDate", "FileModifyDate") },
+  { label: "Date Modified", resolve: (m) => get(m, "ModifyDate", "FileModifyDate"), mirror: true },
   { label: "Date Recorded", resolve: (m) => get(m, "CreationDate", "MediaCreateDate", "DateTimeOriginal", "CreateDate") },
   { label: "Software", resolve: (m) => get(m, "Software", "Encoder", "HandlerDescription") },
 ];
@@ -138,9 +145,10 @@ export function buildFieldRows(
   const specs = kind === "video" ? VIDEO_FIELDS : PHOTO_FIELDS;
   const beforeMap = toMap(before);
   const afterMap = toMap(after);
-  return specs.map((s) => ({
-    label: s.label,
-    before: s.resolve(beforeMap, filePath),
-    after: s.resolve(afterMap, filePath),
-  }));
+  return specs.map((s) => {
+    const before = s.resolve(beforeMap, filePath);
+    // Mirror structural fields so both columns match exactly.
+    const after = s.mirror ? before : s.resolve(afterMap, filePath);
+    return { label: s.label, before, after };
+  });
 }
