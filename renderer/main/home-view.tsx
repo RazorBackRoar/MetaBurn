@@ -610,17 +610,19 @@ function MetadataReport({ entry }: { entry: LogEntry }) {
         </Text>
       </div>
 
-      {/* Mirrored column headers: Before | After */}
-      <div className="shrink-0 grid grid-cols-2 border-y border-separator">
+      {/* Mirrored column headers: Before Burn | After Burn (green underline) */}
+      <div className="shrink-0 grid grid-cols-2 border-t border-separator">
         <div className="px-4 py-1.5">
-          <Text variant="small-strong" color="tertiary">
-            Before Cleaning
+          <Text variant="small-strong" color="primary">
+            Before Burn
           </Text>
+          <div className="mt-1 h-0.5 w-full bg-support-green" />
         </div>
         <div className="px-4 py-1.5 border-l border-separator">
-          <Text variant="small-strong" color="tertiary">
-            After Cleaning
+          <Text variant="small-strong" color="primary">
+            After Burn
           </Text>
+          <div className="mt-1 h-0.5 w-full bg-support-green" />
         </div>
       </div>
 

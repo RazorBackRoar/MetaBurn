@@ -45,15 +45,6 @@ function get(map: Record<string, string>, ...tags: string[]): string {
   return "";
 }
 
-/** First candidate value that matches the pattern (e.g. "iPhone", "Apple"). */
-function match(map: Record<string, string>, re: RegExp, ...tags: string[]): string {
-  for (const t of tags) {
-    const v = map[t];
-    if (v && re.test(v)) return v.trim();
-  }
-  return "";
-}
-
 function resolution(map: Record<string, string>): string {
   const size = get(map, "ImageSize");
   if (size) return size;
@@ -81,51 +72,51 @@ interface FieldSpec {
   mirror?: boolean;
 }
 
+/** Single GPS/location row (no separate "Location") — first non-empty wins. */
+function gps(map: Record<string, string>): string {
+  return get(
+    map,
+    "GPSPosition",
+    "GPSCoordinates",
+    "GPSLatitude",
+    "LocationInformation",
+    "Location",
+    "City",
+    "Sub-location",
+    "Country",
+  );
+}
+
 const PHOTO_FIELDS: FieldSpec[] = [
-  { label: "Extension", resolve: (_m, p) => extOf(p) },
-  { label: "File Type", resolve: (m) => get(m, "FileType", "MIMEType") },
+  { label: "GPS", resolve: (m) => gps(m) },
+  { label: "Model", resolve: (m) => get(m, "Model", "CameraModelName", "HostComputer") },
+  { label: "Make", resolve: (m) => get(m, "Make") },
   { label: "File Size", resolve: (m) => get(m, "FileSize"), mirror: true },
+  { label: "File Type", resolve: (m) => get(m, "FileType", "MIMEType") },
   { label: "Resolution", resolve: (m) => resolution(m) },
-  { label: "GPS", resolve: (m) => get(m, "GPSPosition", "GPSCoordinates", "GPSLatitude") },
-  {
-    label: "Location",
-    resolve: (m) => get(m, "GPSPosition", "Location", "City", "Sub-location", "ProvinceState", "Country", "CountryCode"),
-  },
-  { label: "Apple", resolve: (m) => match(m, /apple/i, "Make", "HostComputer", "Software") },
-  { label: "Device Model", resolve: (m) => get(m, "Model", "CameraModelName", "HostComputer") },
-  { label: "iPhone Model", resolve: (m) => match(m, /iphone|ipad/i, "Model", "HostComputer") },
-  { label: "Camera", resolve: (m) => camera(m) },
-  { label: "Front Camera", resolve: (m) => match(m, /front/i, "LensModel", "LensInfo", "Lens") },
-  { label: "Back Camera", resolve: (m) => match(m, /back/i, "LensModel", "LensInfo", "Lens") },
-  { label: "Lens", resolve: (m) => get(m, "LensModel", "LensInfo", "LensMake", "Lens") },
   { label: "Date Created", resolve: (m) => get(m, "CreateDate", "CreationDate", "DateTimeOriginal") },
   { label: "Date Modified", resolve: (m) => get(m, "ModifyDate", "FileModifyDate"), mirror: true },
-  { label: "Date Taken", resolve: (m) => get(m, "DateTimeOriginal", "CreateDate") },
+  { label: "Camera", resolve: (m) => camera(m) },
+  { label: "Lens", resolve: (m) => get(m, "LensModel", "LensInfo", "LensMake", "Lens") },
   { label: "Software", resolve: (m) => get(m, "Software", "HostComputer") },
-  { label: "Orientation", resolve: (m) => get(m, "Orientation") },
 ];
 
 const VIDEO_FIELDS: FieldSpec[] = [
-  { label: "Extension", resolve: (_m, p) => extOf(p) },
-  { label: "File Type", resolve: (m) => get(m, "FileType", "MIMEType") },
+  { label: "FPS", resolve: (m) => get(m, "VideoFrameRate", "FrameRate") },
+  { label: "GPS", resolve: (m) => gps(m) },
+  { label: "Model", resolve: (m) => get(m, "Model", "CameraModelName") },
+  { label: "Make", resolve: (m) => get(m, "Make") },
   { label: "File Size", resolve: (m) => get(m, "FileSize"), mirror: true },
-  { label: "Duration", resolve: (m) => get(m, "Duration", "MediaDuration", "TrackDuration") },
+  { label: "File Type", resolve: (m) => get(m, "FileType", "MIMEType") },
   { label: "Resolution", resolve: (m) => resolution(m) },
-  { label: "Frame Rate", resolve: (m) => get(m, "VideoFrameRate", "FrameRate") },
-  { label: "Video Codec", resolve: (m) => get(m, "CompressorName", "VideoCodec", "CompressorID") },
-  { label: "Audio / Sound", resolve: (m) => get(m, "AudioFormat", "AudioChannels", "AudioSampleRate", "AudioBitsPerSample") },
-  { label: "GPS", resolve: (m) => get(m, "GPSPosition", "GPSCoordinates", "GPSLatitude") },
-  { label: "Location", resolve: (m) => get(m, "GPSPosition", "GPSCoordinates", "LocationInformation", "Location") },
-  { label: "Apple", resolve: (m) => match(m, /apple/i, "Make", "Model", "HandlerDescription", "Software") },
-  { label: "Device Model", resolve: (m) => get(m, "Model", "Make") },
-  { label: "iPhone Model", resolve: (m) => match(m, /iphone|ipad/i, "Model") },
-  { label: "Camera", resolve: (m) => camera(m) },
-  { label: "Front Camera", resolve: (m) => match(m, /front/i, "LensModel", "Lens") },
-  { label: "Back Camera", resolve: (m) => match(m, /back/i, "LensModel", "Lens") },
-  { label: "Lens", resolve: (m) => get(m, "LensModel", "Lens") },
+  { label: "Duration", resolve: (m) => get(m, "Duration", "MediaDuration", "TrackDuration") },
   { label: "Date Created", resolve: (m) => get(m, "CreateDate", "CreationDate") },
   { label: "Date Modified", resolve: (m) => get(m, "ModifyDate", "FileModifyDate"), mirror: true },
   { label: "Date Recorded", resolve: (m) => get(m, "CreationDate", "MediaCreateDate", "DateTimeOriginal", "CreateDate") },
+  { label: "Camera", resolve: (m) => camera(m) },
+  { label: "Lens", resolve: (m) => get(m, "LensModel", "Lens") },
+  { label: "Video Codec", resolve: (m) => get(m, "CompressorName", "VideoCodec", "CompressorID") },
+  { label: "Audio / Sound", resolve: (m) => get(m, "AudioFormat", "AudioChannels", "AudioSampleRate", "AudioBitsPerSample") },
   { label: "Software", resolve: (m) => get(m, "Software", "Encoder", "HandlerDescription") },
 ];
 
