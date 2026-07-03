@@ -50,20 +50,19 @@ export interface CleanResult {
   metadataAfter?: MetadataEntry[];
 }
 
-/** Filesystem/tool-version fields that aren't embedded file metadata. */
+/**
+ * Filesystem/tool-version fields that aren't embedded file metadata.
+ * FileType/FileSize/MIMEType/FileModifyDate are intentionally kept so the
+ * per-file report can show File Type, File Size and Date Modified rows.
+ */
 const METADATA_BLOCKLIST = new Set([
   "SourceFile",
   "ExifToolVersion",
   "FileName",
   "Directory",
-  "FileSize",
-  "FileModifyDate",
   "FileAccessDate",
   "FileInodeChangeDate",
   "FilePermissions",
-  "FileType",
-  "FileTypeExtension",
-  "MIMEType",
   "Warning",
   "Error",
 ]);

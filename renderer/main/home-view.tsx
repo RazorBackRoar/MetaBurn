@@ -1,6 +1,6 @@
 // MetaBurn — drag photos/videos/folders in to strip metadata in place.
 
-import { type DragEvent as ReactDragEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type DragEvent as ReactDragEvent, Fragment, useCallback, useEffect, useRef, useState } from "react";
 import {
   Toolbar,
   ToolbarRow,
@@ -17,13 +17,11 @@ import {
   EmptyStateActions,
   EmptyStateMedia,
   Callout,
-  CollapsibleRoot,
-  CollapsibleTrigger,
-  CollapsibleChevron,
-  CollapsibleContent,
   Switch,
 } from "@glaze/core/components";
 import { ShieldCheck, UploadCloud, Loader2, CheckCircle2, XCircle, Ban, VolumeX, TriangleAlert } from "lucide-react";
+
+import { type MetadataEntry, buildFieldRows, extOf, fileKind } from "./metadata-fields.js";
 
 // ── Types mirrored from the backend (main/services) ─────────────────────
 type CleanStatus = "cleaned" | "skipped" | "failed" | "partial";
@@ -35,11 +33,6 @@ interface Counters {
   skipped: number;
   failed: number;
   partial: number;
-}
-
-interface MetadataEntry {
-  tag: string;
-  value: string;
 }
 
 interface CleanResult {
@@ -136,12 +129,16 @@ export function HomeView() {
   const [runMessage, setRunMessage] = useState<string | undefined>(undefined);
   const [scanSummary, setScanSummary] = useState<ScanSummary | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
   const jobIdRef = useRef<string | null>(null);
   const logIdRef = useRef(0);
 
   const processing = runState === "scanning" || runState === "cleaning";
+
+  // The file whose report is shown: the clicked one, else the first processed.
+  const selectedEntry = log.find((e) => e.id === selectedId) ?? log[0] ?? null;
 
   // ── Verify ExifTool on mount ──────────────────────────────────────────
   const checkExiftool = useCallback(async () => {
@@ -243,6 +240,7 @@ export function HomeView() {
 
       // Fresh run: reset the log and counters, then auto-start cleaning.
       setLog([]);
+      setSelectedId(null);
       setCounters(EMPTY_COUNTERS);
       setRunMessage(undefined);
       setScanSummary(null);
@@ -261,6 +259,7 @@ export function HomeView() {
 
   const handleClearLog = useCallback(() => {
     setLog([]);
+    setSelectedId(null);
     setCounters(EMPTY_COUNTERS);
     setRunMessage(undefined);
     setScanSummary(null);
@@ -444,28 +443,44 @@ export function HomeView() {
           </Callout>
         ) : null}
 
-        {/* Live log */}
-        <div className="flex-1 min-h-0 rounded-card border border-separator overflow-hidden">
-          {log.length === 0 ? (
-            <div className="h-full flex items-center justify-center">
-              <Text variant="small" color="tertiary">
-                Processed files will appear here.
-              </Text>
-            </div>
-          ) : (
-            <ScrollArea
-              scrollbars="vertical"
-              className="h-full"
-              autoScrollToBottom
-              autoScrollDeps={[log.length]}
-            >
-              <div className="flex flex-col">
-                {log.map((entry) => (
-                  <LogRow key={entry.id} entry={entry} />
-                ))}
+        {/* File list + per-file metadata report */}
+        <div className="flex-1 min-h-0 flex gap-4">
+          {/* File list */}
+          <div className="w-56 shrink-0 rounded-card border border-separator overflow-hidden flex flex-col">
+            {log.length === 0 ? (
+              <div className="h-full flex items-center justify-center p-3">
+                <Text variant="small" color="tertiary" className="text-center">
+                  Processed files will appear here.
+                </Text>
               </div>
-            </ScrollArea>
-          )}
+            ) : (
+              <ScrollArea scrollbars="vertical" className="h-full" autoScrollToBottom autoScrollDeps={[log.length]}>
+                <div className="flex flex-col">
+                  {log.map((entry) => (
+                    <FileRow
+                      key={entry.id}
+                      entry={entry}
+                      selected={entry.id === selectedEntry?.id}
+                      onSelect={() => setSelectedId(entry.id)}
+                    />
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </div>
+
+          {/* Metadata report for the selected file */}
+          <div className="flex-1 min-w-0 rounded-card border border-separator overflow-hidden">
+            {selectedEntry ? (
+              <MetadataReport entry={selectedEntry} />
+            ) : (
+              <div className="h-full flex items-center justify-center p-4">
+                <Text variant="small" color="tertiary" className="text-center">
+                  Select a file to see its before-and-after metadata.
+                </Text>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -499,99 +514,130 @@ function Counter({
   );
 }
 
-function LogRow({ entry }: { entry: LogEntry }) {
+function FileRow({
+  entry,
+  selected,
+  onSelect,
+}: {
+  entry: LogEntry;
+  selected: boolean;
+  onSelect: () => void;
+}) {
   const name = entry.path.split("/").pop() || entry.path;
-  const before = entry.metadataBefore ?? [];
-  const after = entry.metadataAfter ?? [];
-  const hasPreview = before.length > 0 || after.length > 0;
-
-  const details = (
-    <div className="flex-1 min-w-0 flex flex-col">
-      <Text variant="small-strong" color="primary" className="truncate" title={entry.path}>
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={[
+        "w-full text-left flex flex-col gap-1 px-3 py-2 border-b border-separator last:border-b-0 transition-colors",
+        selected ? "bg-control-subtle" : "hover:bg-control-subtle/60",
+      ].join(" ")}
+    >
+      <Text variant="small-strong" color={selected ? "primary" : "secondary"} className="truncate" title={entry.path}>
         {name}
       </Text>
-      <Text variant="small" color="tertiary" className="truncate" title={entry.path}>
-        {entry.path}
-      </Text>
-      {entry.reason ? (
-        <Text variant="small" color="secondary">
-          {entry.reason}
-        </Text>
-      ) : null}
-    </div>
-  );
-
-  if (!hasPreview) {
-    return (
-      <div className="flex items-start gap-3 px-3 py-2 border-b border-separator last:border-b-0">
-        <Badge color={BADGE_COLOR[entry.status]} size="small">
-          {entry.status}
-        </Badge>
-        {details}
-      </div>
-    );
-  }
-
-  const afterTags = new Set(after.map((e) => e.tag));
-
-  return (
-    <CollapsibleRoot className="border-b border-separator last:border-b-0">
-      <CollapsibleTrigger className="w-full flex items-start gap-3 px-3 py-2 text-left">
-        <Badge color={BADGE_COLOR[entry.status]} size="small">
-          {entry.status}
-        </Badge>
-        {details}
-        <div className="shrink-0 flex items-center gap-1.5 mt-0.5">
-          <Text variant="small" color="tertiary">
-            {before.length} → {after.length}
-          </Text>
-          <CollapsibleChevron className="size-3.5 shrink-0 text-tertiary" />
-        </div>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <div className="pl-3 pr-3 pb-2 pt-0 grid grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1 min-w-0">
-            <Text variant="small-strong" color="tertiary">
-              Before ({before.length})
-            </Text>
-            <ScrollArea scrollbars="vertical" className="max-h-48">
-              <div className="flex flex-col gap-0.5 pr-2">
-                {before.length === 0 ? (
-                  <Text variant="small" color="tertiary">
-                    No metadata found
-                  </Text>
-                ) : (
-                  before.map((e) => <MetadataLine key={e.tag} entry={e} removed={!afterTags.has(e.tag)} />)
-                )}
-              </div>
-            </ScrollArea>
-          </div>
-          <div className="flex flex-col gap-1 min-w-0">
-            <Text variant="small-strong" color="tertiary">
-              After ({after.length})
-            </Text>
-            <ScrollArea scrollbars="vertical" className="max-h-48">
-              <div className="flex flex-col gap-0.5 pr-2">
-                {after.length === 0 ? (
-                  <Text variant="small" color="tertiary">
-                    No metadata remaining
-                  </Text>
-                ) : (
-                  after.map((e) => <MetadataLine key={e.tag} entry={e} removed={false} />)
-                )}
-              </div>
-            </ScrollArea>
-          </div>
-        </div>
-      </CollapsibleContent>
-    </CollapsibleRoot>
+      <Badge color={BADGE_COLOR[entry.status]} size="small">
+        {entry.status}
+      </Badge>
+    </button>
   );
 }
 
-function MetadataLine({ entry, removed }: { entry: MetadataEntry; removed: boolean }) {
+function MetadataReport({ entry }: { entry: LogEntry }) {
+  const name = entry.path.split("/").pop() || entry.path;
+  const kind = fileKind(entry.path);
+  const ext = extOf(entry.path);
+  const rows = buildFieldRows(kind, entry.path, entry.metadataBefore, entry.metadataAfter);
+  const sectionTitle = kind === "video" ? "Video Metadata" : "Photo Metadata";
+  const typeLabel = kind === "video" ? "Video" : "Photo";
+
   return (
-    <Text variant="small" color={removed ? "red" : "secondary"} truncate title={`${entry.tag}: ${entry.value}`}>
-      {entry.tag}: {entry.value}
-    </Text>
+    <div className="h-full flex flex-col">
+      {/* Header: file name, extension, file type */}
+      <div className="shrink-0 px-4 py-3 border-b border-separator flex flex-col gap-1.5">
+        <Text variant="strong" color="primary" className="truncate" title={entry.path}>
+          {name}
+        </Text>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge color={BADGE_COLOR[entry.status]} size="small">
+            {entry.status}
+          </Badge>
+          <Text variant="small" color="secondary">
+            {ext || "—"} · {typeLabel}
+          </Text>
+        </div>
+        {entry.reason ? (
+          <Text variant="small" color="tertiary">
+            {entry.reason}
+          </Text>
+        ) : null}
+      </div>
+
+      {/* Section title */}
+      <div className="shrink-0 px-4 pt-3 pb-1">
+        <Text variant="small-strong" color="secondary">
+          {sectionTitle}
+        </Text>
+      </div>
+
+      {/* Mirrored column headers: Before | After */}
+      <div className="shrink-0 grid grid-cols-2 border-y border-separator">
+        <div className="px-4 py-1.5">
+          <Text variant="small-strong" color="tertiary">
+            Before Cleaning
+          </Text>
+        </div>
+        <div className="px-4 py-1.5 border-l border-separator">
+          <Text variant="small-strong" color="tertiary">
+            After Cleaning
+          </Text>
+        </div>
+      </div>
+
+      {/* Field rows — identical labels/order on both sides for easy comparison */}
+      <ScrollArea scrollbars="vertical" className="flex-1 min-h-0">
+        <div className="grid grid-cols-2">
+          {rows.map((row) => {
+            const stripped = row.before !== "" && row.after === "";
+            return (
+              <Fragment key={row.label}>
+                <MetaCell label={row.label} value={row.before} tone={stripped ? "removed" : "normal"} />
+                <MetaCell label={row.label} value={row.after} tone="normal" leftBorder />
+              </Fragment>
+            );
+          })}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}
+
+function MetaCell({
+  label,
+  value,
+  tone,
+  leftBorder,
+}: {
+  label: string;
+  value: string;
+  tone: "normal" | "removed";
+  leftBorder?: boolean;
+}) {
+  const empty = value === "";
+  const valueColor = empty ? "tertiary" : tone === "removed" ? "red" : "primary";
+  return (
+    <div
+      className={[
+        "px-4 py-2 border-b border-separator flex flex-col gap-0.5 min-w-0",
+        leftBorder ? "border-l" : "",
+      ].join(" ")}
+    >
+      <Text variant="small" color="tertiary">
+        {label}
+      </Text>
+      <Text variant="small-strong" color={valueColor} className="break-words">
+        {empty ? "Empty" : value}
+      </Text>
+    </div>
   );
 }
