@@ -131,6 +131,7 @@ export function HomeView() {
   const [log, setLog] = useState<LogEntry[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [dropNotice, setDropNotice] = useState<string | null>(null);
 
   const jobIdRef = useRef<string | null>(null);
   const logIdRef = useRef(0);
@@ -208,7 +209,24 @@ export function HomeView() {
     };
   }, []);
 
-  // ── Drag & drop ───────────────────────────────────────────────────────
+  // ── Start a cleaning job from a set of paths (drop or browse) ──────────
+  const startJob = useCallback(
+    (paths: string[]) => {
+      if (paths.length === 0) return;
+      // Fresh run: reset the log and counters, then auto-start cleaning.
+      setDropNotice(null);
+      setLog([]);
+      setSelectedId(null);
+      setCounters(EMPTY_COUNTERS);
+      setRunMessage(undefined);
+      setScanSummary(null);
+      setRunState("scanning");
+      void window.glazeAPI.glaze.ipc.invoke("clean:start", { paths, muteAudio });
+    },
+    [muteAudio],
+  );
+
+  // ── Drag & drop (the whole window is a drop target) ───────────────────
   const handleDragOver = useCallback((e: ReactDragEvent) => {
     e.preventDefault();
   }, []);
@@ -222,7 +240,7 @@ export function HomeView() {
   );
 
   const handleDragLeave = useCallback((e: ReactDragEvent) => {
-    // Only clear when leaving the drop zone itself, not its children.
+    // Only clear when the pointer leaves the window, not when crossing children.
     if (e.currentTarget === e.target) setIsDragging(false);
   }, []);
 
@@ -232,23 +250,35 @@ export function HomeView() {
       setIsDragging(false);
       if (!exiftoolReady || processing) return;
 
-      const paths = Array.from(e.dataTransfer.files)
+      const files = Array.from(e.dataTransfer.files);
+      const paths = files
         .map((f) => window.glazeAPI.webUtils.getPathForFile(f))
         .filter((p): p is string => typeof p === "string" && p.length > 0);
 
-      if (paths.length === 0) return;
+      if (paths.length === 0) {
+        // Never fail silently — tell the user and point them at the fallback.
+        setDropNotice(
+          files.length > 0
+            ? "Couldn't read those items' file paths. Click the drop area to browse and pick them instead."
+            : "No files were detected in that drop. Try photos, videos, or a folder — or click to browse.",
+        );
+        return;
+      }
 
-      // Fresh run: reset the log and counters, then auto-start cleaning.
-      setLog([]);
-      setSelectedId(null);
-      setCounters(EMPTY_COUNTERS);
-      setRunMessage(undefined);
-      setScanSummary(null);
-      setRunState("scanning");
-      void window.glazeAPI.glaze.ipc.invoke("clean:start", { paths, muteAudio });
+      startJob(paths);
     },
-    [exiftoolReady, processing, muteAudio],
+    [exiftoolReady, processing, startJob],
   );
+
+  // ── Native file/folder picker — a reliable fallback for drag & drop ────
+  const handleBrowse = useCallback(async () => {
+    if (!exiftoolReady || processing) return;
+    const res = await window.glazeAPI.dialog.showOpenDialog({
+      properties: ["openFile", "openDirectory", "multiSelections"],
+    });
+    if (res.canceled || res.filePaths.length === 0) return;
+    startJob(res.filePaths);
+  }, [exiftoolReady, processing, startJob]);
 
   // ── Actions ───────────────────────────────────────────────────────────
   const handleCancel = useCallback(() => {
@@ -260,6 +290,7 @@ export function HomeView() {
   const handleClearLog = useCallback(() => {
     setLog([]);
     setSelectedId(null);
+    setDropNotice(null);
     setCounters(EMPTY_COUNTERS);
     setRunMessage(undefined);
     setScanSummary(null);
@@ -333,7 +364,13 @@ export function HomeView() {
 
   // ── Main view ─────────────────────────────────────────────────────────
   return (
-    <div className="h-full flex flex-col">
+    <div
+      className="h-full flex flex-col"
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <Toolbar>
         <ToolbarRow className="relative">
           <ToolbarTitle className="absolute left-1/2 -translate-x-1/2 pl-0 text-support-red">
@@ -353,17 +390,16 @@ export function HomeView() {
         </ToolbarRow>
       </Toolbar>
 
-      <div className="flex-1 min-h-0 flex flex-col gap-4 px-4 pb-4">
-        {/* Drop zone */}
-        <div
-          onDragOver={handleDragOver}
-          onDragEnter={handleDragEnter}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
+      <div className="flex-1 min-h-0 flex flex-col gap-3 px-4 pb-4">
+        {/* Drop zone — the whole window accepts drops; click here to browse */}
+        <button
+          type="button"
+          onClick={handleBrowse}
+          disabled={processing}
           className={[
-            "shrink-0 flex flex-col items-center justify-center gap-2 rounded-card border-2 border-dashed py-8 transition-colors",
+            "shrink-0 w-full flex flex-col items-center justify-center gap-1.5 rounded-card border-2 border-dashed py-6 transition-colors",
             isDragging ? "border-accent bg-control-subtle" : "border-separator",
-            processing ? "opacity-60" : "",
+            processing ? "opacity-60" : "hover:border-accent/60 hover:bg-control-subtle/40",
           ].join(" ")}
         >
           {processing ? (
@@ -375,9 +411,15 @@ export function HomeView() {
             {processing ? "Processing…" : "Drop photos, videos, or folders here"}
           </Text>
           <Text variant="small" color="secondary">
-            Metadata is removed in place — no copies, no backups.
+            {processing ? "Cleaning metadata in place…" : "or click to browse — removed in place, no copies"}
           </Text>
-        </div>
+        </button>
+
+        {dropNotice ? (
+          <Callout color="orange" icon={<TriangleAlert className="size-4" />} className="shrink-0">
+            <Callout.Text>{dropNotice}</Callout.Text>
+          </Callout>
+        ) : null}
 
         {/* Mute Video option */}
         <div className="shrink-0 flex items-center justify-between gap-3 rounded-card border border-separator px-3 py-2">
@@ -443,44 +485,31 @@ export function HomeView() {
           </Callout>
         ) : null}
 
-        {/* File list + per-file metadata report */}
-        <div className="flex-1 min-h-0 flex gap-4">
-          {/* File list */}
-          <div className="w-56 shrink-0 rounded-card border border-separator overflow-hidden flex flex-col">
-            {log.length === 0 ? (
-              <div className="h-full flex items-center justify-center p-3">
-                <Text variant="small" color="tertiary" className="text-center">
-                  Processed files will appear here.
-                </Text>
-              </div>
-            ) : (
-              <ScrollArea scrollbars="vertical" className="h-full" autoScrollToBottom autoScrollDeps={[log.length]}>
-                <div className="flex flex-col">
-                  {log.map((entry) => (
-                    <FileRow
-                      key={entry.id}
-                      entry={entry}
-                      selected={entry.id === selectedEntry?.id}
-                      onSelect={() => setSelectedId(entry.id)}
-                    />
-                  ))}
-                </div>
-              </ScrollArea>
-            )}
+        {/* Compact file picker — only when more than one file was processed */}
+        {log.length > 1 ? (
+          <div className="shrink-0 flex gap-2 overflow-x-auto pb-1">
+            {log.map((entry) => (
+              <FileChip
+                key={entry.id}
+                entry={entry}
+                selected={entry.id === selectedEntry?.id}
+                onSelect={() => setSelectedId(entry.id)}
+              />
+            ))}
           </div>
+        ) : null}
 
-          {/* Metadata report for the selected file */}
-          <div className="flex-1 min-w-0 rounded-card border border-separator overflow-hidden">
-            {selectedEntry ? (
-              <MetadataReport entry={selectedEntry} />
-            ) : (
-              <div className="h-full flex items-center justify-center p-4">
-                <Text variant="small" color="tertiary" className="text-center">
-                  Select a file to see its before-and-after metadata.
-                </Text>
-              </div>
-            )}
-          </div>
+        {/* Metadata preview — before / after, fills the remaining height */}
+        <div className="flex-1 min-h-0 rounded-card border border-separator overflow-hidden">
+          {selectedEntry ? (
+            <MetadataReport entry={selectedEntry} />
+          ) : (
+            <div className="h-full flex items-center justify-center p-4">
+              <Text variant="small" color="tertiary" className="text-center">
+                Drop a photo, video, or folder to see its before-and-after metadata.
+              </Text>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -514,7 +543,7 @@ function Counter({
   );
 }
 
-function FileRow({
+function FileChip({
   entry,
   selected,
   onSelect,
@@ -528,17 +557,18 @@ function FileRow({
     <button
       type="button"
       onClick={onSelect}
+      title={entry.path}
       className={[
-        "w-full text-left flex flex-col gap-1 px-3 py-2 border-b border-separator last:border-b-0 transition-colors",
-        selected ? "bg-control-subtle" : "hover:bg-control-subtle/60",
+        "shrink-0 max-w-[220px] flex items-center gap-2 rounded-control border px-2.5 py-1 transition-colors",
+        selected ? "border-accent bg-control-subtle" : "border-separator hover:bg-control-subtle/60",
       ].join(" ")}
     >
-      <Text variant="small-strong" color={selected ? "primary" : "secondary"} className="truncate" title={entry.path}>
-        {name}
-      </Text>
       <Badge color={BADGE_COLOR[entry.status]} size="small">
         {entry.status}
       </Badge>
+      <Text variant="small" color={selected ? "primary" : "secondary"} className="truncate">
+        {name}
+      </Text>
     </button>
   );
 }
