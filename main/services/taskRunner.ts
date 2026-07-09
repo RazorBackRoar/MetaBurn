@@ -2,7 +2,7 @@
  * taskRunner — orchestrates a cleaning run: scan → clean sequentially, while
  * broadcasting live progress and supporting cancellation between files.
  *
- * Events broadcast to renderers (received via glazeAPI.glaze.ipc.onNotification):
+ * Events broadcast to renderers (received via appAPI.app.ipc.onNotification):
  *  - "clean:state"    → { jobId, state, counters, message? }
  *  - "clean:progress" → { jobId, result, counters }
  *
@@ -10,7 +10,7 @@
  * updates happen at safe boundaries between files.
  */
 
-import { ipcMain, logger, Notification } from "@glaze/core/backend";
+import { ipcMain, logger, Notification } from "@electron-core/backend";
 
 import { buildFileList } from "./scanner.js";
 import { cleanFile, resolveExiftool, resolveFfmpeg, type CleanResult, type CleanStatus } from "./metadataCleaner.js";

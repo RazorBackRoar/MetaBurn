@@ -1,25 +1,25 @@
 // MetaBurn — drag photos/videos/folders in to strip metadata in place.
 
-import { type DragEvent as ReactDragEvent, Fragment, useCallback, useEffect, useRef, useState } from "react";
 import {
-  Toolbar,
-  ToolbarRow,
-  ToolbarTitle,
-  ToolbarActions,
-  Button,
-  Badge,
-  Status,
-  Text,
-  ScrollArea,
-  EmptyState,
-  EmptyStateTitle,
-  EmptyStateDescription,
-  EmptyStateActions,
-  EmptyStateMedia,
-  Callout,
-  Switch,
-} from "@glaze/core/components";
-import { ShieldCheck, UploadCloud, Loader2, CheckCircle2, XCircle, Ban, VolumeX, TriangleAlert } from "lucide-react";
+    Badge,
+    Button,
+    Callout,
+    EmptyState,
+    EmptyStateActions,
+    EmptyStateDescription,
+    EmptyStateMedia,
+    EmptyStateTitle,
+    ScrollArea,
+    Status,
+    Switch,
+    Text,
+    Toolbar,
+    ToolbarActions,
+    ToolbarRow,
+    ToolbarTitle,
+} from "@electron-core/components";
+import { Ban, CheckCircle2, Loader2, ShieldCheck, TriangleAlert, UploadCloud, VolumeX, XCircle } from "lucide-react";
+import { type DragEvent as ReactDragEvent, Fragment, useCallback, useEffect, useRef, useState } from "react";
 
 import { type MetadataEntry, buildFieldRows, extOf, fileKind } from "./metadata-fields.js";
 
@@ -143,7 +143,7 @@ export function HomeView() {
 
   // ── Verify ExifTool on mount ──────────────────────────────────────────
   const checkExiftool = useCallback(async () => {
-    const res = await window.glazeAPI.glaze.ipc.invoke<{
+    const res = await window.electronAPI.app.ipc.invoke<{
       available: boolean;
       canInstall: boolean;
     }>("clean:checkExiftool");
@@ -157,7 +157,7 @@ export function HomeView() {
 
   // ── Verify ffmpeg on mount (only needed if Mute Video is used) ─────────
   const checkFfmpeg = useCallback(async () => {
-    const res = await window.glazeAPI.glaze.ipc.invoke<{
+    const res = await window.electronAPI.app.ipc.invoke<{
       available: boolean;
       canInstall: boolean;
     }>("clean:checkFfmpeg");
@@ -172,7 +172,7 @@ export function HomeView() {
   const handleInstallFfmpeg = useCallback(async () => {
     setInstallingFfmpeg(true);
     try {
-      const res = await window.glazeAPI.glaze.ipc.invoke<{ success: boolean }>("clean:installFfmpeg");
+      const res = await window.electronAPI.app.ipc.invoke<{ success: boolean }>("clean:installFfmpeg");
       if (res.success) setFfmpegReady(true);
       else await checkFfmpeg();
     } finally {
@@ -182,7 +182,7 @@ export function HomeView() {
 
   // ── Subscribe to live cleaning events ─────────────────────────────────
   useEffect(() => {
-    const offState = window.glazeAPI.glaze.ipc.onNotification("clean:state", (raw) => {
+    const offState = window.electronAPI.app.ipc.onNotification("clean:state", (raw) => {
       const evt = raw as StateEvent;
       jobIdRef.current = evt.jobId;
       setCounters(evt.counters);
@@ -196,7 +196,7 @@ export function HomeView() {
       if (evt.scanSummary) setScanSummary(evt.scanSummary);
     });
 
-    const offProgress = window.glazeAPI.glaze.ipc.onNotification("clean:progress", (raw) => {
+    const offProgress = window.electronAPI.app.ipc.onNotification("clean:progress", (raw) => {
       const evt = raw as ProgressEvent;
       jobIdRef.current = evt.jobId;
       setCounters(evt.counters);
@@ -221,7 +221,7 @@ export function HomeView() {
       setRunMessage(undefined);
       setScanSummary(null);
       setRunState("scanning");
-      void window.glazeAPI.glaze.ipc.invoke("clean:start", { paths, muteAudio });
+      void window.electronAPI.app.ipc.invoke("clean:start", { paths, muteAudio });
     },
     [muteAudio],
   );
@@ -252,7 +252,7 @@ export function HomeView() {
 
       const files = Array.from(e.dataTransfer.files);
       const paths = files
-        .map((f) => window.glazeAPI.webUtils.getPathForFile(f))
+        .map((f) => window.electronAPI.webUtils.getPathForFile(f))
         .filter((p): p is string => typeof p === "string" && p.length > 0);
 
       if (paths.length === 0) {
@@ -273,7 +273,7 @@ export function HomeView() {
   // ── Native file/folder picker — a reliable fallback for drag & drop ────
   const handleBrowse = useCallback(async () => {
     if (!exiftoolReady || processing) return;
-    const res = await window.glazeAPI.dialog.showOpenDialog({
+    const res = await window.electronAPI.dialog.showOpenDialog({
       properties: ["openFile", "openDirectory", "multiSelections"],
     });
     if (res.canceled || res.filePaths.length === 0) return;
@@ -283,7 +283,7 @@ export function HomeView() {
   // ── Actions ───────────────────────────────────────────────────────────
   const handleCancel = useCallback(() => {
     if (jobIdRef.current) {
-      void window.glazeAPI.glaze.ipc.invoke("clean:cancel", { jobId: jobIdRef.current });
+      void window.electronAPI.app.ipc.invoke("clean:cancel", { jobId: jobIdRef.current });
     }
   }, []);
 
@@ -316,7 +316,7 @@ export function HomeView() {
   const handleInstall = useCallback(async () => {
     setInstalling(true);
     try {
-      const res = await window.glazeAPI.glaze.ipc.invoke<{ success: boolean }>("clean:installExiftool");
+      const res = await window.electronAPI.app.ipc.invoke<{ success: boolean }>("clean:installExiftool");
       if (res.success) {
         setExiftoolReady(true);
         setRunState("waiting");
@@ -399,7 +399,7 @@ export function HomeView() {
           className={[
             "shrink-0 w-full flex flex-col items-center justify-center gap-1.5 rounded-card border-2 border-dashed py-6 transition-colors",
             isDragging ? "border-accent bg-control-subtle" : "border-separator",
-            processing ? "opacity-60" : "hover:border-accent/60 hover:bg-control-subtle/40",
+            processing ? "opacity-60" : "hover:border-accent hover:bg-control-subtle",
           ].join(" ")}
         >
           {processing ? (
@@ -535,7 +535,7 @@ function Counter({
           : "text-primary";
   return (
     <div className="flex items-baseline gap-1.5">
-      <span className={`text-small-strong ${valueColor}`}>{value}</span>
+      <span className={`text-[13px] font-semibold ${valueColor}`}>{value}</span>
       <Text variant="small" color="tertiary">
         {label}
       </Text>
@@ -560,7 +560,7 @@ function FileChip({
       title={entry.path}
       className={[
         "shrink-0 max-w-[220px] flex items-center gap-2 rounded-control border px-2.5 py-1 transition-colors",
-        selected ? "border-accent bg-control-subtle" : "border-separator hover:bg-control-subtle/60",
+        selected ? "border-accent bg-control-subtle" : "border-separator hover:bg-control-subtle",
       ].join(" ")}
     >
       <Badge color={BADGE_COLOR[entry.status]} size="small">

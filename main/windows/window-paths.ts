@@ -34,7 +34,7 @@ export function getWindowFileUrl(htmlFileName: string): string {
 /**
  * Absolute path to the built preload script.
  *
- * The Vite build outputs the preload entry to `build/assets/preload.js` with a
+ * The build outputs the preload entry to `build/assets/preload.cjs` with a
  * stable (non-hashed) filename.  The native layer reads this path from
  * `webPreferences.preload` and injects the script into an isolated
  * WKContentWorld before page scripts run.
@@ -45,7 +45,7 @@ export function getWindowFileUrl(htmlFileName: string): string {
  * expected to have produced the file.
  */
 export function getPreloadPath(): string {
-  return path.join(BUILD_ROOT, "assets", "preload.js");
+  return path.join(BUILD_ROOT, "assets", "preload.cjs");
 }
 
 /**

@@ -7,7 +7,7 @@ import {
 import { HomeView } from "./home-view";
 import { RootView } from "./root-view";
 import { QueryClient } from "@tanstack/react-query";
-import { ErrorBoundaryView } from "@glaze/core/components";
+import { ErrorBoundaryView } from "@electron-core/components";
 
 const rootRoute = createRootRouteWithContext<{
   queryClient: QueryClient;

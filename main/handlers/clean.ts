@@ -13,7 +13,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "util";
 
-import { logger } from "@glaze/core/backend";
+import { logger } from "@electron-core/backend";
 
 import { runClean, cancel, type Summary } from "../services/taskRunner.js";
 import {

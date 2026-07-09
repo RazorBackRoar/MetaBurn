@@ -11,7 +11,7 @@ import { appHandlers } from "./app.js";
 import { cleanHandlers } from "./clean.js";
 import { getSettingsWindow, openSettingsWindow } from "../windows/settings-window.js";
 
-import { ipcMain, logger } from "@glaze/core/backend";
+import { ipcMain, logger } from "@electron-core/backend";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,7 +24,7 @@ export function registerHandlers(): void {
     return await appHandlers.getInfo();
   });
 
-  // Return the .glaze project path (used for deep links back to the host)
+  // Return the .app project path (used for deep links back to the host)
   // __dirname = build/main, so two levels up is the app root
   ipcMain.handle("app:getProjectPath", async () => {
     return path.join(__dirname, "..", "..");

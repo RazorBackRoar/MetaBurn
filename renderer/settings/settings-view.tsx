@@ -13,8 +13,8 @@ import {
   FieldLabel,
   FieldSet,
   toast,
-} from "@glaze/core/components";
-import type { NativeThemeInfo } from "@glaze/core/ipc";
+} from "@electron-core/components";
+import type { NativeThemeInfo } from "@electron-core/ipc";
 
 export function SettingsView() {
   const [themeInfo, setThemeInfo] = useState<NativeThemeInfo | null>(null);
@@ -41,7 +41,7 @@ export function SettingsView() {
       }
 
       event.preventDefault();
-      window.glazeAPI.glaze.ipc.invoke("window:closeSettings");
+      window.electronAPI.app.ipc.invoke("window:closeSettings");
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -50,7 +50,7 @@ export function SettingsView() {
 
   const refreshThemeInfo = async () => {
     try {
-      const info = await window.glazeAPI.nativeTheme.getInfo();
+      const info = await window.electronAPI.nativeTheme.getInfo();
       setThemeInfo(info);
     } catch (error) {
       toast.error(`Failed to get theme info: ${error}`);
@@ -66,7 +66,7 @@ export function SettingsView() {
   const handleThemeChange = async (value: string) => {
     const source = value as "system" | "light" | "dark";
     try {
-      await window.glazeAPI.nativeTheme.setThemeSource(source);
+      await window.electronAPI.nativeTheme.setThemeSource(source);
       await refreshThemeInfo();
     } catch (error) {
       toast.error(`Failed to set theme: ${error}`);

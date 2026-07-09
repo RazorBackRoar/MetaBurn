@@ -2,14 +2,14 @@
 
 ## Context
 
-MetaCleaner is a local-only macOS utility (Glaze/Raycast app) that strips identifying metadata
+MetaCleaner is a local-only macOS utility (Electron/Raycast app) that strips identifying metadata
 (EXIF, GPS, XMP, IPTC, QuickTime, device/camera/software tags) from photos and videos **in place**,
 with no backups, no renames, no copies, and no network access. The user drags files/folders from
 Finder onto a drop zone; the app builds an explicit, path-bounded file list from exactly what was
 dropped, then runs the system Homebrew `exiftool` on each supported file. It shows a live per-file
 log, live counters, and a final summary. Correctness and file safety take priority over speed.
 
-The app is a fresh Glaze template scaffold. All heavy lifting (fs scanning + `exiftool` execution)
+The app is a fresh Electron template scaffold. All heavy lifting (fs scanning + `exiftool` execution)
 must live in the **backend** (`main/`, Node.js) because it needs `fs` and `child_process`; the
 **renderer** (`renderer/`, React) is the drag-and-drop UI. Communication is over the native IPC
 bridge already exposed by the scaffold.
@@ -20,10 +20,10 @@ bridge already exposed by the scaffold.
   a clear reason (ExifTool cannot safely rewrite those containers).
 
 ### Verified platform facts (no preload changes needed — all exposed by default)
-- `window.glazeAPI.webUtils.getPathForFile(file: File) => string` — absolute path of a dropped file/folder.
-- `window.glazeAPI.glaze.ipc.invoke(channel, ...args)` — request/reply to backend.
-- `window.glazeAPI.glaze.ipc.onNotification(channel, cb) => unsubscribe` — receive backend broadcasts.
-- Backend `ipcMain.handle(channel, handler)` and `ipcMain.broadcast(channel, ...args)` (from `@glaze/core/backend`).
+- `window.electronAPI.webUtils.getPathForFile(file: File) => string` — absolute path of a dropped file/folder.
+- `window.electronAPI.app.ipc.invoke(channel, ...args)` — request/reply to backend.
+- `window.electronAPI.app.ipc.onNotification(channel, cb) => unsubscribe` — receive backend broadcasts.
+- Backend `ipcMain.handle(channel, handler)` and `ipcMain.broadcast(channel, ...args)` (from `@electron-core/backend`).
 
 ## Architecture
 
@@ -31,7 +31,7 @@ bridge already exposed by the scaffold.
   `main/handlers/`. Cleaning runs sequentially, file-by-file, so cancel checks and progress
   broadcasts happen between files. No shell strings — `execFile` with argument arrays only.
 - **Frontend.** Single focused view: drop zone + status + live log + counters + Clear Log / Cancel.
-  Uses `@glaze/core` design-system components (no hand-rolled CSS).
+  Uses `@electron-core` design-system components (no hand-rolled CSS).
 - **No new npm dependencies.** Uses Node `fs`/`path`/`child_process` + system `exiftool`.
 
 ## Backend — files to create
@@ -97,8 +97,8 @@ Orchestrates a run and drives progress + cancellation.
 ## Frontend — files to modify
 
 ### `renderer/main/home-view.tsx` (replace template content)
-Single view, built with `@glaze/core` components (invoke `glaze-component-patterns` +
-`glaze-drag-and-drop` + `glaze-icon-usage` skills during implementation). Structure:
+Single view, built with `@electron-core` components (invoke `app-component-patterns` +
+`app-drag-and-drop` + `app-icon-usage` skills during implementation). Structure:
 - **On mount:** `invoke("clean:checkExiftool")`. If unavailable, show a prominent notice:
   “ExifTool is required. Install it with: `brew install exiftool`” and disable the drop zone.
 - **Drop zone (large):** `onDragOver` (preventDefault to allow drop), `onDrop`:
@@ -115,7 +115,7 @@ Single view, built with `@glaze/core` components (invoke `glaze-component-patter
 - Keep the existing draggable title-bar region from `root-view.tsx`.
 
 ### `main/index.ts` — window sizing
-- Invoke `glaze-window-sizing` skill; set a focused utility size (approx `width: 560, height: 700,
+- Invoke `app-window-sizing` skill; set a focused utility size (approx `width: 560, height: 700,
   minWidth: 440, minHeight: 560`) suited to a drop zone + scrolling log. Keep default frame +
   traffic lights (no custom chrome, no CSS blur).
 
@@ -128,7 +128,7 @@ Single view, built with `@glaze/core` components (invoke `glaze-component-patter
 - No network calls, no telemetry anywhere in the code.
 
 ## Validation
-1. `npm run type-check && npm run lint` (from `.glaze-sources/`).
+1. `npm run type-check && npm run lint` (from `.app-sources/`).
 2. Build the app (canonical host build) and launch it.
 3. Runtime checks via live DOM inspection / manual drop:
    - Missing-exiftool path: temporarily verify the install notice renders when probe returns unavailable.
@@ -143,7 +143,7 @@ Single view, built with `@glaze/core` components (invoke `glaze-component-patter
 4. Confirm no files outside the dropped paths were modified (spot-check sibling timestamps).
 
 ## Project memory
-- After completion, create `.glaze_memory/PROJECT-CONTEXT.md` (Overview + Current State +
+- After completion, create `.app_memory/PROJECT-CONTEXT.md` (Overview + Current State +
   first Recent History entry) documenting the services, IPC channels (`clean:start`,
   `clean:cancel`, `clean:checkExiftool`, broadcasts `clean:progress`/`clean:state`), the
   exiftool argument choices, and the two confirmed tradeoff decisions.

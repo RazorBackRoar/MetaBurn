@@ -1,19 +1,47 @@
 {
-  "id": "1crd5dru",
   "name": "metaburn",
   "version": "1.0.0",
   "productName": "MetaBurn",
-  "description": "Remove metadata from photos and videos",
+  "description": "Burn metadata from photos and videos.",
   "iconDescription": "A local privacy tool that strips sensitive metadata from photos and videos through drag-and-drop, removing EXIF, GPS, camera details, and device information while keeping files in place. Think of a photo or video file with sensitive data being scrubbed clean, a shield protecting privacy, or metadata layers being peeled away like an onion. Aesthetic: focused on privacy and security.",
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node glaze.ts build",
-    "dev": "node glaze.ts dev",
-    "dev:renderer": "node glaze.ts dev:renderer",
-    "lint": "node glaze.ts lint",
-    "type-check": "node glaze.ts type-check",
-    "format": "node glaze.ts format"
+    "build:preload": "esbuild renderer/preload.ts --bundle --platform=node --target=es2022 --format=cjs --tsconfig=tsconfig.json --outfile=build/assets/preload.cjs --external:electron",
+    "build:main": "esbuild main/index.ts --bundle --platform=node --target=node22 --format=esm --tsconfig=tsconfig.json --outdir=build/main --external:electron '--external:node:*'",
+    "build:renderer": "vite build --config vite.renderer.config.ts",
+    "build": "npm run build:preload && npm run build:main && npm run build:renderer",
+    "dev:preload": "npm run build:preload",
+    "dev:main": "npm run build:main && electron build/main/index.js",
+    "dev:renderer": "vite dev --config vite.renderer.config.ts",
+    "dev": "concurrently --kill-others --names RENDERER,MAIN \"npm run dev:renderer\" \"npm run dev:main\"",
+    "start": "unset ELECTRON_RUN_AS_NODE && electron build/main/index.js",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "oxfmt --write .",
+    "dist": "npm run build && electron-builder --mac --publish never"
+  },
+  "build": {
+    "appId": "com.yourcompany.metaburn",
+    "productName": "MetaBurn",
+    "files": [
+      "build/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "mac": {
+      "icon": "app-icon.icns",
+      "category": "public.app-category.utilities",
+      "target": [
+        "dmg"
+      ]
+    },
+    "dmg": {
+      "icon": "app-icon.icns",
+      "sign": false
+    }
   },
   "dependencies": {
     "@radix-ui/colors": "^3.0.0",
@@ -39,6 +67,9 @@
     "@typescript-eslint/parser": "^8.18.0",
     "@vitejs/plugin-react": "^6.0.1",
     "babel-plugin-react-compiler": "^1.0.0",
+    "concurrently": "^10.0.3",
+    "electron": "^43.1.0",
+    "electron-builder": "^26.15.6",
     "esbuild": "^0.27.4",
     "eslint": "^9.39.2",
     "eslint-plugin-import": "^2.31.0",
@@ -53,14 +84,5 @@
     "node": ">=24"
   },
   "packageManager": "npm@11.11.0+sha512-82gRxKrh/eY5UnNorkTFcdBQAGpgjWehkfGVqAGlJjejEtJZGGJUqjo3mbBTNbc5BTnPKGVtGPBZGhElujX5cw==",
-  "glaze": {
-    "capabilities": {},
-    "sdkVersion": "0.8.0.0",
-    "createdAt": "2026-07-02T20:52:13.445Z",
-    "lastMigration": "cli-js-entry",
-    "host": {
-      "minVersion": "0.8.0.0"
-    },
-    "updatedAt": 1783042029712
-  }
+  "main": "build/main/index.js"
 }

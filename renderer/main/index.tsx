@@ -4,8 +4,8 @@ import { RouterProvider } from "@tanstack/react-router";
 import { router, queryClient } from "./router";
 import "../styles.css";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { TooltipProvider, Toaster } from "@glaze/core/components";
-import { initLogging } from "@glaze/core/utils";
+import { TooltipProvider, Toaster } from "@electron-core/components";
+import { initLogging } from "@electron-core/utils";
 
 declare const __APP_DISPLAY_NAME__: string | undefined;
 

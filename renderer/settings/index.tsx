@@ -1,8 +1,8 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { TooltipProvider, Toaster } from "@glaze/core/components";
-import { initLogging } from "@glaze/core/utils";
+import { TooltipProvider, Toaster } from "@electron-core/components";
+import { initLogging } from "@electron-core/utils";
 import { SettingsView } from "./settings-view";
 import "../styles.css";
 

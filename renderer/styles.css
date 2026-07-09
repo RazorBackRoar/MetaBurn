@@ -1,13 +1,143 @@
 /*
- * Glaze framework styles (@import "@glaze/core/..." and @import "tailwindcss")
+ * Electron framework styles (@import "@electron-core/..." and @import "tailwindcss")
  * are automatically injected before this file during build and dev.
  * Add your custom styles and @source directives below.
  */
+
+@import "tailwindcss";
 
 /* Tell Tailwind to scan all local renderer window files for class names */
 @source "./**/*.{ts,tsx}";
 @source not "./preload.ts";
 @source not "./dev/**/*";
+
+/* ── MetaBurn Red Metadata Burner Theme ───────────────────────────────────── */
+
+.dark,
+:root {
+  --accent: #ff4d4d;
+  --accent-hover: #ff7373;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  box-sizing: border-box;
+  background-color: #111111;
+  background-image:
+    radial-gradient(115% 80% at 50% -8%, rgba(255, 77, 77, 0.08) 0%, rgba(255, 77, 77, 0) 55%),
+    linear-gradient(180deg, #141414 0%, #0c0c0c 100%);
+  background-attachment: fixed;
+  padding-top: 28px;
+  overflow: hidden;
+}
+
+/* Common foreground / surface design tokens used by electron-core components */
+:root {
+  --fg: #f0f0f0;
+  --fg-secondary: #a0a0a0;
+  --fg-tertiary: #8e8e8e;
+  --bg-control: rgba(255, 255, 255, 0.06);
+  --bg-control-active: rgba(255, 255, 255, 0.12);
+  --bg-control-subtle: rgba(255, 255, 255, 0.04);
+  --bg-well: rgba(0, 0, 0, 0.35);
+  --separator: rgba(255, 255, 255, 0.12);
+  --support-green: #4ade80;
+  --support-orange: #fb923c;
+  --support-red: #ff4d4d;
+}
+
+/* Primary / secondary / tertiary text */
+.text-primary {
+  color: var(--fg);
+}
+
+.text-secondary {
+  color: var(--fg-secondary);
+}
+
+.text-tertiary {
+  color: var(--fg-tertiary);
+}
+
+/* Support status colors */
+.text-support-green {
+  color: var(--support-green);
+}
+
+.text-support-orange {
+  color: var(--support-orange);
+}
+
+.text-support-red {
+  color: var(--support-red);
+}
+
+.bg-support-green {
+  background-color: var(--support-green);
+}
+
+/* Accent utilities */
+.text-accent {
+  color: var(--accent);
+}
+
+.bg-accent {
+  background-color: var(--accent);
+}
+
+.bg-accent-hover {
+  background-color: var(--accent-hover);
+}
+
+.bg-accent-20 {
+  background-color: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.bg-accent\/10 {
+  background-color: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.border-accent {
+  border-color: var(--accent);
+}
+
+.accent-accent {
+  accent-color: var(--accent);
+}
+
+/* Control surfaces */
+.bg-control {
+  background-color: var(--bg-control);
+}
+
+.bg-control-active {
+  background-color: var(--bg-control-active);
+}
+
+.bg-control-subtle {
+  background-color: var(--bg-control-subtle);
+}
+
+.bg-well {
+  background-color: var(--bg-well);
+}
+
+.border-separator {
+  border-color: var(--separator);
+}
+
+.rounded-control {
+  border-radius: 10px;
+}
+
+.rounded-card {
+  border-radius: 12px;
+}
 
 /* Scale the whole UI up ~1.4x (zoom reliably enlarges text the design system
    sizes in fixed units, which a root font-size change alone did not affect). */

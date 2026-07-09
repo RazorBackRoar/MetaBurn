@@ -1,14 +1,13 @@
-// Main process entry point - Node.js backend for Glaze app
+// Main process entry point - Node.js backend for app
 //
-// The glaze CLI runtime automatically handles all framework wiring (IPC server,
+// The app CLI runtime automatically handles all framework wiring (IPC server,
 // native bridge, lifecycle, signal handlers) before this file runs.
 // This entry point uses only APIs.
 
-import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
-import { app, BrowserWindow, Menu, logger, initDevToolsButtonState } from "@glaze/core/backend";
+import { app, BrowserWindow, Menu, nativeImage, nativeTheme, logger, initDevToolsButtonState } from "@electron-core/backend";
 
 import { registerHandlers } from "./handlers/index.js";
 import { getPreloadPath, getWindowUrl } from "./windows/window-paths.js";
@@ -17,27 +16,16 @@ import { openSettingsWindow } from "./windows/settings-window.js";
 // Get directory paths
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const ICON_PATH = app.isPackaged
+  ? path.join(process.resourcesPath, "icon.icns")
+  : path.join(__dirname, "..", "..", "app-icon.icns");
 
 // ── IPC Handlers ──────────────────────────────────────────────────────
 // ipcMain is already wired to the IPC server by the runtime bootstrap.
 registerHandlers();
 
-// ── Dev-only parity harness ───────────────────────────────────────────
-// The parity autotest lives in main/dev/, which is excluded from scaffolded
-// apps. The build (build-backend) defines GLAZE_DEV_HARNESS="1" only when that
-// directory is present, so esbuild dead-code-eliminates this block — and never
-// resolves the missing module — for user apps. A no-op unless a scenario env var
-// is set even in the template.
-type DevHarness = {
-  applyParityScenarioStartup(): void;
-  runParityAutotestIfRequested(): Promise<void>;
-};
-let devHarness: DevHarness | null = null;
-if (process.env.GLAZE_DEV_HARNESS === "1") {
-  // @ts-ignore dev-only harness; present only in the template, excluded from scaffolded apps
-  devHarness = (await import("./dev/parity-autotest.js")) as DevHarness;
-  devHarness.applyParityScenarioStartup();
-}
+// Force dark appearance for the blue privacy theme
+nativeTheme.themeSource = "dark";
 
 // ── State ─────────────────────────────────────────────────────────────
 let mainWindow: BrowserWindow | null = null;
@@ -49,24 +37,10 @@ async function createMainWindow() {
     return;
   }
 
-  // Read display name from package.json
-  // In production: __dirname = build/main, package.json is at ../../package.json
-  const packageJsonPath = path.join(__dirname, "..", "..", "package.json");
-
   const minWindowWidth = 520;
   const minWindowHeight = 640;
   const windowWidth = 620;
   const windowHeight = 900;
-  let windowTitle = "Glaze App";
-
-  try {
-    if (fs.existsSync(packageJsonPath)) {
-      const packageJson = JSON.parse(await fs.promises.readFile(packageJsonPath, "utf-8"));
-      windowTitle = packageJson.productName || packageJson.appConfig?.displayName || windowTitle;
-    }
-  } catch {
-    // Use defaults
-  }
 
   // Create main window
   const browserWindowStartTime = Date.now();
@@ -80,7 +54,11 @@ async function createMainWindow() {
     height: windowHeight,
     minWidth: minWindowWidth,
     minHeight: minWindowHeight,
-    title: windowTitle,
+    title: "",
+    titleBarStyle: "hidden",
+    trafficLightPosition: { x: 14, y: 14 },
+    backgroundColor: "#111111",
+    icon: nativeImage.createFromPath(ICON_PATH),
     show: false, // Don't show until WebView is ready (prevents flickering)
     webPreferences: {
       preload: getPreloadPath(),
@@ -208,9 +186,12 @@ app.whenReady().then(async () => {
     wait_duration_ms: windowCreateStartTime - startTime,
   });
 
-  await devHarness?.runParityAutotestIfRequested();
 
   await setupApplicationMenu();
+
+  if (process.platform === "darwin" && app.dock) {
+    app.dock.setIcon(nativeImage.createFromPath(ICON_PATH));
+  }
 
   createMainWindow()
     .then(() => {

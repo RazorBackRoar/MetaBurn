@@ -1,4 +1,4 @@
-import { BrowserWindow, logger } from "@glaze/core/backend";
+import { BrowserWindow, logger } from "@electron-core/backend";
 import { getPreloadPath, getWindowUrl } from "./window-paths.js";
 
 let settingsWindow: BrowserWindow | null = null;

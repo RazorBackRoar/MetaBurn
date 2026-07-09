@@ -1,12 +1,12 @@
 /**
- * Glaze App Preload Script
+ * App Preload Script
  *
  * This script runs BEFORE the main renderer code and sets up the secure bridge
  * between the renderer and the native/backend processes.
  *
  * SECURITY MODEL:
- * - This is the ONLY file that should import from '@glaze/core/preload'
- * - Renderer code should ONLY access window.glazeAPI
+ * - This is the ONLY file that should import from '@electron-core/preload'
+ * - Renderer code should ONLY access window.electronAPI
  * - Never expose ipcRenderer directly - only expose specific, controlled APIs
  *
  * BUILD & RUNTIME CONSTRAINTS:
@@ -25,7 +25,7 @@
  * By default, only SAFE APIs are exposed:
  * - dialog.* - Requires explicit user interaction with native UI
  * - shell.beep - Just plays a system sound (harmless)
- * - glaze.ipc - For your custom handlers (you control what's exposed)
+ * - app.ipc - For your custom handlers (you control what's exposed)
  *
  * SENSITIVE APIs (NOT exposed by default):
  * - clipboard.* - Data theft risk via XSS
@@ -38,62 +38,51 @@
  * Only expose what your app actually needs!
  */
 
-import { ipcRenderer, contextBridge, createWebUtilsAPI, installDisplayMediaCompat } from "@glaze/core/preload";
+import { contextBridge, createWebUtilsAPI, installDisplayMediaCompat, ipcRenderer } from "@electron-core/preload";
 
-// @ts-ignore dev-only parity probes; in renderer/dev/ (excluded from scaffolded apps)
-import { registerParityProbes } from "./dev/parity-preload.js";
 
 // Type imports only (safe - doesn't affect runtime)
 import type {
-  AskForMediaAccessType,
-  DatePickerOptions,
-  DatePickerResult,
-  LocationPosition,
-  LocationPositionOptions,
-  MediaAccessType,
-  OpenDialogOptions,
-  OpenDialogResult,
-  PermissionDiagnostic,
-  PermissionStatus,
-  SaveDialogOptions,
-  SaveDialogResult,
-  MessageBoxOptions,
-  MessageBoxResult,
-  NativeThemeInfo,
-  MenuItemConstructorOptions,
-  PopupOptions,
-  PopupResult,
-  SystemPreferencesAuthorizationType,
-  SystemPreferencesNotificationCallback,
-  SystemPreferencesNotificationPayload,
-  SystemPreferencesPreferredScrollerStyle,
-} from "@glaze/core/ipc";
+    AskForMediaAccessType,
+    DatePickerOptions,
+    DatePickerResult,
+    LocationPosition,
+    LocationPositionOptions,
+    MediaAccessType,
+    MenuItemConstructorOptions,
+    MessageBoxOptions,
+    MessageBoxResult,
+    NativeThemeInfo,
+    OpenDialogOptions,
+    OpenDialogResult,
+    PermissionDiagnostic,
+    PermissionStatus,
+    PopupOptions,
+    PopupResult,
+    SaveDialogOptions,
+    SaveDialogResult,
+    SystemPreferencesAuthorizationType,
+    SystemPreferencesNotificationCallback,
+    SystemPreferencesNotificationPayload,
+    SystemPreferencesPreferredScrollerStyle,
+} from "@electron-core/ipc";
 
 // Re-export types for use in renderer code
 export type {
-  AskForMediaAccessType,
-  LocationPosition,
-  LocationPositionOptions,
-  MediaAccessType,
-  OpenDialogOptions,
-  OpenDialogResult,
-  PermissionDiagnostic,
-  PermissionStatus,
-  SaveDialogOptions,
-  SaveDialogResult,
-  MessageBoxOptions,
-  MessageBoxResult,
-  NativeThemeInfo,
-  MenuItemConstructorOptions,
-  PopupOptions,
-  PopupResult,
-  SystemPreferencesAuthorizationType,
+    AskForMediaAccessType,
+    LocationPosition,
+    LocationPositionOptions,
+    MediaAccessType, MenuItemConstructorOptions, MessageBoxOptions,
+    MessageBoxResult,
+    NativeThemeInfo, OpenDialogOptions,
+    OpenDialogResult,
+    PermissionDiagnostic,
+    PermissionStatus, PopupOptions,
+    PopupResult, SaveDialogOptions,
+    SaveDialogResult, SystemPreferencesAuthorizationType
 };
 
-// Bridge instance types, re-exported so the dev-only parity probes can type their
-// parameters without importing the restricted @glaze/core/preload entrypoint directly.
-export type GlazeContextBridge = typeof contextBridge;
-export type GlazeIpcRenderer = typeof ipcRenderer;
+// parameters without importing the restricted @electron-core/preload entrypoint directly.
 
 const webUtils = createWebUtilsAPI();
 const systemPreferencesNotificationCallbacks = new Map<number, SystemPreferencesNotificationCallback>();
@@ -122,7 +111,7 @@ function ensureSystemPreferencesNotificationListener(): void {
   );
 }
 
-const PAGE_WORLD_FUNCTION_SOURCE = Symbol.for("glaze.pageWorldFunctionSource");
+const PAGE_WORLD_FUNCTION_SOURCE = Symbol.for("app.pageWorldFunctionSource");
 
 function annotatePageWorldFunction<T extends (...args: never[]) => unknown>(fn: T, source: string): T {
   const pageWorldFunction = fn as T & Record<symbol, unknown>;
@@ -139,27 +128,27 @@ function annotatePageWorldFunction<T extends (...args: never[]) => unknown>(fn: 
 }
 
 const pageWorldShellBeepSource = `function() {
-  void window.glazeAPI.glaze.ipc.invoke("shell:beep").catch(() => {});
+  void window.electronAPI.app.ipc.invoke("shell:beep").catch(() => {});
   return undefined;
 }`;
 
-type GlazeIpcEvent = {
+type ElectronIpcEvent = {
   channel?: string;
   ports: MessagePort[];
 };
 
-type GlazeIpcListener = (event: GlazeIpcEvent, ...args: unknown[]) => void;
+type ElectronIpcListener = (event: ElectronIpcEvent, ...args: unknown[]) => void;
 
-function toGlazeIpcEvent(event: { channel?: string }): GlazeIpcEvent {
+function toElectronIpcEvent(event: { channel?: string }): ElectronIpcEvent {
   return {
     channel: event.channel,
     ports: [],
   };
 }
 
-function addGlazeIpcListener(channel: string, callback: GlazeIpcListener, once: boolean): () => void {
+function addElectronIpcListener(channel: string, callback: ElectronIpcListener, once: boolean): () => void {
   const listener = (event: { channel?: string }, ...args: unknown[]) => {
-    callback(toGlazeIpcEvent(event), ...args);
+    callback(toElectronIpcEvent(event), ...args);
   };
 
   if (once) {
@@ -174,7 +163,7 @@ function addGlazeIpcListener(channel: string, callback: GlazeIpcListener, once: 
 }
 
 /**
- * GlazeAPI - The secure API exposed to renderer code
+ * ElectronAPI - The secure API exposed to renderer code
  *
  * All IPC communication MUST go through this API.
  * Renderer code should NEVER import ipcRenderer directly.
@@ -182,7 +171,7 @@ function addGlazeIpcListener(channel: string, callback: GlazeIpcListener, once: 
  * MINIMAL SECURE DEFAULTS - only safe APIs are exposed.
  * See comments above for how to add sensitive APIs if needed.
  */
-const glazeAPI = {
+const appAPI = {
   // -------------------------------------------------------------------------
   // Dialog APIs - SAFE: Requires explicit user interaction with native UI
   // -------------------------------------------------------------------------
@@ -257,7 +246,7 @@ const glazeAPI = {
   // -------------------------------------------------------------------------
   // Clipboard APIs - ⚠️ SENSITIVE: Not exposed by default
   // Uncomment ONLY if your app needs clipboard access
-  // Also add createClipboardAPI to the @glaze/core/preload import above.
+  // Also add createClipboardAPI to the @electron-core/preload import above.
   // -------------------------------------------------------------------------
   // clipboard: createClipboardAPI(ipcRenderer.invoke.bind(ipcRenderer)),
 
@@ -319,7 +308,7 @@ const glazeAPI = {
   },
 
   permissions: {
-    getDiagnostics: (): Promise<PermissionDiagnostic[]> => ipcRenderer.invoke("glaze:permissions:getDiagnostics"),
+    getDiagnostics: (): Promise<PermissionDiagnostic[]> => ipcRenderer.invoke("electron:permissions:getDiagnostics"),
   },
 
   // -------------------------------------------------------------------------
@@ -333,10 +322,10 @@ const glazeAPI = {
   },
 
   // -------------------------------------------------------------------------
-  // Glaze IPC - SAFE: For your custom backend handlers
+  // Electron IPC - SAFE: For your custom backend handlers
   // You control what handlers exist, so you control what's exposed
   // -------------------------------------------------------------------------
-  glaze: {
+  app: {
     ipc: {
       /**
        * Invoke a backend handler and wait for the result
@@ -349,9 +338,9 @@ const glazeAPI = {
        */
       send: (channel: string, ...args: unknown[]): void => ipcRenderer.send(channel, ...args),
 
-      on: (channel: string, callback: GlazeIpcListener): (() => void) => addGlazeIpcListener(channel, callback, false),
+      on: (channel: string, callback: ElectronIpcListener): (() => void) => addElectronIpcListener(channel, callback, false),
 
-      once: (channel: string, callback: GlazeIpcListener): (() => void) => addGlazeIpcListener(channel, callback, true),
+      once: (channel: string, callback: ElectronIpcListener): (() => void) => addElectronIpcListener(channel, callback, true),
 
       /**
        * Subscribe to notifications from the backend
@@ -383,29 +372,24 @@ const glazeAPI = {
 
 const preloadURL = new URL(window.location.href);
 
-function exposeGlazeAPI(): void {
-  contextBridge.exposeInMainWorld("glazeAPI", glazeAPI);
+function exposeAppAPI(): void {
+  contextBridge.exposeInMainWorld("electronAPI", appAPI);
 }
 
-// `process.env.GLAZE_DEV_HARNESS` is a build-time define (build-renderer replaces it
+// `process.env.DEV_HARNESS` is a build-time define (build-renderer replaces it
 // with "1"/"0"), not a runtime browser global — hence the no-undef disable.
 // eslint-disable-next-line no-undef
-if (process.env.GLAZE_DEV_HARNESS === "1" && preloadURL.searchParams.get("glazeParityDefaultPendingStub") === "1") {
-  window.setTimeout(exposeGlazeAPI, 200);
+if (process.env.DEV_HARNESS === "1" && preloadURL.searchParams.get("parityDefaultPendingStub") === "1") {
+  window.setTimeout(exposeAppAPI, 200);
 } else {
-  exposeGlazeAPI();
-}
-
-// eslint-disable-next-line no-undef
-if (process.env.GLAZE_DEV_HARNESS === "1") {
-  registerParityProbes(contextBridge, ipcRenderer);
+  exposeAppAPI();
 }
 
 // Routes navigator.mediaDevices.getDisplayMedia through the app's
 // session.setDisplayMediaRequestHandler (falls back to the built-in WebKit
-// behavior when no handler is registered). Runs after the glazeAPI exposure
+// behavior when no handler is registered). Runs after the electronAPI exposure
 // above so the bridge bootstrap is fully initialized.
 installDisplayMediaCompat();
 
 // Export type for TypeScript
-export type GlazeAPI = typeof glazeAPI;
+export type ElectronAPI = typeof appAPI;
