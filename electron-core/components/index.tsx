@@ -161,11 +161,26 @@ export function ToolbarBackButton({
 export function ToolbarTitle({
   className,
   children,
+  title,
+  onDoubleClick,
+  onContextMenu,
 }: {
   className?: string;
   children?: React.ReactNode;
+  title?: string;
+  onDoubleClick?: React.MouseEventHandler<HTMLHeadingElement>;
+  onContextMenu?: React.MouseEventHandler<HTMLHeadingElement>;
 }) {
-  return <h1 className={cn("text-base font-semibold", className)}>{children}</h1>;
+  return (
+    <h1
+      className={cn("text-base font-semibold", className)}
+      title={title}
+      onDoubleClick={onDoubleClick}
+      onContextMenu={onContextMenu}
+    >
+      {children}
+    </h1>
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
