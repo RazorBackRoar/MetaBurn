@@ -1,8 +1,8 @@
 # Dependencies
 node_modules/
 
-# App icons (binary, auto-generated)
-app-icon.*
+# App icon source (JPEG-with-PNG-extension artifact from build)
+app-icon.png
 
 # OS files
 .DS_Store
