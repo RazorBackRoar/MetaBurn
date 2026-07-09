@@ -24,6 +24,10 @@ export function registerHandlers(): void {
     return await appHandlers.getInfo();
   });
 
+  ipcMain.handle("app:checkForUpdates", async (_event) => {
+    return await appHandlers.checkForUpdates();
+  });
+
   // Return the .app project path (used for deep links back to the host)
   // __dirname = build/main, so two levels up is the app root
   ipcMain.handle("app:getProjectPath", async () => {

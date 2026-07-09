@@ -334,7 +334,74 @@ export function HomeView() {
       <div className="h-full flex flex-col">
         <Toolbar>
           <ToolbarRow className="relative">
-            <ToolbarTitle className="absolute left-1/2 -translate-x-1/2 pl-0 text-support-red">
+            <ToolbarTitle
+              className="absolute left-1/2 -translate-x-1/2 pl-0 text-support-red select-none"
+              title="Double-click for About · Right-click for updates"
+              onDoubleClick={() => {
+                void window.electronAPI.app.ipc.invoke("app:getInfo").then(async (info) => {
+                  const i = info as {
+                    name: string;
+                    version: string;
+                    license: string;
+                    organization: string;
+                    architecture: string;
+                    copyright: string;
+                  };
+                  await window.electronAPI.dialog.showMessageBox({
+                    type: "info",
+                    title: `About ${i.name}`,
+                    message: i.name,
+                    detail: [
+                      `Version ${i.version}`,
+                      i.license,
+                      i.organization,
+                      i.architecture,
+                      i.copyright,
+                    ].join("\n"),
+                    buttons: ["OK"],
+                  });
+                });
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                void window.electronAPI.app.ipc.invoke("app:checkForUpdates").then(async (result) => {
+                  const r = result as {
+                    current_version: string;
+                    latest_version: string;
+                    update_available: boolean;
+                    download_url?: string | null;
+                    error?: string | null;
+                  };
+                  if (r.error) {
+                    await window.electronAPI.dialog.showMessageBox({
+                      type: "warning",
+                      title: "MetaBurn Updates",
+                      message: "Update check failed",
+                      detail: r.error,
+                      buttons: ["OK"],
+                    });
+                    return;
+                  }
+                  if (r.update_available) {
+                    await window.electronAPI.dialog.showMessageBox({
+                      type: "info",
+                      title: "MetaBurn Updates",
+                      message: `Update available: ${r.latest_version}`,
+                      detail: `You have ${r.current_version}.${r.download_url ? `\n\n${r.download_url}` : ""}`,
+                      buttons: ["OK"],
+                    });
+                    return;
+                  }
+                  await window.electronAPI.dialog.showMessageBox({
+                    type: "info",
+                    title: "MetaBurn Updates",
+                    message: "You're up to date",
+                    detail: `Current version: ${r.current_version}`,
+                    buttons: ["OK"],
+                  });
+                });
+              }}
+            >
               MetaBurn
             </ToolbarTitle>
           </ToolbarRow>

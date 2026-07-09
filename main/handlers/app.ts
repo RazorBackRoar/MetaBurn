@@ -1,38 +1,21 @@
 /**
  * App Handlers - Application-level IPC methods
- *
- * This is where you add your app-specific backend logic
- *
- * Register handlers using the ipcMain API:
- *
- * @example
- * ```typescript
- * import { ipcMain } from '@electron-core/backend';
- *
- * ipcMain.handle('app:myMethod', async (event, arg1, arg2) => {
- *   // Your logic here
- *   return { result: 'success' };
- * });
- * ```
  */
 
 import { logger } from "@electron-core/backend";
 
-// App handlers - these are the methods your app provides to the frontend
+import { getAppInfo } from "../../electron-core/utils/appInfo.js";
+import { checkForUpdates } from "../../electron-core/utils/updates.js";
+
 export const appHandlers = {
-  // Example: Get app information
   getInfo: async () => {
     logger.info("app", "App info requested");
-    return {
-      name: "My App",
-      version: "1.0.0",
-      environment: process.env.NODE_ENV || "production",
-    };
+    return getAppInfo();
   },
 
-  // TODO: Add your app handlers here
-  // Example:
-  // myMethod: async (params: { arg1: string }) => {
-  //   return { result: 'success' };
-  // }
+  checkForUpdates: async () => {
+    const info = getAppInfo();
+    logger.info("app", "Update check requested", { version: info.version });
+    return checkForUpdates(info.version);
+  },
 };

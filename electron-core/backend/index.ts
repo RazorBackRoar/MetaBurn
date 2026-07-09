@@ -2,21 +2,25 @@ import * as fs from "node:fs";
 import { createRequire } from "node:module";
 import * as path from "node:path";
 
+import { getLogger } from "../utils/logging.js";
+
 const require = createRequire(import.meta.url);
 const electron: typeof Electron = require("electron");
 
 const electronApp = electron.app;
 
+const coreLogger = getLogger("app");
+
 // Logger shim matching custom structured logging API.
 export const logger = {
   info: (scope: string, message: string, data?: Record<string, unknown>) => {
-    console.log(`[${scope}] ${message}`, data ?? "");
+    coreLogger.info(`[${scope}] ${message}`, data);
   },
   debug: (scope: string, message: string, data?: Record<string, unknown>) => {
-    console.debug(`[${scope}] ${message}`, data ?? "");
+    coreLogger.debug(`[${scope}] ${message}`, data);
   },
   error: (scope: string, message: string, data?: unknown) => {
-    console.error(`[${scope}] ${message}`, data ?? "");
+    coreLogger.error(`[${scope}] ${message}`, data);
   },
 };
 

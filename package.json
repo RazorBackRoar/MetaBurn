@@ -22,7 +22,7 @@
     "dist": "npm run build && electron-builder --mac --publish never"
   },
   "build": {
-    "appId": "com.yourcompany.metaburn",
+    "appId": "com.razorbackroar.metaburn",
     "productName": "MetaBurn",
     "files": [
       "build/**/*",
@@ -36,6 +36,12 @@
       "category": "public.app-category.utilities",
       "target": [
         "dmg"
+      ],
+      "extraResources": [
+        {
+          "from": "app-icon.png",
+          "to": "icon.png"
+        }
       ]
     },
     "dmg": {
