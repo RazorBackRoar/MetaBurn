@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const appCore = path.resolve(__dirname, "..", "electron-core");
+const appCore = path.resolve(__dirname, "electron-core");
 const nodeModules = path.resolve(__dirname, "node_modules");
 
 const packageAliases: Record<string, string> = {};
@@ -27,7 +27,6 @@ const appAliases = Object.fromEntries(
     "hooks",
     "utils",
     "oauth",
-    "build",
   ].map((name) => [
     "@electron-core/" + name,
     path.resolve(appCore, name),

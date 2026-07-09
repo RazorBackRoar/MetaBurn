@@ -16,28 +16,28 @@
     "baseUrl": ".",
     "paths": {
       "@electron-core/backend": [
-        "../../electron-core/backend/index.d.ts"
+        "../electron-core/backend/index"
       ],
       "@electron-core/oauth": [
-        "../../electron-core/oauth/index.d.ts"
+        "../electron-core/oauth/index"
       ],
       "@electron-core/ipc": [
-        "../../electron-core/ipc/index.d.ts"
+        "../electron-core/ipc/index"
       ],
       "@electron-core/preload": [
-        "../../electron-core/preload/index.d.ts"
+        "../electron-core/preload/index"
       ],
       "@electron-core/components": [
-        "../../electron-core/components/index.d.ts"
+        "../electron-core/components/index"
       ],
       "@electron-core/hooks": [
-        "../../electron-core/hooks/index.d.ts"
+        "../electron-core/hooks/index"
       ],
       "@electron-core/utils": [
-        "../../electron-core/utils/index.d.ts"
+        "../electron-core/utils/index"
       ]
     }
   },
-  "include": ["./**/*.ts", "../../electron-core/global.d.ts"],
+  "include": ["./**/*.ts", "../electron-core/global.d.ts"],
   "exclude": ["node_modules"]
 }

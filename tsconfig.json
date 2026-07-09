@@ -26,20 +26,19 @@
       "@renderer/*": ["./renderer/*"],
       "@main/*": ["./main/*"],
       "@shared/*": ["./renderer/shared/*"],
-      "@electron-core/backend": ["../electron-core/backend/index"],
-      "@electron-core/oauth": ["../electron-core/oauth/index"],
-      "@electron-core/ipc": ["../electron-core/ipc/index"],
-      "@electron-core/preload": ["../electron-core/preload/index"],
-      "@electron-core/components": ["../electron-core/components/index"],
-      "@electron-core/hooks": ["../electron-core/hooks/index"],
-      "@electron-core/utils": ["../electron-core/utils/index"],
-      "@electron-core/build": ["../electron-core/build/index"],
+      "@electron-core/backend": ["./electron-core/backend/index"],
+      "@electron-core/oauth": ["./electron-core/oauth/index"],
+      "@electron-core/ipc": ["./electron-core/ipc/index"],
+      "@electron-core/preload": ["./electron-core/preload/index"],
+      "@electron-core/components": ["./electron-core/components/index"],
+      "@electron-core/hooks": ["./electron-core/hooks/index"],
+      "@electron-core/utils": ["./electron-core/utils/index"],
       "*": ["./node_modules/@types/*", "./node_modules/*"]
     }
   },
   "include": [
     "renderer",
     "main",
-    "../electron-core/global.d.ts"
+    "electron-core/global.d.ts"
   ]
 }
