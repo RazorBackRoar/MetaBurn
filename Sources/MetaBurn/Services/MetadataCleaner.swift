@@ -1,0 +1,229 @@
+import Foundation
+
+@MainActor
+enum MetadataCleaner {
+    enum CleanStatus: String, Equatable { case cleaned, skipped, failed, partial }
+
+    private static let exiftoolCandidates = ["/opt/homebrew/bin/exiftool", "/usr/local/bin/exiftool"]
+    private static let ffmpegCandidates = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"]
+    private static let brewCandidates = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
+
+    private static var cachedExiftoolPath: String? = nil
+    private static var cachedFfmpegPath: String? = nil
+
+    static func resolveExiftool() async -> String? {
+        if let cached = cachedExiftoolPath { return cached }
+        cachedExiftoolPath = await resolveBinary(name: "exiftool", candidates: exiftoolCandidates)
+        return cachedExiftoolPath
+    }
+
+    static func resolveFfmpeg() async -> String? {
+        if let cached = cachedFfmpegPath { return cached }
+        cachedFfmpegPath = await resolveBinary(name: "ffmpeg", candidates: ffmpegCandidates)
+        return cachedFfmpegPath
+    }
+
+    static func resolveBrew() async -> String? {
+        await resolveBinary(name: "brew", candidates: brewCandidates)
+    }
+
+    static func invalidateExiftoolCache() { cachedExiftoolPath = nil }
+    static func invalidateFfmpegCache() { cachedFfmpegPath = nil }
+
+    private static func resolveBinary(name: String, candidates: [String]) async -> String? {
+        for candidate in candidates {
+            if FileManager.default.fileExists(atPath: candidate) && FileManager.default.isExecutableFile(atPath: candidate) {
+                return candidate
+            }
+        }
+        do {
+            let output = try await ProcessRunner.runSimple(executablePath: "/usr/bin/which", arguments: [name], timeout: 5)
+            let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        } catch {
+            return nil
+        }
+    }
+
+    static func muteVideo(ffmpegPath: String, filePath: String) async -> (success: Bool, reason: String?) {
+        let url = URL(fileURLWithPath: filePath)
+        let dir = url.deletingLastPathComponent()
+        let ext = url.pathExtension
+        let base = url.deletingPathExtension().lastPathComponent
+        let tempURL = dir.appendingPathComponent(".\(base).muted.tmp.\(ext)")
+
+        do {
+            _ = try await ProcessRunner.runSimple(
+                executablePath: ffmpegPath,
+                arguments: ["-y", "-i", filePath, "-map", "0:v", "-c", "copy", "-an", tempURL.path],
+                timeout: 300
+            )
+            try FileManager.default.moveItem(at: tempURL, to: url)
+            return (true, nil)
+        } catch {
+            try? FileManager.default.removeItem(at: tempURL)
+            return (false, error.localizedDescription)
+        }
+    }
+
+    static func cleanFile(filePath: String, muteAudio: Bool, ffmpegPath: String?) async -> CleanResult {
+        let info = SupportedTypes.classify(filePath: filePath)
+
+        if info.kind == .unsupported {
+            return CleanResult(path: filePath, status: .skipped, reason: "unsupported file type")
+        }
+        if info.kind == .video && !info.writable {
+            return CleanResult(path: filePath, status: .skipped, reason: "container not safely writable by ExifTool")
+        }
+
+        guard let exiftoolPath = await resolveExiftool() else {
+            return CleanResult(path: filePath, status: .failed, reason: "exiftool not found")
+        }
+
+        let metadataBefore = await readMetadata(exiftoolPath: exiftoolPath, filePath: filePath)
+
+        var muteReason: String? = nil
+        if muteAudio && info.kind == .video {
+            let resolvedFfmpeg: String?
+            if let path = ffmpegPath {
+                resolvedFfmpeg = path
+            } else {
+                resolvedFfmpeg = await resolveFfmpeg()
+            }
+            if let ffmpeg = resolvedFfmpeg {
+                let muted = await muteVideo(ffmpegPath: ffmpeg, filePath: filePath)
+                if !muted.success {
+                    muteReason = "audio removal failed: \(muted.reason ?? "ffmpeg failed")"
+                }
+            } else {
+                muteReason = "ffmpeg not installed — audio not removed"
+            }
+        }
+
+        let args = buildArgs(kind: info.kind, filePath: filePath)
+        do {
+            let output = try await ProcessRunner.run(
+                executablePath: exiftoolPath,
+                arguments: args,
+                timeout: 60
+            )
+            var result = interpretOutput(filePath: filePath, output: "\(output.stdout)\n\(output.stderr)")
+            let metadataAfter = await readMetadata(exiftoolPath: exiftoolPath, filePath: filePath)
+            if let reason = muteReason, result.status == .cleaned {
+                result = CleanResult(path: filePath, status: .partial, reason: reason, metadataBefore: metadataBefore, metadataAfter: metadataAfter)
+            } else {
+                result = CleanResult(path: filePath, status: result.status, reason: result.reason, metadataBefore: metadataBefore, metadataAfter: metadataAfter)
+            }
+            return result
+        } catch {
+            let metadataAfter = await readMetadata(exiftoolPath: exiftoolPath, filePath: filePath)
+            return CleanResult(path: filePath, status: .failed, reason: error.localizedDescription, metadataBefore: metadataBefore, metadataAfter: metadataAfter)
+        }
+    }
+
+    static func installExiftool() async -> (success: Bool, message: String?) {
+        guard let brew = await resolveBrew() else {
+            return (false, "Homebrew not found. Install ExifTool manually: brew install exiftool")
+        }
+        do {
+            _ = try await ProcessRunner.runSimple(executablePath: brew, arguments: ["install", "exiftool"], timeout: 600)
+            invalidateExiftoolCache()
+            let found = await resolveExiftool() != nil
+            return (found, found ? nil : "exiftool installed but not found on PATH")
+        } catch {
+            return (false, error.localizedDescription)
+        }
+    }
+
+    static func installFfmpeg() async -> (success: Bool, message: String?) {
+        guard let brew = await resolveBrew() else {
+            return (false, "Homebrew not found. Install ffmpeg manually: brew install ffmpeg")
+        }
+        do {
+            _ = try await ProcessRunner.runSimple(executablePath: brew, arguments: ["install", "ffmpeg"], timeout: 600)
+            invalidateFfmpegCache()
+            let found = await resolveFfmpeg() != nil
+            return (found, found ? nil : "ffmpeg installed but not found on PATH")
+        } catch {
+            return (false, error.localizedDescription)
+        }
+    }
+
+    private static func buildArgs(kind: SupportedTypes.FileKind, filePath: String) -> [String] {
+        if kind == .photo {
+            return ["-all=", "-tagsFromFile", "@", "-icc_profile:all", "-overwrite_original", filePath]
+        }
+        return ["-all=", "-overwrite_original", filePath]
+    }
+
+    private static func readMetadata(exiftoolPath: String, filePath: String) async -> [MetadataEntry] {
+        do {
+            let output = try await ProcessRunner.runSimple(executablePath: exiftoolPath, arguments: ["-j", filePath], timeout: 60)
+            guard let data = output.data(using: .utf8),
+                  let json = try JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+                  let record = json.first else { return [] }
+            var entries: [MetadataEntry] = []
+            let blocklist: Set<String> = ["SourceFile", "ExifToolVersion", "FileName", "Directory", "FileAccessDate", "FileInodeChangeDate", "FilePermissions", "Warning", "Error"]
+            for (tag, value) in record {
+                if blocklist.contains(tag) || value is NSNull { continue }
+                let text: String
+                if let str = value as? String {
+                    text = str
+                } else if let arr = value as? [Any] {
+                    text = arr.map { String(describing: $0) }.joined(separator: ", ")
+                } else {
+                    text = String(describing: value)
+                }
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    entries.append(MetadataEntry(tag: tag, value: trimmed))
+                }
+            }
+            return entries.sorted { $0.tag < $1.tag }
+        } catch {
+            return []
+        }
+    }
+
+    private static func interpretOutput(filePath: String, output: String) -> CleanResult {
+        let updatedCount = matchCount(output, pattern: #"(\d+)\s+(?:image\s+)?files?\s+updated"#)
+        let unchangedCount = matchCount(output, pattern: #"(\d+)\s+(?:image\s+)?files?\s+unchanged"#)
+        let failedCount = matchCount(output, pattern: #"(\d+)\s+files?\s+(?:weren't|were not)\s+updated"#)
+        let hasError = output.range(of: #"(^|\n)\s*error[:\s]"#, options: .regularExpression) != nil
+
+        if failedCount > 0 || hasError {
+            return CleanResult(path: filePath, status: .failed, reason: firstIssueLine(output) ?? "exiftool reported an error")
+        }
+        if updatedCount >= 1 {
+            return CleanResult(path: filePath, status: .cleaned)
+        }
+        if unchangedCount >= 1 {
+            return CleanResult(path: filePath, status: .cleaned, reason: "already free of removable metadata")
+        }
+        return CleanResult(path: filePath, status: .failed, reason: firstIssueLine(output) ?? "no changes applied")
+    }
+
+    private static func matchCount(_ text: String, pattern: String) -> Int {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+              let match = regex.firstMatch(in: text, options: [], range: NSRange(text.startIndex..., in: text)) else { return 0 }
+        guard let range = Range(match.range(at: 1), in: text) else { return 0 }
+        return Int(text[range]) ?? 0
+    }
+
+    private static func firstIssueLine(_ text: String) -> String? {
+        let lines = text.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        return lines.first { $0.range(of: "error", options: .caseInsensitive) != nil }
+            ?? lines.first { $0.range(of: "weren't", options: .caseInsensitive) != nil || $0.range(of: "were not", options: .caseInsensitive) != nil }
+            ?? lines.first { $0.range(of: "warning", options: .caseInsensitive) != nil }
+            ?? lines.first
+    }
+}
+
+private extension FileManager {
+    func isExecutableFile(atPath path: String) -> Bool {
+        guard fileExists(atPath: path) else { return false }
+        guard let attributes = try? attributesOfItem(atPath: path),
+              let permissions = attributes[.posixPermissions] as? NSNumber else { return false }
+        return permissions.int16Value & 0o111 != 0
+    }
+}

@@ -1,12 +1,18 @@
-# Dependencies
-node_modules/
+# Swift / Xcode
+.build/
+.swiftpm/
+Package.resolved
+*.xcodeproj
 
-# App icon source (JPEG-with-PNG-extension artifact from build)
-app-icon.png
+# Build output
+build/
 
 # OS files
 .DS_Store
 Thumbs.db
+
+# Legacy icon source artifact
+app-icon.png
 
 # Logs
 *.log

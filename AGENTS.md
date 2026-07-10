@@ -8,43 +8,50 @@ Guidance for agents in this repository. Use with `../AGENTS.md`.
 |---------|-------|
 | Display name | **MetaBurn** |
 | GitHub | `RazorBackRoar/MetaBurn` |
-| npm `name` | `metaburn` |
 | `appId` | `com.razorbackroar.metaburn` |
-| Executable | `MetaBurn` (default; no override in `package.json`) |
+| Executable | `MetaBurn` |
 
-Constants: `electron-core/utils/brand.ts`.
+Constants: `Sources/MetaBurn/Utilities/Brand.swift`.
 
 ## Purpose and entry points
 
-Local photo/video metadata stripper (ExifTool). Electron + React/Vite.
+Local photo/video metadata stripper (ExifTool). Swift + SwiftUI.
 
-- Main: `main/index.ts`
-- Renderer: `renderer/`
-- Per-app Electron adapters: `electron-core/` (not a shared workspace package)
+- App entry: `Sources/MetaBurn/MetaBurnApp.swift`
+- UI views: `Sources/MetaBurn/Views/`
+- Services: `Sources/MetaBurn/Services/`
+- Utilities: `Sources/MetaBurn/Utilities/`
 
-### electron-core contracts (v1.1)
+### RazorCore contracts (v1.1)
 
 | Module | Role |
 |--------|------|
-| `utils/brand.ts` | Display vs machine-safe IDs |
-| `utils/paths.ts` | userData / cache under **MetaBurn** |
-| `utils/logging.ts` | Logs under Application Support |
-| `utils/appInfo.ts` | Metadata + startup banner |
-| `utils/updates.ts` | GitHub Releases check (`RazorBackRoar/MetaBurn`) |
+| `Utilities/Brand.swift` | Display vs machine-safe IDs |
+| `Utilities/Paths.swift` | Application Support / cache / logs under **MetaBurn** |
+| `Utilities/Logging.swift` | Console + file logs under Application Support |
+| `Utilities/AppInfo.swift` | Metadata + startup banner |
+| `Utilities/Updates.swift` | GitHub Releases check (`RazorBackRoar/MetaBurn`) |
 
 Behavioral SSOT: `../Docs/razorcore-api-spec.md`.
 
 ## Commands
 
 ```zsh
-npm run type-check
-npm run build
-npm run lint
-npm start
-npm run dist
+swift build
+swift run
 ```
+
+`swift test` requires the full Xcode.app (XCTest); the command-line tools ship without it.
+
+Package a macOS `.app` and DMG with ad-hoc signing:
+
+```zsh
+./scripts/build-mac.sh
+```
+
+Output is in `build/Release/MetaBurn.app` and `build/Release/MetaBurn.dmg`.
 
 ## Repository rules
 
-- Do not create `Shared/razorcore-ts/` for v1.1.
+- Do not create `Shared/razorcore-swift/` for v1.1.
 - Do not commit, push, or create branches unless explicitly requested.
