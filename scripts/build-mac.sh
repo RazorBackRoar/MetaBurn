@@ -68,18 +68,39 @@ chmod +x "$APP_PATH/Contents/MacOS/$APP_NAME"
 echo "Ad-hoc signing $APP_NAME.app..."
 codesign --force --deep --sign - "$APP_PATH"
 
-echo "Creating $APP_NAME.dmg..."
+echo "Creating $APP_NAME.dmg with shared layout..."
 mkdir -p "$RELEASE_DIR"
-create-dmg \
-    --volname "$APP_NAME" \
-    --window-size 500 360 \
-    --icon-size 128 \
-    --icon "$APP_NAME.app" 130 160 \
-    --app-drop-link 370 160 \
-    --hide-extension "$APP_NAME.app" \
-    --overwrite \
-    "$DMG_PATH" \
-    "$RELEASE_DIR"
+RAZORCORE_DIR="$(dirname "$PROJECT_DIR")/.razorcore"
+DMG_SETTINGS="$RAZORCORE_DIR/dmg-settings.py"
+VOL_ICNS="$APP_PATH/Contents/Resources/AppIcon.icns"
+rm -f "$DMG_PATH"
+
+dmg_defines=(-D "app=$APP_PATH" -D "app_name=$APP_NAME")
+if [ -f "$VOL_ICNS" ]; then
+    dmg_defines+=(-D "vol_icon=$VOL_ICNS")
+fi
+
+dmg_ok=0
+for attempt in 1 2 3; do
+    if [ -d "/Volumes/$APP_NAME" ]; then
+        hdiutil detach "/Volumes/$APP_NAME" -force -quiet 2>/dev/null || true
+    fi
+    rm -f "$DMG_PATH"
+    if uvx --from dmgbuild dmgbuild -s "$DMG_SETTINGS" "${dmg_defines[@]}" "$APP_NAME" "$DMG_PATH"; then
+        dmg_ok=1
+        break
+    fi
+    echo "Warning: DMG build attempt ${attempt}/3 failed for ${APP_NAME}; retrying..."
+    sleep 2
+done
+
+if [ "$dmg_ok" -ne 1 ]; then
+    echo "Error: DMG build failed after 3 attempts for ${APP_NAME}." >&2
+    exit 1
+fi
+
+echo "Verifying locked DMG layout..."
+python3 "$RAZORCORE_DIR/verify-dmg-layout.py" "$DMG_PATH" "$APP_NAME"
 
 echo "Build complete: $APP_PATH"
 echo "DMG: $DMG_PATH"
