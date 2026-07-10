@@ -70,7 +70,7 @@ codesign --force --deep --sign - "$APP_PATH"
 
 echo "Creating $APP_NAME.dmg with shared layout..."
 mkdir -p "$RELEASE_DIR"
-RAZORCORE_DIR="$(dirname "$PROJECT_DIR")/.razorcore"
+RAZORCORE_DIR="$(cd "$SCRIPT_DIR/../../.razorcore" && pwd)"
 DMG_SETTINGS="$RAZORCORE_DIR/dmg-settings.py"
 VOL_ICNS="$APP_PATH/Contents/Resources/AppIcon.icns"
 rm -f "$DMG_PATH"
