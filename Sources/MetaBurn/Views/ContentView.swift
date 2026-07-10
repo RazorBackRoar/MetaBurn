@@ -42,7 +42,7 @@ struct ContentView: View {
             Text("ExifTool is required")
                 .font(.title2)
             Text("Install it with: brew install exiftool")
-                .font(.system(size: 12))
+                .font(.system(size: 14))
                 .foregroundColor(.secondary)
             HStack(spacing: 12) {
                 if canInstallExiftool {
@@ -85,7 +85,7 @@ struct ContentView: View {
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 16)
-        .frame(minWidth: 520, minHeight: 640)
+        .frame(minWidth: 520, minHeight: 560)
         .background(Color(NSColor.windowBackgroundColor))
         .onDrop(of: [.fileURL], isTargeted: $isDragging) { providers in
             return handleDrop(providers: providers)
@@ -97,7 +97,7 @@ struct ContentView: View {
         HStack {
             Spacer()
             Text("MetaBurn")
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(.red)
                 .onTapGesture(count: 2) { showAbout() }
                 .contextMenu {
@@ -123,9 +123,9 @@ struct ContentView: View {
                     .font(.system(size: 32))
                     .foregroundColor(.secondary)
                 Text(processing ? "Processing…" : "Drop photos, videos, or folders here")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold))
                 Text(processing ? "Cleaning metadata in place…" : "or click to browse — removed in place, no copies")
-                    .font(.system(size: 11))
+                    .font(.system(size: 13))
                     .foregroundColor(.secondary)
             }
             .frame(maxWidth: .infinity)
@@ -147,9 +147,9 @@ struct ContentView: View {
                 .foregroundColor(.secondary)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Mute Video")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold))
                 Text("Permanently remove audio from videos before cleaning.")
-                    .font(.system(size: 11))
+                    .font(.system(size: 13))
                     .foregroundColor(.secondary)
             }
             Spacer()
@@ -168,7 +168,7 @@ struct ContentView: View {
             Image(systemName: "exclamationmark.triangle")
                 .foregroundColor(.orange)
             Text("ffmpeg is required to mute audio.")
-                .font(.system(size: 12))
+                .font(.system(size: 14))
             if canInstallFfmpeg {
                 Button(installingFfmpeg ? "Installing…" : "Install ffmpeg") {
                     Task { await installFfmpeg() }
@@ -187,7 +187,7 @@ struct ContentView: View {
             HStack(spacing: 6) {
                 statusDot
                 Text(stateLabel)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold))
             }
             Spacer()
             HStack(spacing: 16) {
@@ -266,7 +266,7 @@ struct ContentView: View {
                 MetadataReport(entry: entry)
             } else {
                 Text("Drop a photo, video, or folder to see its before-and-after metadata.")
-                    .font(.system(size: 12))
+                    .font(.system(size: 14))
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .padding()
@@ -294,10 +294,10 @@ struct ContentView: View {
     private func counter(_ label: String, value: Int, color: Color) -> some View {
         HStack(spacing: 4) {
             Text("\(value)")
-                .font(.system(size: 13, weight: .bold))
+                .font(.system(size: 15, weight: .bold))
                 .foregroundColor(color)
             Text(label)
-                .font(.system(size: 11))
+                .font(.system(size: 13))
                 .foregroundColor(.secondary)
         }
     }
@@ -449,14 +449,14 @@ struct FileChip: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Text(entry.status.rawValue)
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.system(size: 12, weight: .bold))
                     .padding(.horizontal, 5)
                     .padding(.vertical, 2)
                     .background(statusColor.opacity(0.15))
                     .foregroundColor(statusColor)
                     .cornerRadius(4)
                 Text(URL(fileURLWithPath: entry.path).lastPathComponent)
-                    .font(.system(size: 11))
+                    .font(.system(size: 13))
                     .lineLimit(1)
             }
             .padding(.horizontal, 8)

@@ -9,7 +9,7 @@ struct MetaBurnApp: App {
         Window("MetaBurn", id: "main") {
             ContentView()
         }
-        .defaultSize(width: 620, height: 900)
+        .defaultSize(width: 620, height: 740)
         .windowResizability(.contentSize)
 
         Settings {

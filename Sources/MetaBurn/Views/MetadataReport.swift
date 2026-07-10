@@ -43,17 +43,17 @@ struct MetadataReport: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(fileName)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 16, weight: .semibold))
                 .lineLimit(1)
             HStack(spacing: 8) {
                 statusBadge
                 Text("\(ext.isEmpty ? "—" : ext) · \(kind)")
-                    .font(.system(size: 12))
+                    .font(.system(size: 14))
                     .foregroundColor(.secondary)
             }
             if let reason = entry.reason {
                 Text(reason)
-                    .font(.system(size: 11))
+                    .font(.system(size: 13))
                     .foregroundColor(.secondary)
             }
         }
@@ -65,7 +65,7 @@ struct MetadataReport: View {
 
     private var statusBadge: some View {
         Text(entry.status.rawValue)
-            .font(.system(size: 10, weight: .bold))
+            .font(.system(size: 12, weight: .bold))
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(statusColor.opacity(0.15))
@@ -84,7 +84,7 @@ struct MetadataReport: View {
 
     private var sectionTitle: some View {
         Text("\(kind) Metadata")
-            .font(.system(size: 12, weight: .semibold))
+            .font(.system(size: 14, weight: .semibold))
             .foregroundColor(.secondary)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
@@ -107,7 +107,7 @@ struct MetadataReport: View {
     private func columnHeader(_ title: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
             Rectangle()
                 .fill(Color.green)
                 .frame(height: 2)
@@ -119,10 +119,10 @@ struct MetadataReport: View {
     private func metaCell(label: String, value: String, tone: Tone, leftBorder: Bool) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
-                .font(.system(size: 11))
+                .font(.system(size: 13))
                 .foregroundColor(.secondary)
             Text(value.isEmpty ? "Empty" : value)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(tone == .removed ? .red : .primary)
                 .lineLimit(nil)
         }
