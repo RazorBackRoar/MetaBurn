@@ -38,6 +38,13 @@ Package a macOS `.app` and DMG with ad-hoc signing:
 
 Output: `build/Release/MetaBurn.app` and `build/Release/MetaBurn.dmg`.
 
+## Community & docs
+
+- [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) — prerequisites, build, packaging, release, versioning
+- [CONTRIBUTING.md](CONTRIBUTING.md) — how to contribute
+- [SECURITY.md](SECURITY.md) — vulnerability reporting
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — community standards
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
