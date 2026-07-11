@@ -171,24 +171,20 @@ struct ContentView: View {
         VStack(spacing: 0) {
             if let notice = dropNotice {
                 noticeBanner(notice)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 10)
             }
 
-            countersRow
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .padding(.bottom, 8)
+            summaryStrip
+                .padding(.horizontal, 14)
+                .padding(.top, 10)
+                .padding(.bottom, 10)
 
-            if runner.state == .done || runner.state == .failed || runner.state == .cancelled {
-                outcomeBanner
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
-            }
+            Divider().overlay(MetaBurnTheme.divider)
 
             HStack(spacing: 0) {
                 fileSidebar
-                    .frame(width: 240)
+                    .frame(minWidth: 200, idealWidth: 220, maxWidth: 260)
                 Divider().overlay(MetaBurnTheme.divider)
                 detailPane
             }
@@ -196,6 +192,45 @@ struct ContentView: View {
 
             Divider().overlay(MetaBurnTheme.divider)
             footerBar
+        }
+    }
+
+    /// Counters + outcome in one compact strip (avoids stacked banner gap).
+    private var summaryStrip: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                counterPill("Found", runner.counters.supported, .secondary)
+                counterPill("Cleaned", runner.counters.cleaned, .green)
+                counterPill("Skipped", runner.counters.skipped, .secondary)
+                counterPill("Partial", runner.counters.partial, .orange)
+                counterPill("Failed", runner.counters.failed, .red)
+                Spacer(minLength: 0)
+                if processing {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+
+            if runner.state == .done || runner.state == .failed || runner.state == .cancelled {
+                HStack(spacing: 6) {
+                    Image(systemName: outcomeIcon)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(bannerColor)
+                    Text(outcomeTitle)
+                        .font(.system(size: 12, weight: .semibold))
+                    Text("·")
+                        .foregroundStyle(.secondary)
+                    Text(outcomeSubtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(bannerColor.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
         }
     }
 
@@ -283,53 +318,19 @@ struct ContentView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
-    private var countersRow: some View {
-        HStack(spacing: 8) {
-            counterPill("Found", runner.counters.supported, .secondary)
-            counterPill("Cleaned", runner.counters.cleaned, .green)
-            counterPill("Skipped", runner.counters.skipped, .secondary)
-            counterPill("Partial", runner.counters.partial, .orange)
-            counterPill("Failed", runner.counters.failed, .red)
-            Spacer(minLength: 0)
-            if processing {
-                ProgressView()
-                    .controlSize(.small)
-            }
-        }
-    }
-
     private func counterPill(_ label: String, _ value: Int, _ color: Color) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 3) {
             Text("\(value)")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .font(.system(size: 12, weight: .bold, design: .rounded))
                 .foregroundStyle(color)
             Text(label)
-                .font(.system(size: 11))
+                .font(.system(size: 10))
                 .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 4)
         .background(MetaBurnTheme.surface)
         .clipShape(Capsule())
-    }
-
-    private var outcomeBanner: some View {
-        HStack(spacing: 8) {
-            Image(systemName: outcomeIcon)
-                .foregroundStyle(bannerColor)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(outcomeTitle)
-                    .font(.system(size: 13, weight: .semibold))
-                Text(outcomeSubtitle)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-            Spacer()
-        }
-        .padding(10)
-        .background(bannerColor.opacity(0.12))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private var fileSidebar: some View {
@@ -343,8 +344,8 @@ struct ContentView: View {
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
 
             Divider().overlay(MetaBurnTheme.divider)
 
@@ -355,7 +356,7 @@ struct ContentView: View {
                 ForEach(runner.log) { entry in
                     FileRow(entry: entry)
                         .tag(entry.id)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
+                        .listRowInsets(EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6))
                         .listRowBackground(Color.clear)
                 }
             }
@@ -386,7 +387,7 @@ struct ContentView: View {
     }
 
     private var footerBar: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .center, spacing: 12) {
             Button {
                 browseFiles()
             } label: {
@@ -397,14 +398,14 @@ struct ContentView: View {
 
             muteCompact
 
-            Spacer()
+            Spacer(minLength: 8)
 
             Text("In-place · no copies")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
     }
 
     private var muteCompact: some View {
@@ -642,12 +643,11 @@ private struct FileRow: View {
     let entry: LogEntry
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .center, spacing: 8) {
             Circle()
                 .fill(statusColor)
-                .frame(width: 8, height: 8)
-                .padding(.top, 5)
-            VStack(alignment: .leading, spacing: 2) {
+                .frame(width: 7, height: 7)
+            VStack(alignment: .leading, spacing: 1) {
                 Text(URL(fileURLWithPath: entry.path).lastPathComponent)
                     .font(.system(size: 12, weight: .semibold))
                     .lineLimit(1)
@@ -664,7 +664,8 @@ private struct FileRow: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 5)
+        .padding(.horizontal, 4)
         .contentShape(Rectangle())
     }
 
@@ -702,14 +703,14 @@ struct MetaBurnPrimaryButtonStyle: ButtonStyle {
 struct MetaBurnSecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 12, weight: .medium))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
+            .font(.system(size: 11, weight: .medium))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
             .background(MetaBurnTheme.surface.opacity(configuration.isPressed ? 0.7 : 1))
             .foregroundStyle(.primary)
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
                     .strokeBorder(MetaBurnTheme.divider, lineWidth: 1)
             )
     }
