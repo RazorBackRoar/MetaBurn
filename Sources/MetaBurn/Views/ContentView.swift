@@ -112,6 +112,10 @@ struct ContentView: View {
                     Button("About MetaBurn") { showAbout() }
                 }
 
+            if runner.typeCounts.hasAny {
+                typeCountBubbles
+            }
+
             Spacer(minLength: 8)
 
             statusCapsule
@@ -126,6 +130,76 @@ struct ContentView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+    }
+
+    private var typeCountBubbles: some View {
+        HStack(spacing: 6) {
+            if runner.typeCounts.images > 0 {
+                typeBubble(
+                    label: "Images",
+                    done: runner.typeCounts.imagesDone,
+                    total: runner.typeCounts.images
+                )
+            }
+            if runner.typeCounts.videos > 0 {
+                typeBubble(
+                    label: "Videos",
+                    done: runner.typeCounts.videosDone,
+                    total: runner.typeCounts.videos
+                )
+            }
+            if runner.typeCounts.other > 0 {
+                typeBubble(
+                    label: "Other",
+                    done: runner.typeCounts.otherDone,
+                    total: runner.typeCounts.other
+                )
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(typeCountsAccessibilityLabel)
+    }
+
+    private func typeBubble(label: String, done: Int, total: Int) -> some View {
+        HStack(spacing: 4) {
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+            Text(typeCountText(done: done, total: total))
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+                .monospacedDigit()
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(MetaBurnTheme.surface)
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .strokeBorder(MetaBurnTheme.divider, lineWidth: 1)
+        )
+    }
+
+    private func typeCountText(done: Int, total: Int) -> String {
+        if processing || done < total {
+            return "\(done)/\(total)"
+        }
+        return "\(total)"
+    }
+
+    private var typeCountsAccessibilityLabel: String {
+        var parts: [String] = []
+        let counts = runner.typeCounts
+        if counts.images > 0 {
+            parts.append("Images \(typeCountText(done: counts.imagesDone, total: counts.images))")
+        }
+        if counts.videos > 0 {
+            parts.append("Videos \(typeCountText(done: counts.videosDone, total: counts.videos))")
+        }
+        if counts.other > 0 {
+            parts.append("Other \(typeCountText(done: counts.otherDone, total: counts.other))")
+        }
+        return parts.joined(separator: ", ")
     }
 
     private var statusCapsule: some View {

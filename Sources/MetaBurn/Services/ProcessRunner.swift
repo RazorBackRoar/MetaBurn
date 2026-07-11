@@ -37,6 +37,11 @@ final class ProcessRunner {
             try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
             if process.isRunning {
                 process.terminate()
+                // ExifTool can hang on some HEIC/media files after SIGTERM; escalate.
+                try await Task.sleep(nanoseconds: 2_000_000_000)
+                if process.isRunning {
+                    kill(process.processIdentifier, SIGKILL)
+                }
             }
         }
 

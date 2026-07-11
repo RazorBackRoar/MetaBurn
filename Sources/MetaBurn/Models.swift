@@ -16,6 +16,34 @@ struct Counters: Equatable {
     var partial = 0
 }
 
+/// Per-kind totals discovered during scan, plus how many have finished cleaning.
+struct TypeCounts: Equatable {
+    var images = 0
+    var videos = 0
+    var other = 0
+    var imagesDone = 0
+    var videosDone = 0
+    var otherDone = 0
+
+    var hasAny: Bool { images > 0 || videos > 0 || other > 0 }
+
+    mutating func recordTotal(for path: String) {
+        switch SupportedTypes.classify(filePath: path).kind {
+        case .photo: images += 1
+        case .video: videos += 1
+        case .unsupported: other += 1
+        }
+    }
+
+    mutating func recordDone(for path: String) {
+        switch SupportedTypes.classify(filePath: path).kind {
+        case .photo: imagesDone += 1
+        case .video: videosDone += 1
+        case .unsupported: otherDone += 1
+        }
+    }
+}
+
 struct ScanSummary: Equatable {
     let fileCount: Int
     let totalBytes: Int64

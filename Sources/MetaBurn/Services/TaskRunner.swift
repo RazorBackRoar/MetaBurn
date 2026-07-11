@@ -5,6 +5,7 @@ import AppKit
 final class TaskRunner: ObservableObject {
     @Published private(set) var state: RunState = .waiting
     @Published private(set) var counters = Counters()
+    @Published private(set) var typeCounts = TypeCounts()
     @Published private(set) var scanSummary: ScanSummary?
     @Published private(set) var message: String?
     @Published private(set) var log: [LogEntry] = []
@@ -17,6 +18,7 @@ final class TaskRunner: ObservableObject {
         isCancelled = false
         state = .scanning
         counters = Counters()
+        typeCounts = TypeCounts()
         scanSummary = nil
         message = nil
         log = []
@@ -38,6 +40,7 @@ final class TaskRunner: ObservableObject {
         isCancelled = false
         state = .waiting
         counters = Counters()
+        typeCounts = TypeCounts()
         scanSummary = nil
         message = nil
         log = []
@@ -66,6 +69,11 @@ final class TaskRunner: ObservableObject {
 
             await MainActor.run {
                 counters.supported = scan.files.count
+                var kinds = TypeCounts()
+                for file in scan.files {
+                    kinds.recordTotal(for: file)
+                }
+                typeCounts = kinds
                 scanSummary = ScanSummary(fileCount: scan.files.count, totalBytes: scan.totalBytes)
             }
 
@@ -104,6 +112,7 @@ final class TaskRunner: ObservableObject {
             case .failed: counters.failed += 1
             case .partial: counters.partial += 1
             }
+            typeCounts.recordDone(for: result.path)
             log.append(LogEntry(result: result))
             NSApp?.requestUserAttention(.informationalRequest)
         }
