@@ -7,12 +7,17 @@ struct MetadataReport: View {
         URL(fileURLWithPath: entry.path).lastPathComponent
     }
 
+    private var directory: String {
+        URL(fileURLWithPath: entry.path).deletingLastPathComponent().path
+    }
+
     private var kind: String {
         SupportedTypes.isVideo(filePath: entry.path) ? "Video" : "Photo"
     }
 
     private var ext: String {
-        (entry.path as NSString).pathExtension.uppercased()
+        let value = (entry.path as NSString).pathExtension.uppercased()
+        return value.isEmpty ? "—" : value
     }
 
     private var rows: [FieldRow] {
@@ -23,121 +28,158 @@ struct MetadataReport: View {
         )
     }
 
+    private var strippedCount: Int {
+        rows.filter(\.stripped).count
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             header
-            sectionTitle
+            Divider().overlay(MetaBurnTheme.divider)
+            if entry.status == .failed || entry.status == .skipped {
+                messageBlock
+                Divider().overlay(MetaBurnTheme.divider)
+            }
             columnHeaders
+            Divider().overlay(MetaBurnTheme.divider)
             ScrollView {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 0) {
+                LazyVStack(spacing: 0) {
                     ForEach(rows) { row in
-                        metaCell(label: row.label, value: row.before, tone: row.stripped ? .removed : .normal, leftBorder: false)
-                        metaCell(label: row.label, value: row.after, tone: .normal, leftBorder: true)
+                        fieldRow(row)
+                        Divider().overlay(MetaBurnTheme.divider.opacity(0.6))
                     }
                 }
             }
         }
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(MetaBurnTheme.background)
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(fileName)
-                .font(.system(size: 16, weight: .semibold))
-                .lineLimit(1)
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(fileName)
+                    .font(.system(size: 15, weight: .semibold))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: 8)
                 statusBadge
-                Text("\(ext.isEmpty ? "—" : ext) · \(kind)")
-                    .font(.system(size: 14))
-                    .foregroundColor(.secondary)
             }
-            if let reason = entry.reason {
-                Text(reason)
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
+
+            Text(directory)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .help(entry.path)
+
+            HStack(spacing: 8) {
+                metaChip("\(ext) · \(kind)")
+                metaChip(outcomeLabel)
+                if strippedCount > 0 {
+                    metaChip("\(strippedCount) fields removed")
+                }
             }
         }
-        .padding()
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.gray.opacity(0.08))
-        .overlay(Divider(), alignment: .bottom)
+        .background(MetaBurnTheme.surface.opacity(0.55))
+    }
+
+    private var messageBlock: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: entry.status == .failed ? "xmark.octagon.fill" : "slash.circle.fill")
+                .foregroundStyle(statusColor)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.status == .failed ? "Could not process this file" : "File was not cleaned")
+                    .font(.system(size: 12, weight: .semibold))
+                Text(entry.reason ?? "No additional details.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(statusColor.opacity(0.08))
+    }
+
+    private var columnHeaders: some View {
+        HStack(spacing: 0) {
+            Text("Before")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("After")
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .font(.system(size: 11, weight: .semibold))
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(MetaBurnTheme.surface.opacity(0.35))
+    }
+
+    private func fieldRow(_ row: FieldRow) -> some View {
+        HStack(alignment: .top, spacing: 0) {
+            valueColumn(label: row.label, value: row.before, removed: false)
+            valueColumn(label: row.label, value: row.after, removed: row.stripped)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+    }
+
+    private func valueColumn(label: String, value: String, removed: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+            Text(value.isEmpty ? "—" : value)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(removed ? MetaBurnTheme.accent : .primary)
+                .strikethrough(removed && !value.isEmpty, color: MetaBurnTheme.accent.opacity(0.8))
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var statusBadge: some View {
-        Text(entry.status.rawValue)
-            .font(.system(size: 12, weight: .bold))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(statusColor.opacity(0.15))
-            .foregroundColor(statusColor)
-            .cornerRadius(4)
+        Text(entry.status.rawValue.capitalized)
+            .font(.system(size: 10, weight: .bold))
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(statusColor.opacity(0.18))
+            .foregroundStyle(statusColor)
+            .clipShape(Capsule())
     }
 
     private var statusColor: Color {
         switch entry.status {
         case .cleaned: .green
         case .partial: .orange
-        case .skipped: .gray
+        case .skipped: .secondary
         case .failed: .red
         }
     }
 
-    private var sectionTitle: some View {
-        Text("\(kind) Metadata")
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundColor(.secondary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.gray.opacity(0.05))
-            .overlay(Divider(), alignment: .bottom)
-    }
-
-    private var columnHeaders: some View {
-        HStack(spacing: 0) {
-            columnHeader("Before Burn")
-            Divider()
-            columnHeader("After Burn")
+    private var outcomeLabel: String {
+        switch entry.status {
+        case .cleaned: "Modified in place"
+        case .partial: "Partially cleaned"
+        case .skipped: "Rejected / skipped"
+        case .failed: "Error"
         }
-        .frame(height: 36)
-        .background(Color.gray.opacity(0.05))
-        .overlay(Divider(), alignment: .bottom)
     }
 
-    private func columnHeader(_ title: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.system(size: 14, weight: .semibold))
-            Rectangle()
-                .fill(Color.green)
-                .frame(height: 2)
-        }
-        .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    private func metaChip(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(MetaBurnTheme.surface)
+            .clipShape(Capsule())
     }
-
-    private func metaCell(label: String, value: String, tone: Tone, leftBorder: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .font(.system(size: 13))
-                .foregroundColor(.secondary)
-            Text(value.isEmpty ? "Empty" : value)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(tone == .removed ? .red : .primary)
-                .lineLimit(nil)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(leftBorder ? Color.gray.opacity(0.04) : Color.clear)
-        .overlay(
-            leftBorder ? Divider().offset(x: -1) : nil,
-            alignment: .leading
-        )
-        .overlay(Divider(), alignment: .bottom)
-    }
-
-    enum Tone { case normal, removed }
 }
 
 @MainActor

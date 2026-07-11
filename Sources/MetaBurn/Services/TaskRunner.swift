@@ -32,6 +32,17 @@ final class TaskRunner: ObservableObject {
         activeJob?.cancel()
     }
 
+    func reset() {
+        cancel()
+        activeJob = nil
+        isCancelled = false
+        state = .waiting
+        counters = Counters()
+        scanSummary = nil
+        message = nil
+        log = []
+    }
+
     private func run(jobId: String, droppedPaths: [String], muteAudio: Bool) async {
         let ffmpegPath = muteAudio ? await MetadataCleaner.resolveFfmpeg() : nil
         let exiftoolPath = await MetadataCleaner.resolveExiftool()

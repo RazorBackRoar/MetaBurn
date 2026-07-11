@@ -19,6 +19,10 @@ struct ContentView: View {
         runner.state == .scanning || runner.state == .cleaning
     }
 
+    private var hasResults: Bool {
+        !runner.log.isEmpty
+    }
+
     var body: some View {
         Group {
             if exiftoolReady == false {
@@ -27,6 +31,7 @@ struct ContentView: View {
                 mainView
             }
         }
+        .preferredColorScheme(.dark)
         .onAppear {
             Task { await checkExiftool() }
         }
@@ -35,176 +40,388 @@ struct ContentView: View {
     // MARK: - Missing ExifTool
 
     private var missingExiftoolView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "shield.checkerboard")
-                .font(.system(size: 48))
-                .foregroundColor(.orange)
+        VStack(spacing: 20) {
+            Image(systemName: "flame.fill")
+                .font(.system(size: 44))
+                .foregroundStyle(MetaBurnTheme.accent)
             Text("ExifTool is required")
-                .font(.title2)
-            Text("Install it with: brew install exiftool")
-                .font(.system(size: 14))
-                .foregroundColor(.secondary)
-            HStack(spacing: 12) {
+                .font(.system(size: 22, weight: .semibold))
+            Text("MetaBurn uses ExifTool to strip metadata locally.\nInstall it with Homebrew, then re-check.")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            HStack(spacing: 10) {
                 if canInstallExiftool {
                     Button(installingExiftool ? "Installing…" : "Install ExifTool") {
                         Task { await installExiftool() }
                     }
+                    .buttonStyle(MetaBurnPrimaryButtonStyle())
                     .disabled(installingExiftool)
                 }
                 Button("Re-check") {
                     Task { await checkExiftool() }
                 }
+                .buttonStyle(MetaBurnSecondaryButtonStyle())
                 .disabled(installingExiftool)
             }
+            Text("brew install exiftool")
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .padding(.top, 4)
         }
+        .padding(32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(MetaBurnTheme.background)
     }
 
-    // MARK: - Main View
+    // MARK: - Main
 
     private var mainView: some View {
-        VStack(spacing: 12) {
-            toolbar
-            dropZone
-            if let notice = dropNotice {
-                noticeBanner(notice, color: .orange)
+        VStack(spacing: 0) {
+            headerBar
+            Divider().overlay(MetaBurnTheme.divider)
+            if hasResults {
+                resultsLayout
+            } else {
+                emptyLayout
             }
-            muteSwitch
-            if muteAudio, ffmpegReady == false {
-                ffmpegNotice
-            }
-            statusBar
-            if runner.state == .done || runner.state == .failed || runner.state == .cancelled {
-                resultBanner
-            }
-            if runner.log.count > 1 {
-                fileChips
-            }
-            metadataPanel
         }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 16)
-        .frame(minWidth: 520, minHeight: 560)
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(MetaBurnTheme.background)
+        .frame(minWidth: 640, minHeight: 560)
         .onDrop(of: [.fileURL], isTargeted: $isDragging) { providers in
-            return handleDrop(providers: providers)
+            handleDrop(providers: providers)
         }
         .onAppear { Task { await checkFfmpeg() } }
+        .onChange(of: runner.log.count) { _, _ in
+            if selectedEntry == nil {
+                selectedEntry = runner.log.first
+            }
+        }
     }
 
-    private var toolbar: some View {
-        HStack {
-            Spacer()
+    private var headerBar: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "flame.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(MetaBurnTheme.accent)
             Text("MetaBurn")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(.red)
+                .font(.system(size: 15, weight: .semibold))
                 .onTapGesture(count: 2) { showAbout() }
                 .contextMenu {
                     Button("Check for Updates…") { checkForUpdates() }
+                    Button("About MetaBurn") { showAbout() }
                 }
-            Spacer()
+
+            Spacer(minLength: 8)
+
+            statusCapsule
+
             if processing {
                 Button("Cancel") { runner.cancel() }
-            } else {
-                Button("Clear Log") { clearLog() }
-                    .disabled(runner.log.isEmpty)
+                    .buttonStyle(MetaBurnSecondaryButtonStyle())
+            } else if hasResults {
+                Button("Clear") { clearLog() }
+                    .buttonStyle(MetaBurnSecondaryButtonStyle())
             }
         }
-        .padding(.vertical, 10)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+
+    private var statusCapsule: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(statusColor)
+                .frame(width: 7, height: 7)
+            Text(stateLabel)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(MetaBurnTheme.surface)
+        .clipShape(Capsule())
+    }
+
+    private var emptyLayout: some View {
+        VStack(spacing: 16) {
+            dropZone
+                .frame(maxHeight: 220)
+
+            if let notice = dropNotice {
+                noticeBanner(notice)
+            }
+
+            muteRow
+
+            if muteAudio, ffmpegReady == false {
+                ffmpegNotice
+            }
+
+            Spacer(minLength: 0)
+
+            Text("Files are cleaned in place — originals are modified, no copies are created.")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.bottom, 8)
+        }
+        .padding(16)
+    }
+
+    private var resultsLayout: some View {
+        VStack(spacing: 0) {
+            if let notice = dropNotice {
+                noticeBanner(notice)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+            }
+
+            countersRow
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+
+            if runner.state == .done || runner.state == .failed || runner.state == .cancelled {
+                outcomeBanner
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+            }
+
+            HStack(spacing: 0) {
+                fileSidebar
+                    .frame(width: 240)
+                Divider().overlay(MetaBurnTheme.divider)
+                detailPane
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            Divider().overlay(MetaBurnTheme.divider)
+            footerBar
+        }
     }
 
     private var dropZone: some View {
         Button {
             browseFiles()
         } label: {
-            VStack(spacing: 8) {
-                Image(systemName: processing ? "arrow.triangle.2.circlepath" : "icloud.and.arrow.up")
-                    .font(.system(size: 32))
-                    .foregroundColor(.secondary)
-                Text(processing ? "Processing…" : "Drop photos, videos, or folders here")
+            VStack(spacing: 10) {
+                if processing {
+                    ProgressView()
+                        .controlSize(.regular)
+                        .padding(.bottom, 2)
+                } else {
+                    Image(systemName: isDragging ? "arrow.down.doc.fill" : "square.and.arrow.down")
+                        .font(.system(size: 28, weight: .medium))
+                        .foregroundStyle(isDragging ? MetaBurnTheme.accent : .secondary)
+                }
+                Text(processing ? "Processing…" : "Drop photos, videos, or folders")
                     .font(.system(size: 16, weight: .semibold))
-                Text(processing ? "Cleaning metadata in place…" : "or click to browse — removed in place, no copies")
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
+                Text(processing ? "Cleaning metadata in place…" : "Click to browse · originals are modified in place")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 24)
-            .background(isDragging ? Color.accentColor.opacity(0.15) : Color.gray.opacity(0.08))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(isDragging ? Color.accentColor : Color.gray.opacity(0.3), style: StrokeStyle(lineWidth: 2, dash: [8]))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isDragging ? MetaBurnTheme.accent.opacity(0.12) : MetaBurnTheme.surface)
             )
-            .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(
+                        isDragging ? MetaBurnTheme.accent : MetaBurnTheme.divider,
+                        style: StrokeStyle(lineWidth: isDragging ? 2 : 1, dash: isDragging ? [] : [7, 5])
+                    )
+            )
         }
         .buttonStyle(.plain)
         .disabled(processing || exiftoolReady != true)
+        .animation(.easeInOut(duration: 0.15), value: isDragging)
     }
 
-    private var muteSwitch: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "volume.slash")
-                .foregroundColor(.secondary)
+    private var muteRow: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: "speaker.slash.fill")
+                .foregroundStyle(.secondary)
+                .frame(width: 20)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Mute Video")
-                    .font(.system(size: 15, weight: .semibold))
-                Text("Permanently remove audio from videos before cleaning.")
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
+                Text("Mute video audio")
+                    .font(.system(size: 13, weight: .semibold))
+                Text("Remove audio tracks before cleaning metadata.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
             }
             Spacer()
             Toggle("", isOn: $muteAudio)
                 .toggleStyle(.switch)
+                .labelsHidden()
                 .disabled(processing)
-                .onChange(of: muteAudio) { Task { await checkFfmpeg() } }
+                .onChange(of: muteAudio) { _, _ in
+                    Task { await checkFfmpeg() }
+                }
         }
-        .padding(10)
-        .background(Color.gray.opacity(0.06))
-        .cornerRadius(8)
+        .padding(12)
+        .background(MetaBurnTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private var ffmpegNotice: some View {
         HStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle")
-                .foregroundColor(.orange)
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
             Text("ffmpeg is required to mute audio.")
-                .font(.system(size: 14))
+                .font(.system(size: 12))
+            Spacer()
             if canInstallFfmpeg {
-                Button(installingFfmpeg ? "Installing…" : "Install ffmpeg") {
+                Button(installingFfmpeg ? "Installing…" : "Install") {
                     Task { await installFfmpeg() }
                 }
+                .buttonStyle(MetaBurnSecondaryButtonStyle())
                 .disabled(installingFfmpeg)
+            }
+        }
+        .padding(10)
+        .background(Color.orange.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private var countersRow: some View {
+        HStack(spacing: 8) {
+            counterPill("Found", runner.counters.supported, .secondary)
+            counterPill("Cleaned", runner.counters.cleaned, .green)
+            counterPill("Skipped", runner.counters.skipped, .secondary)
+            counterPill("Partial", runner.counters.partial, .orange)
+            counterPill("Failed", runner.counters.failed, .red)
+            Spacer(minLength: 0)
+            if processing {
+                ProgressView()
+                    .controlSize(.small)
+            }
+        }
+    }
+
+    private func counterPill(_ label: String, _ value: Int, _ color: Color) -> some View {
+        HStack(spacing: 4) {
+            Text("\(value)")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(color)
+            Text(label)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(MetaBurnTheme.surface)
+        .clipShape(Capsule())
+    }
+
+    private var outcomeBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: outcomeIcon)
+                .foregroundStyle(bannerColor)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(outcomeTitle)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(outcomeSubtitle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
             }
             Spacer()
         }
         .padding(10)
-        .background(Color.orange.opacity(0.08))
-        .cornerRadius(8)
+        .background(bannerColor.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
-    private var statusBar: some View {
+    private var fileSidebar: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Files")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(runner.log.count)")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+
+            Divider().overlay(MetaBurnTheme.divider)
+
+            List(selection: Binding(
+                get: { selectedEntry?.id },
+                set: { id in selectedEntry = runner.log.first { $0.id == id } }
+            )) {
+                ForEach(runner.log) { entry in
+                    FileRow(entry: entry)
+                        .tag(entry.id)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
+                        .listRowBackground(Color.clear)
+                }
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(MetaBurnTheme.background)
+        }
+        .background(MetaBurnTheme.background)
+    }
+
+    private var detailPane: some View {
+        Group {
+            if let entry = selectedEntry ?? runner.log.first {
+                MetadataReport(entry: entry)
+            } else {
+                VStack(spacing: 8) {
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .font(.system(size: 28))
+                        .foregroundStyle(.secondary)
+                    Text("Select a file to inspect before-and-after metadata.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .background(MetaBurnTheme.background)
+    }
+
+    private var footerBar: some View {
         HStack(spacing: 12) {
-            HStack(spacing: 6) {
-                statusDot
-                Text(stateLabel)
-                    .font(.system(size: 15, weight: .semibold))
+            Button {
+                browseFiles()
+            } label: {
+                Label("Add more…", systemImage: "plus")
             }
+            .buttonStyle(MetaBurnSecondaryButtonStyle())
+            .disabled(processing)
+
+            muteCompact
+
             Spacer()
-            HStack(spacing: 16) {
-                counter("Found", value: runner.counters.supported, color: .secondary)
-                counter("Cleaned", value: runner.counters.cleaned, color: .green)
-                counter("Skipped", value: runner.counters.skipped, color: .secondary)
-                counter("Partial", value: runner.counters.partial, color: .orange)
-                counter("Failed", value: runner.counters.failed, color: .red)
-            }
+
+            Text("In-place · no copies")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+
+    private var muteCompact: some View {
+        Toggle(isOn: $muteAudio) {
+            Text("Mute audio")
+                .font(.system(size: 12))
+        }
+        .toggleStyle(.checkbox)
+        .disabled(processing)
+        .onChange(of: muteAudio) { _, _ in
+            Task { await checkFfmpeg() }
         }
     }
 
-    private var statusDot: some View {
-        Circle()
-            .fill(statusColor)
-            .frame(width: 8, height: 8)
-    }
+    // MARK: - Status helpers
 
     private var statusColor: Color {
         switch runner.state {
@@ -217,90 +434,83 @@ struct ContentView: View {
 
     private var stateLabel: String {
         switch runner.state {
-        case .waiting: "Waiting for files"
+        case .waiting: "Waiting"
         case .scanning: "Scanning"
         case .cleaning: "Cleaning"
         case .done: "Done"
-        case .failed: runner.message ?? "Failed"
+        case .failed: "Failed"
         case .cancelled: "Cancelled"
         case .exiftoolMissing: "ExifTool missing"
         }
-    }
-
-    private var resultBanner: some View {
-        HStack(spacing: 8) {
-            Image(systemName: runner.state == .done ? "checkmark.circle" : runner.state == .failed ? "xmark.circle" : "slash.circle")
-            Text("\(runner.state.rawValue.capitalized) — \(summarizeCounters())")
-            Spacer()
-        }
-        .padding(10)
-        .background(bannerColor.opacity(0.12))
-        .foregroundColor(bannerColor)
-        .cornerRadius(8)
     }
 
     private var bannerColor: Color {
         switch runner.state {
         case .done: .green
         case .failed: .red
+        case .cancelled: .secondary
         default: .secondary
         }
     }
 
-    private var fileChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(runner.log) { entry in
-                    FileChip(entry: entry, isSelected: selectedEntry?.id == entry.id) {
-                        selectedEntry = entry
-                    }
-                }
-            }
-            .padding(.vertical, 4)
+    private var outcomeIcon: String {
+        switch runner.state {
+        case .done: "checkmark.circle.fill"
+        case .failed: "xmark.circle.fill"
+        case .cancelled: "slash.circle.fill"
+        default: "info.circle.fill"
         }
     }
 
-    private var metadataPanel: some View {
-        ZStack {
-            if let entry = selectedEntry ?? runner.log.first {
-                MetadataReport(entry: entry)
-            } else {
-                Text("Drop a photo, video, or folder to see its before-and-after metadata.")
-                    .font(.system(size: 14))
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding()
+    private var outcomeTitle: String {
+        switch runner.state {
+        case .done:
+            if runner.counters.failed > 0 || runner.counters.partial > 0 {
+                return "Finished with issues"
             }
+            return "Metadata removed"
+        case .failed: return runner.message ?? "Processing failed"
+        case .cancelled: return "Cancelled"
+        default: return runner.state.rawValue.capitalized
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.gray.opacity(0.04))
-        .cornerRadius(8)
     }
 
-    // MARK: - Helpers
+    private var outcomeSubtitle: String {
+        var parts: [String] = []
+        if runner.counters.cleaned > 0 {
+            parts.append("\(runner.counters.cleaned) cleaned in place")
+        }
+        if runner.counters.skipped > 0 {
+            parts.append("\(runner.counters.skipped) skipped / rejected")
+        }
+        if runner.counters.partial > 0 {
+            parts.append("\(runner.counters.partial) partial")
+        }
+        if runner.counters.failed > 0 {
+            parts.append("\(runner.counters.failed) failed")
+        }
+        if parts.isEmpty {
+            return "No supported files were processed."
+        }
+        return parts.joined(separator: " · ")
+    }
 
-    private func noticeBanner(_ message: String, color: Color) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle")
+    private func noticeBanner(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
             Text(message)
-            Spacer()
+                .font(.system(size: 12))
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
         }
         .padding(10)
-        .background(color.opacity(0.08))
-        .foregroundColor(color)
-        .cornerRadius(8)
+        .background(Color.orange.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
-    private func counter(_ label: String, value: Int, color: Color) -> some View {
-        HStack(spacing: 4) {
-            Text("\(value)")
-                .font(.system(size: 15, weight: .bold))
-                .foregroundColor(color)
-            Text(label)
-                .font(.system(size: 13))
-                .foregroundColor(.secondary)
-        }
-    }
+    // MARK: - Actions
 
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
         guard exiftoolReady == true, !processing else { return false }
@@ -309,7 +519,7 @@ struct ContentView: View {
         var loaded = 0
         for provider in providers {
             group.enter()
-            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { (item, error) in
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
                 defer { group.leave() }
                 if let data = item as? Data, let url = URL(dataRepresentation: data, relativeTo: nil) {
                     paths.append(url.path)
@@ -322,7 +532,9 @@ struct ContentView: View {
         }
         group.notify(queue: .main) {
             if paths.isEmpty {
-                dropNotice = loaded > 0 ? "Couldn't read those items' file paths. Click the drop area to browse and pick them instead." : "No files were detected in that drop. Try photos, videos, or a folder — or click to browse."
+                dropNotice = loaded > 0
+                    ? "Couldn't read those items' file paths. Click the drop area to browse instead."
+                    : "No files detected. Drop photos, videos, or a folder — or click to browse."
             } else {
                 dropNotice = nil
                 startJob(paths: paths)
@@ -338,7 +550,8 @@ struct ContentView: View {
         panel.canChooseDirectories = true
         panel.allowedContentTypes = [.image, .movie, .data]
         if panel.runModal() == .OK {
-            startJob(paths: panel.urls.map { $0.path })
+            dropNotice = nil
+            startJob(paths: panel.urls.map(\.path))
         }
     }
 
@@ -350,13 +563,16 @@ struct ContentView: View {
     private func clearLog() {
         runner.cancel()
         selectedEntry = nil
+        dropNotice = nil
+        // Reset to waiting empty state by clearing via new runner state
+        // TaskRunner keeps log until next start; force clear:
+        runner.reset()
     }
 
     private func checkExiftool() async {
-        if let path = await MetadataCleaner.resolveExiftool() {
+        if await MetadataCleaner.resolveExiftool() != nil {
             exiftoolReady = true
             canInstallExiftool = false
-            _ = path
         } else {
             exiftoolReady = false
             canInstallExiftool = await MetadataCleaner.resolveBrew() != nil
@@ -364,10 +580,9 @@ struct ContentView: View {
     }
 
     private func checkFfmpeg() async {
-        if let path = await MetadataCleaner.resolveFfmpeg() {
+        if await MetadataCleaner.resolveFfmpeg() != nil {
             ffmpegReady = true
             canInstallFfmpeg = false
-            _ = path
         } else {
             ffmpegReady = false
             canInstallFfmpeg = await MetadataCleaner.resolveBrew() != nil
@@ -377,18 +592,14 @@ struct ContentView: View {
     private func installExiftool() async {
         installingExiftool = true
         let result = await MetadataCleaner.installExiftool()
-        if result.success {
-            await checkExiftool()
-        }
+        if result.success { await checkExiftool() }
         installingExiftool = false
     }
 
     private func installFfmpeg() async {
         installingFfmpeg = true
         let result = await MetadataCleaner.installFfmpeg()
-        if result.success {
-            await checkFfmpeg()
-        }
+        if result.success { await checkFfmpeg() }
         installingFfmpeg = false
     }
 
@@ -428,51 +639,83 @@ struct ContentView: View {
             alert.runModal()
         }
     }
-
-    private func summarizeCounters() -> String {
-        var parts = ["\(runner.counters.cleaned) files cleaned"]
-        if runner.counters.skipped > 0 { parts.append("\(runner.counters.skipped) skipped") }
-        if runner.counters.partial > 0 { parts.append("\(runner.counters.partial) partial") }
-        if runner.counters.failed > 0 { parts.append("\(runner.counters.failed) failed") }
-        return parts.joined(separator: " · ")
-    }
 }
 
-// MARK: - File Chip
+// MARK: - File row
 
-struct FileChip: View {
+private struct FileRow: View {
     let entry: LogEntry
-    let isSelected: Bool
-    let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Text(entry.status.rawValue)
-                    .font(.system(size: 12, weight: .bold))
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(statusColor.opacity(0.15))
-                    .foregroundColor(statusColor)
-                    .cornerRadius(4)
+        HStack(alignment: .top, spacing: 8) {
+            Circle()
+                .fill(statusColor)
+                .frame(width: 8, height: 8)
+                .padding(.top, 5)
+            VStack(alignment: .leading, spacing: 2) {
                 Text(URL(fileURLWithPath: entry.path).lastPathComponent)
-                    .font(.system(size: 13))
+                    .font(.system(size: 12, weight: .semibold))
                     .lineLimit(1)
+                    .truncationMode(.middle)
+                Text(entry.status.rawValue.capitalized)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(statusColor)
+                if let reason = entry.reason, entry.status != .cleaned {
+                    Text(reason)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(isSelected ? Color.accentColor.opacity(0.15) : Color.gray.opacity(0.08))
-            .cornerRadius(6)
+            Spacer(minLength: 0)
         }
-        .buttonStyle(.plain)
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
     }
 
     private var statusColor: Color {
         switch entry.status {
         case .cleaned: .green
         case .partial: .orange
-        case .skipped: .gray
+        case .skipped: .secondary
         case .failed: .red
         }
+    }
+}
+
+// MARK: - Theme / buttons
+
+enum MetaBurnTheme {
+    static let background = Color(red: 0.07, green: 0.07, blue: 0.08)
+    static let surface = Color.white.opacity(0.06)
+    static let divider = Color.white.opacity(0.10)
+    static let accent = Color(red: 0.90, green: 0.22, blue: 0.22)
+}
+
+struct MetaBurnPrimaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .semibold))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
+            .background(MetaBurnTheme.accent.opacity(configuration.isPressed ? 0.75 : 1))
+            .foregroundStyle(.white)
+            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+    }
+}
+
+struct MetaBurnSecondaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12, weight: .medium))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(MetaBurnTheme.surface.opacity(configuration.isPressed ? 0.7 : 1))
+            .foregroundStyle(.primary)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(MetaBurnTheme.divider, lineWidth: 1)
+            )
     }
 }
