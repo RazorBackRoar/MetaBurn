@@ -15,6 +15,7 @@ enum Scanner {
             guard !dropped.isEmpty else { continue }
 
             let url = URL(fileURLWithPath: dropped)
+            if url.lastPathComponent.hasPrefix(".") { continue }
             do {
                 let values = try url.resourceValues(forKeys: [.isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey])
                 if values.isSymbolicLink == true {
@@ -44,7 +45,7 @@ enum Scanner {
         let enumerator = FileManager.default.enumerator(
             at: url,
             includingPropertiesForKeys: [.isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey],
-            options: [],
+            options: [.skipsHiddenFiles],
             errorHandler: { url, error in
                 walkSkipped.append((url.path, "could not read: \(error.localizedDescription)"))
                 return true

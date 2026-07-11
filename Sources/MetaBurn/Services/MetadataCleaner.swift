@@ -256,15 +256,31 @@ enum MetadataCleaner {
         return left == right
     }
 
+    private static let pngStructuralTags: Set<String> = [
+        "AnimationFrames", "AnimationPlays", "AppleDataOffsets", "BackgroundColor",
+        "BitDepth", "BlueX", "BlueY", "ColorPrimaries", "ColorType", "Compression",
+        "DigitalSignature", "Filter", "FractalParameters", "GIFApplicationExtension",
+        "GIFGraphicControlExtension", "GIFPlainTextExtension", "GainMapImage", "Gamma",
+        "GreenX", "GreenY", "ImageHeight", "ImageOffset", "ImageWidth", "Interlace",
+        "MatrixCoefficients", "Palette", "PaletteHistogram", "PixelCalibration",
+        "PixelUnits", "PixelsPerUnitX", "PixelsPerUnitY", "ProfileName", "RedX", "RedY",
+        "SRGBRendering", "SignificantBits", "StereoMode", "SubjectPixelHeight",
+        "SubjectPixelWidth", "SubjectUnits", "SuggestedPalette", "TransferCharacteristics",
+        "Transparency", "VideoFullRangeFlag", "VirtualImageHeight", "VirtualImageWidth",
+        "VirtualPageUnits", "WhitePointX", "WhitePointY"
+    ]
+
     private static func isRemovable(_ entry: MetadataEntry, kind: SupportedTypes.FileKind) -> Bool {
         let group = entry.group
         if group.hasPrefix("XMP") { return true }
         if group.hasPrefix("ICC") { return kind != .photo }
         switch group {
         case "EXIF", "GPS", "IPTC", "MakerNotes", "Photoshop", "JFIF", "Ducky",
-             "PDF", "PNG", "MIE", "MIELensInfo", "CanonVRD", "FotoStation", "Adobe",
+             "PDF", "MIE", "MIELensInfo", "CanonVRD", "FotoStation", "Adobe",
              "XML", "ItemList", "UserData", "Keys", "AudioKeys", "VideoKeys":
             return true
+        case "PNG":
+            return !pngStructuralTags.contains(entry.tag)
         default:
             return false
         }
