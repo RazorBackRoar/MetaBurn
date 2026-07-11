@@ -144,9 +144,9 @@ struct ContentView: View {
     }
 
     private var emptyLayout: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 12) {
             dropZone
-                .frame(maxHeight: 220)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             if let notice = dropNotice {
                 noticeBanner(notice)
@@ -158,13 +158,11 @@ struct ContentView: View {
                 ffmpegNotice
             }
 
-            Spacer(minLength: 0)
-
             Text("Files are cleaned in place — originals are modified, no copies are created.")
-                .font(.system(size: 12))
+                .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .padding(.bottom, 8)
+                .padding(.top, 2)
         }
         .padding(16)
     }
@@ -229,8 +227,8 @@ struct ContentView: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(
-                        isDragging ? MetaBurnTheme.accent : MetaBurnTheme.divider,
-                        style: StrokeStyle(lineWidth: isDragging ? 2 : 1, dash: isDragging ? [] : [7, 5])
+                        isDragging ? MetaBurnTheme.accent : Color.white.opacity(0.22),
+                        style: StrokeStyle(lineWidth: isDragging ? 2 : 1.5, dash: isDragging ? [] : [8, 6])
                     )
             )
         }
@@ -561,11 +559,8 @@ struct ContentView: View {
     }
 
     private func clearLog() {
-        runner.cancel()
         selectedEntry = nil
         dropNotice = nil
-        // Reset to waiting empty state by clearing via new runner state
-        // TaskRunner keeps log until next start; force clear:
         runner.reset()
     }
 
