@@ -107,12 +107,15 @@ enum MetadataCleaner {
                 arguments: args,
                 timeout: 60
             )
-            var result = interpretOutput(filePath: filePath, output: "\(output.stdout)\n\(output.stderr)")
             let metadataAfter = await readMetadata(exiftoolPath: exiftoolPath, filePath: filePath)
+            var result = interpretOutput(filePath: filePath, output: "\(output.stdout)\n\(output.stderr)")
+            result = verifyResult(result, kind: info.kind, metadataBefore: metadataBefore, metadataAfter: metadataAfter)
+
             if let reason = muteReason, result.status == .cleaned {
                 result = CleanResult(path: filePath, status: .partial, reason: reason, metadataBefore: metadataBefore, metadataAfter: metadataAfter)
-            } else {
-                result = CleanResult(path: filePath, status: result.status, reason: result.reason, metadataBefore: metadataBefore, metadataAfter: metadataAfter)
+            } else if let reason = muteReason, result.status == .partial {
+                let combined = [result.reason, reason].compactMap { $0 }.joined(separator: "; ")
+                result = CleanResult(path: filePath, status: .partial, reason: combined, metadataBefore: metadataBefore, metadataAfter: metadataAfter)
             }
             return result
         } catch {
@@ -158,14 +161,18 @@ enum MetadataCleaner {
 
     private static func readMetadata(exiftoolPath: String, filePath: String) async -> [MetadataEntry] {
         do {
-            let output = try await ProcessRunner.runSimple(executablePath: exiftoolPath, arguments: ["-j", filePath], timeout: 60)
+            let output = try await ProcessRunner.runSimple(executablePath: exiftoolPath, arguments: ["-G1", "-j", filePath], timeout: 60)
             guard let data = output.data(using: .utf8),
                   let json = try JSONSerialization.jsonObject(with: data) as? [[String: Any]],
                   let record = json.first else { return [] }
             var entries: [MetadataEntry] = []
-            let blocklist: Set<String> = ["SourceFile", "ExifToolVersion", "FileName", "Directory", "FileAccessDate", "FileInodeChangeDate", "FilePermissions", "Warning", "Error"]
-            for (tag, value) in record {
-                if blocklist.contains(tag) || value is NSNull { continue }
+            let blocklist: Set<String> = [
+                "SourceFile", "ExifTool:ExifToolVersion", "System:FileName", "System:Directory",
+                "System:FileAccessDate", "System:FileInodeChangeDate", "System:FilePermissions",
+                "Warning", "Error"
+            ]
+            for (key, value) in record {
+                if blocklist.contains(key) || value is NSNull { continue }
                 let text: String
                 if let str = value as? String {
                     text = str
@@ -175,11 +182,13 @@ enum MetadataCleaner {
                     text = String(describing: value)
                 }
                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty {
-                    entries.append(MetadataEntry(tag: tag, value: trimmed))
-                }
+                guard !trimmed.isEmpty else { continue }
+                let parts = key.split(separator: ":", maxSplits: 1)
+                let group = parts.count == 2 ? String(parts[0]) : ""
+                let tag = parts.count == 2 ? String(parts[1]) : key
+                entries.append(MetadataEntry(group: group, tag: tag, value: trimmed))
             }
-            return entries.sorted { $0.tag < $1.tag }
+            return entries.sorted { "\($0.group):\($0.tag)" < "\($1.group):\($1.tag)" }
         } catch {
             return []
         }
@@ -216,6 +225,49 @@ enum MetadataCleaner {
             ?? lines.first { $0.range(of: "weren't", options: .caseInsensitive) != nil || $0.range(of: "were not", options: .caseInsensitive) != nil }
             ?? lines.first { $0.range(of: "warning", options: .caseInsensitive) != nil }
             ?? lines.first
+    }
+
+    private static func verifyResult(_ result: CleanResult, kind: SupportedTypes.FileKind, metadataBefore: [MetadataEntry], metadataAfter: [MetadataEntry]) -> CleanResult {
+        guard result.status != .failed else {
+            return CleanResult(path: result.path, status: result.status, reason: result.reason, metadataBefore: metadataBefore, metadataAfter: metadataAfter)
+        }
+
+        let beforeRemovable = removableEntries(metadataBefore, kind: kind)
+        let afterRemovable = removableEntries(metadataAfter, kind: kind)
+
+        if afterRemovable.isEmpty {
+            return CleanResult(path: result.path, status: .cleaned, reason: result.reason, metadataBefore: metadataBefore, metadataAfter: metadataAfter)
+        }
+
+        if entriesEqual(beforeRemovable, afterRemovable) {
+            return CleanResult(path: result.path, status: .failed, reason: "metadata not removed by exiftool", metadataBefore: metadataBefore, metadataAfter: metadataAfter)
+        }
+
+        return CleanResult(path: result.path, status: .partial, reason: "some metadata remains", metadataBefore: metadataBefore, metadataAfter: metadataAfter)
+    }
+
+    private static func removableEntries(_ entries: [MetadataEntry], kind: SupportedTypes.FileKind) -> [MetadataEntry] {
+        entries.filter { isRemovable($0, kind: kind) }
+    }
+
+    private static func entriesEqual(_ lhs: [MetadataEntry], _ rhs: [MetadataEntry]) -> Bool {
+        let left = lhs.map { "\($0.group):\($0.tag)=\($0.value)" }.sorted()
+        let right = rhs.map { "\($0.group):\($0.tag)=\($0.value)" }.sorted()
+        return left == right
+    }
+
+    private static func isRemovable(_ entry: MetadataEntry, kind: SupportedTypes.FileKind) -> Bool {
+        let group = entry.group
+        if group.hasPrefix("XMP") { return true }
+        if group.hasPrefix("ICC") { return kind != .photo }
+        switch group {
+        case "EXIF", "GPS", "IPTC", "MakerNotes", "Photoshop", "JFIF", "Ducky",
+             "PDF", "PNG", "MIE", "MIELensInfo", "CanonVRD", "FotoStation", "Adobe",
+             "XML", "ItemList", "UserData", "Keys", "AudioKeys", "VideoKeys":
+            return true
+        default:
+            return false
+        }
     }
 }
 

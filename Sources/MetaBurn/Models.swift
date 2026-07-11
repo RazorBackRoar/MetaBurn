@@ -51,6 +51,7 @@ struct ScanSummary: Equatable {
 
 struct MetadataEntry: Equatable, Identifiable {
     let id = UUID()
+    let group: String
     let tag: String
     let value: String
 }
