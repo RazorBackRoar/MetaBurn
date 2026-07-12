@@ -102,5 +102,7 @@ fi
 echo "Verifying locked DMG layout..."
 python3 "$RAZORCORE_DIR/verify-dmg-layout.py" "$DMG_PATH" "$APP_NAME"
 
-echo "Build complete: $APP_PATH"
-echo "DMG: $DMG_PATH"
+# Package as a single DMG; do not leave the .app bundle in the app folder.
+rm -rf "$APP_PATH"
+
+echo "Build complete: $DMG_PATH"

@@ -46,7 +46,6 @@ swift run
 Output:
 
 ```text
-build/Release/MetaBurn.app
 build/Release/MetaBurn.dmg
 ```
 
@@ -55,8 +54,8 @@ build/Release/MetaBurn.dmg
 1. Ensure `main` is green (CI `swift build`).
 2. Confirm version in `Sources/MetaBurn/Resources/version.json`.
 3. Run `./scripts/build-mac.sh`.
-4. Install/smoke-test the `.app` (core happy path).
-5. Publish a GitHub Release and attach the `.dmg`.
+4. Install/smoke-test by mounting `build/Release/MetaBurn.dmg` and dragging `MetaBurn.app` to `/Applications`.
+5. Publish a GitHub Release and attach `build/Release/MetaBurn.dmg`.
 6. Tag `vX.Y.Z` to match `Sources/MetaBurn/Resources/version.json`.
 
 ## Versioning Expectations
@@ -70,7 +69,7 @@ build/Release/MetaBurn.dmg
 |---------|-------------|
 | `swift test` fails without XCTest | Install full Xcode.app, not only CLT |
 | Gatekeeper blocks launch | Right-click → **Open** (ad-hoc signed builds) |
-| Stale `/Applications` copy | Rebuild, then `ditto build/Release/MetaBurn.app` into Applications |
+| Stale `/Applications` copy | Mount `build/Release/MetaBurn.dmg` and drag `MetaBurn.app` to `/Applications` |
 | Window size restored huge | Quit app; relaunch after upgrading (defaults may cache old frames) |
 
 ## Related Docs

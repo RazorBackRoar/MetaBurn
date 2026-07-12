@@ -36,7 +36,7 @@ Package a macOS `.app` and DMG with ad-hoc signing:
 ./scripts/build-mac.sh
 ```
 
-Output: `build/Release/MetaBurn.app` and `build/Release/MetaBurn.dmg`.
+Output: `build/Release/MetaBurn.dmg` (no `.app` bundle is left in the app folder).
 
 ## Community & docs
 
