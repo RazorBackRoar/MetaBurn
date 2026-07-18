@@ -49,7 +49,15 @@ Package a macOS `.app` and DMG with ad-hoc signing:
 ./scripts/build-mac.sh
 ```
 
-Output is in `build/Release/MetaBurn.app` and `build/Release/MetaBurn.dmg`.
+Output is `build/Release/MetaBurn.dmg` only (the `.app` is consumed during packaging).
+
+## UI
+
+- While processing, show category count bubbles (Videos, Images, etc.) with counts beside the title so progress is visible by media type.
+
+## Testing
+
+Image/video testing uses **only** `/Users/home/Desktop/MetaBurn & L!bra Test` (`photos/` for images, `videos/` for videos). Never pull or process test media from Desktop/Downloads/Pictures/Movies/Workspace/elsewhere; generated outputs stay under that directory. Before any test, verify the source path starts with that prefix or stop.
 
 ## Repository rules
 
