@@ -245,6 +245,11 @@ struct ContentView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.top, 2)
+
+            Text("Metadata and optional video audio are removed — what’s visible in the frame is not.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
         }
         .padding(16)
     }

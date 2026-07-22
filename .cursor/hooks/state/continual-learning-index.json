@@ -1,14 +1,22 @@
 {
   "version": 1,
-  "updatedAtMs": 1784342544421,
+  "updatedAtMs": 1784756462577,
   "transcripts": {
     "/Users/home/.cursor/projects/Users-home-Workspace-Apps-MetaBurn/agent-transcripts/664f2cdc-dcba-4d61-a359-a0a62ff783d7/664f2cdc-dcba-4d61-a359-a0a62ff783d7.jsonl": {
-      "mtimeMs": 1784342393295.6218,
-      "size": 6871
+      "mtimeMs": 1784756365230.4958,
+      "size": 177157
     },
     "/Users/home/.cursor/projects/Users-home-Workspace-Apps-MetaBurn/agent-transcripts/664f2cdc-dcba-4d61-a359-a0a62ff783d7/subagents/8ff15b9f-69d5-4923-b7d1-79d35cc459d3.jsonl": {
-      "mtimeMs": 1784342431293.2085,
-      "size": 3026
+      "mtimeMs": 1784342549026.3354,
+      "size": 21747
+    },
+    "/Users/home/.cursor/projects/Users-home-Workspace-Apps-MetaBurn/agent-transcripts/664f2cdc-dcba-4d61-a359-a0a62ff783d7/subagents/b579313c-60c3-4242-9e4c-5d0ef67f55e0.jsonl": {
+      "mtimeMs": 1784756372449.8455,
+      "size": 3217
+    },
+    "/Users/home/.cursor/projects/Users-home-Workspace-Apps-MetaBurn/agent-transcripts/664f2cdc-dcba-4d61-a359-a0a62ff783d7/subagents/d6586eb2-e357-4d4b-b83a-ad01e7923cc3.jsonl": {
+      "mtimeMs": 1784753845631.507,
+      "size": 25870
     },
     "/Users/home/.cursor/projects/Users-home-Workspace-Apps-MetaBurn/agent-transcripts/68720268-1b96-4717-b16d-5ba6b3706a6c/68720268-1b96-4717-b16d-5ba6b3706a6c.jsonl": {
       "mtimeMs": 1783740909944.2832,
@@ -45,6 +53,14 @@
     "/Users/home/.cursor/projects/Users-home-Workspace/agent-transcripts/070cd06a-d3dd-4566-aa6a-1d5fa17b72fb/subagents/da6bd130-55a8-49a3-836e-ed2c58e8b3b8.jsonl": {
       "mtimeMs": 1783634111606.6396,
       "size": 25896
+    },
+    "/Users/home/.cursor/projects/Users-home-Workspace/agent-transcripts/1372069d-0eb2-4f1e-90e8-0258a412a23b/1372069d-0eb2-4f1e-90e8-0258a412a23b.jsonl": {
+      "mtimeMs": 1784751833730.7966,
+      "size": 22441
+    },
+    "/Users/home/.cursor/projects/Users-home-Workspace/agent-transcripts/1372069d-0eb2-4f1e-90e8-0258a412a23b/subagents/a35d077d-dc60-4ead-9f8c-7160b97ee324.jsonl": {
+      "mtimeMs": 1784678449473.899,
+      "size": 14138
     },
     "/Users/home/.cursor/projects/Users-home-Workspace/agent-transcripts/26b06490-a416-4378-a08f-ba7761773816/26b06490-a416-4378-a08f-ba7761773816.jsonl": {
       "mtimeMs": 1783813835097.354,

@@ -1,4 +1,5 @@
 import Foundation
+import MetaBurnCore
 
 @MainActor
 enum MetadataCleaner {
@@ -71,6 +72,9 @@ enum MetadataCleaner {
         }
     }
 
+    /// Copies to a hidden work file, cleans/mutes there, then atomically promotes to the final
+    /// Desktop/metaburn path. Failures/timeouts delete the work file and never leave a half-written
+    /// destination (important for HEIC where ExifTool may hang mid-`-overwrite_original`).
     static func cleanFile(filePath: String, muteAudio: Bool, ffmpegPath: String?) async -> CleanResult {
         let info = SupportedTypes.classify(filePath: filePath)
 
@@ -87,11 +91,13 @@ enum MetadataCleaner {
 
         Paths.ensureDesktopOutputDirectories()
         let outputDir = info.kind == .photo ? Paths.photosOutputDirectory() : Paths.videosOutputDirectory()
-        let outputURL = Paths.uniqueOutputURL(forSourcePath: filePath, in: outputDir)
-        let workPath = outputURL.path
+        let finalURL = Paths.uniqueOutputURL(forSourcePath: filePath, in: outputDir)
+        let workURL = Paths.workURL(forFinal: finalURL)
+        let workPath = workURL.path
+        let fm = FileManager.default
 
         do {
-            try FileManager.default.copyItem(atPath: filePath, toPath: workPath)
+            try fm.copyItem(atPath: filePath, toPath: workPath)
         } catch {
             return CleanResult(
                 path: filePath,
@@ -120,7 +126,7 @@ enum MetadataCleaner {
             }
         }
 
-        let args = buildArgs(kind: info.kind, filePath: workPath)
+        let args = MetadataRules.buildArgs(kind: info.kind, filePath: workPath)
         do {
             let output = try await ProcessRunner.run(
                 executablePath: exiftoolPath,
@@ -128,20 +134,85 @@ enum MetadataCleaner {
                 timeout: 60
             )
             let metadataAfter = await readMetadata(exiftoolPath: exiftoolPath, filePath: workPath)
-            var result = interpretOutput(filePath: workPath, output: "\(output.stdout)\n\(output.stderr)")
-            result = verifyResult(result, kind: info.kind, metadataBefore: metadataBefore, metadataAfter: metadataAfter)
+            let interpreted = MetadataRules.interpretOutput(
+                filePath: workPath,
+                output: "\(output.stdout)\n\(output.stderr)"
+            )
+            let verified = MetadataRules.verify(
+                interpreted: interpreted,
+                kind: info.kind,
+                before: metadataBefore.map { MetadataRules.Tag(group: $0.group, tag: $0.tag, value: $0.value) },
+                after: metadataAfter.map { MetadataRules.Tag(group: $0.group, tag: $0.tag, value: $0.value) }
+            )
 
-            if let reason = muteReason, result.status == .cleaned {
-                result = CleanResult(path: workPath, status: .partial, reason: reason, metadataBefore: metadataBefore, metadataAfter: metadataAfter)
-            } else if let reason = muteReason, result.status == .partial {
-                let combined = [result.reason, reason].compactMap { $0 }.joined(separator: "; ")
-                result = CleanResult(path: workPath, status: .partial, reason: combined, metadataBefore: metadataBefore, metadataAfter: metadataAfter)
+            var status = CleanStatus(rawValue: verified.outcome) ?? .failed
+            var reason = verified.reason
+
+            if let muteReason, status == .cleaned {
+                status = .partial
+                reason = muteReason
+            } else if let muteReason, status == .partial {
+                reason = [reason, muteReason].compactMap { $0 }.joined(separator: "; ")
             }
-            return result
+
+            if status == .failed {
+                try? fm.removeItem(at: workURL)
+                return CleanResult(
+                    path: filePath,
+                    status: .failed,
+                    reason: reason,
+                    metadataBefore: metadataBefore,
+                    metadataAfter: metadataAfter
+                )
+            }
+
+            do {
+                try promoteWorkFile(workURL, to: finalURL)
+            } catch {
+                try? fm.removeItem(at: workURL)
+                return CleanResult(
+                    path: filePath,
+                    status: .failed,
+                    reason: "could not finalize cleaned copy: \(error.localizedDescription)",
+                    metadataBefore: metadataBefore,
+                    metadataAfter: metadataAfter
+                )
+            }
+
+            return CleanResult(
+                path: finalURL.path,
+                status: status,
+                reason: reason,
+                metadataBefore: metadataBefore,
+                metadataAfter: metadataAfter
+            )
+        } catch ProcessRunnerError.timeout {
+            try? fm.removeItem(at: workURL)
+            return CleanResult(
+                path: filePath,
+                status: .failed,
+                reason: "exiftool timed out — work copy discarded (destination untouched)",
+                metadataBefore: metadataBefore,
+                metadataAfter: []
+            )
         } catch {
-            let metadataAfter = await readMetadata(exiftoolPath: exiftoolPath, filePath: workPath)
-            return CleanResult(path: workPath, status: .failed, reason: error.localizedDescription, metadataBefore: metadataBefore, metadataAfter: metadataAfter)
+            try? fm.removeItem(at: workURL)
+            return CleanResult(
+                path: filePath,
+                status: .failed,
+                reason: error.localizedDescription,
+                metadataBefore: metadataBefore,
+                metadataAfter: []
+            )
         }
+    }
+
+    private static func promoteWorkFile(_ workURL: URL, to finalURL: URL) throws {
+        let fm = FileManager.default
+        if fm.fileExists(atPath: finalURL.path) {
+            try fm.removeItem(at: finalURL)
+        }
+        try fm.moveItem(at: workURL, to: finalURL)
     }
 
     static func installExiftool() async -> (success: Bool, message: String?) {
@@ -170,13 +241,6 @@ enum MetadataCleaner {
         } catch {
             return (false, error.localizedDescription)
         }
-    }
-
-    private static func buildArgs(kind: SupportedTypes.FileKind, filePath: String) -> [String] {
-        if kind == .photo {
-            return ["-all=", "-tagsFromFile", "@", "-icc_profile:all", "-overwrite_original", filePath]
-        }
-        return ["-all=", "-overwrite_original", filePath]
     }
 
     private static func readMetadata(exiftoolPath: String, filePath: String) async -> [MetadataEntry] {
@@ -211,98 +275,6 @@ enum MetadataCleaner {
             return entries.sorted { "\($0.group):\($0.tag)" < "\($1.group):\($1.tag)" }
         } catch {
             return []
-        }
-    }
-
-    private static func interpretOutput(filePath: String, output: String) -> CleanResult {
-        let updatedCount = matchCount(output, pattern: #"(\d+)\s+(?:image\s+)?files?\s+updated"#)
-        let unchangedCount = matchCount(output, pattern: #"(\d+)\s+(?:image\s+)?files?\s+unchanged"#)
-        let failedCount = matchCount(output, pattern: #"(\d+)\s+files?\s+(?:weren't|were not)\s+updated"#)
-        let hasError = output.range(of: #"(^|\n)\s*error[:\s]"#, options: .regularExpression) != nil
-
-        if failedCount > 0 || hasError {
-            return CleanResult(path: filePath, status: .failed, reason: firstIssueLine(output) ?? "exiftool reported an error")
-        }
-        if updatedCount >= 1 {
-            return CleanResult(path: filePath, status: .cleaned)
-        }
-        if unchangedCount >= 1 {
-            return CleanResult(path: filePath, status: .cleaned, reason: "already free of removable metadata")
-        }
-        return CleanResult(path: filePath, status: .failed, reason: firstIssueLine(output) ?? "no changes applied")
-    }
-
-    private static func matchCount(_ text: String, pattern: String) -> Int {
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
-              let match = regex.firstMatch(in: text, options: [], range: NSRange(text.startIndex..., in: text)) else { return 0 }
-        guard let range = Range(match.range(at: 1), in: text) else { return 0 }
-        return Int(text[range]) ?? 0
-    }
-
-    private static func firstIssueLine(_ text: String) -> String? {
-        let lines = text.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-        return lines.first { $0.range(of: "error", options: .caseInsensitive) != nil }
-            ?? lines.first { $0.range(of: "weren't", options: .caseInsensitive) != nil || $0.range(of: "were not", options: .caseInsensitive) != nil }
-            ?? lines.first { $0.range(of: "warning", options: .caseInsensitive) != nil }
-            ?? lines.first
-    }
-
-    private static func verifyResult(_ result: CleanResult, kind: SupportedTypes.FileKind, metadataBefore: [MetadataEntry], metadataAfter: [MetadataEntry]) -> CleanResult {
-        guard result.status != .failed else {
-            return CleanResult(path: result.path, status: result.status, reason: result.reason, metadataBefore: metadataBefore, metadataAfter: metadataAfter)
-        }
-
-        let beforeRemovable = removableEntries(metadataBefore, kind: kind)
-        let afterRemovable = removableEntries(metadataAfter, kind: kind)
-
-        if afterRemovable.isEmpty {
-            return CleanResult(path: result.path, status: .cleaned, reason: result.reason, metadataBefore: metadataBefore, metadataAfter: metadataAfter)
-        }
-
-        if entriesEqual(beforeRemovable, afterRemovable) {
-            return CleanResult(path: result.path, status: .failed, reason: "metadata not removed by exiftool", metadataBefore: metadataBefore, metadataAfter: metadataAfter)
-        }
-
-        return CleanResult(path: result.path, status: .partial, reason: "some metadata remains", metadataBefore: metadataBefore, metadataAfter: metadataAfter)
-    }
-
-    private static func removableEntries(_ entries: [MetadataEntry], kind: SupportedTypes.FileKind) -> [MetadataEntry] {
-        entries.filter { isRemovable($0, kind: kind) }
-    }
-
-    private static func entriesEqual(_ lhs: [MetadataEntry], _ rhs: [MetadataEntry]) -> Bool {
-        let left = lhs.map { "\($0.group):\($0.tag)=\($0.value)" }.sorted()
-        let right = rhs.map { "\($0.group):\($0.tag)=\($0.value)" }.sorted()
-        return left == right
-    }
-
-    private static let pngStructuralTags: Set<String> = [
-        "AnimationFrames", "AnimationPlays", "AppleDataOffsets", "BackgroundColor",
-        "BitDepth", "BlueX", "BlueY", "ColorPrimaries", "ColorType", "Compression",
-        "DigitalSignature", "Filter", "FractalParameters", "GIFApplicationExtension",
-        "GIFGraphicControlExtension", "GIFPlainTextExtension", "GainMapImage", "Gamma",
-        "GreenX", "GreenY", "ImageHeight", "ImageOffset", "ImageWidth", "Interlace",
-        "MatrixCoefficients", "Palette", "PaletteHistogram", "PixelCalibration",
-        "PixelUnits", "PixelsPerUnitX", "PixelsPerUnitY", "ProfileName", "RedX", "RedY",
-        "SRGBRendering", "SignificantBits", "StereoMode", "SubjectPixelHeight",
-        "SubjectPixelWidth", "SubjectUnits", "SuggestedPalette", "TransferCharacteristics",
-        "Transparency", "VideoFullRangeFlag", "VirtualImageHeight", "VirtualImageWidth",
-        "VirtualPageUnits", "WhitePointX", "WhitePointY"
-    ]
-
-    private static func isRemovable(_ entry: MetadataEntry, kind: SupportedTypes.FileKind) -> Bool {
-        let group = entry.group
-        if group.hasPrefix("XMP") { return true }
-        if group.hasPrefix("ICC") { return kind != .photo }
-        switch group {
-        case "EXIF", "GPS", "IPTC", "MakerNotes", "Photoshop", "JFIF", "Ducky",
-             "PDF", "MIE", "MIELensInfo", "CanonVRD", "FotoStation", "Adobe",
-             "XML", "ItemList", "UserData", "Keys", "AudioKeys", "VideoKeys":
-            return true
-        case "PNG":
-            return !pngStructuralTags.contains(entry.tag)
-        default:
-            return false
         }
     }
 }

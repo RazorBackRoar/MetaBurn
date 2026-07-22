@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import MetaBurnCore
 
 @MainActor
 final class TaskRunner: ObservableObject {

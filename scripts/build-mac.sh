@@ -15,6 +15,13 @@ DMG_PATH="$RELEASE_DIR/$APP_NAME.dmg"
 EXEC_PATH="$PROJECT_DIR/.build/release/$APP_NAME"
 RESOURCE_BUNDLE="$PROJECT_DIR/.build/release/${APP_NAME}_${APP_NAME}.bundle"
 
+# Optional Developer ID + notarization (set in the environment to enable):
+#   METABURN_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+#   NOTARYTOOL_KEYCHAIN_PROFILE="notarytool-profile"   # preferred
+#   — or — APPLE_ID / APPLE_TEAM_ID / APPLE_APP_SPECIFIC_PASSWORD
+SIGN_IDENTITY="${METABURN_SIGN_IDENTITY:-}"
+NOTARY_PROFILE="${NOTARYTOOL_KEYCHAIN_PROFILE:-}"
+
 echo "Building MetaBurn release..."
 cd "$PROJECT_DIR"
 swift build -c release
@@ -65,8 +72,14 @@ EOF
 
 chmod +x "$APP_PATH/Contents/MacOS/$APP_NAME"
 
-echo "Ad-hoc signing $APP_NAME.app..."
-codesign --force --deep --sign - "$APP_PATH"
+if [ -n "$SIGN_IDENTITY" ]; then
+    echo "Signing $APP_NAME.app with Developer ID ($SIGN_IDENTITY)..."
+    codesign --force --deep --options runtime --sign "$SIGN_IDENTITY" "$APP_PATH"
+    codesign --verify --verbose=2 "$APP_PATH"
+else
+    echo "Ad-hoc signing $APP_NAME.app (set METABURN_SIGN_IDENTITY for Developer ID)..."
+    codesign --force --deep --sign - "$APP_PATH"
+fi
 
 echo "Creating $APP_NAME.dmg with shared layout..."
 mkdir -p "$RELEASE_DIR"
@@ -101,6 +114,30 @@ fi
 
 echo "Verifying locked DMG layout..."
 python3 "$RAZORCORE_DIR/verify-dmg-layout.py" "$DMG_PATH" "$APP_NAME"
+
+if [ -n "$SIGN_IDENTITY" ]; then
+    echo "Signing $APP_NAME.dmg..."
+    codesign --force --sign "$SIGN_IDENTITY" "$DMG_PATH"
+fi
+
+if [ -n "$SIGN_IDENTITY" ] && { [ -n "$NOTARY_PROFILE" ] || { [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ] && [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]; }; }; then
+    echo "Submitting $APP_NAME.dmg for notarization..."
+    if [ -n "$NOTARY_PROFILE" ]; then
+        xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
+    else
+        xcrun notarytool submit "$DMG_PATH" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --wait
+    fi
+    echo "Stapling notarization ticket..."
+    xcrun stapler staple "$DMG_PATH"
+    xcrun stapler validate "$DMG_PATH"
+    echo "Notarization complete."
+elif [ -n "$SIGN_IDENTITY" ]; then
+    echo "Signed but not notarized (set NOTARYTOOL_KEYCHAIN_PROFILE or APPLE_ID/APPLE_TEAM_ID/APPLE_APP_SPECIFIC_PASSWORD)."
+fi
 
 # Package as a single DMG; do not leave the .app bundle in the app folder.
 rm -rf "$APP_PATH"

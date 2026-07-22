@@ -1,11 +1,12 @@
 import Foundation
+import MetaBurnCore
 
 /// macOS path helpers aligned with the workspace `razorcore-api-spec.md`.
 enum Paths {
     static var appName: String { Brand.displayName }
 
     /// User-facing cleaned output root: `~/Desktop/metaburn`.
-    static let desktopOutputFolderName = "metaburn"
+    static var desktopOutputFolderName: String { OutputNaming.desktopFolderName }
 
     static func applicationSupportDirectory() -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -31,11 +32,11 @@ enum Paths {
     }
 
     static func photosOutputDirectory() -> URL {
-        desktopOutputRoot().appendingPathComponent("Photos", isDirectory: true)
+        desktopOutputRoot().appendingPathComponent(OutputNaming.photosFolderName, isDirectory: true)
     }
 
     static func videosOutputDirectory() -> URL {
-        desktopOutputRoot().appendingPathComponent("Videos", isDirectory: true)
+        desktopOutputRoot().appendingPathComponent(OutputNaming.videosFolderName, isDirectory: true)
     }
 
     static func ensureDirectory(_ url: URL) {
@@ -58,17 +59,11 @@ enum Paths {
 
     /// Unique path under `directory` for `sourcePath`'s filename (`name.ext`, `name-1.ext`, …).
     static func uniqueOutputURL(forSourcePath sourcePath: String, in directory: URL) -> URL {
-        let sourceURL = URL(fileURLWithPath: sourcePath)
-        let baseName = sourceURL.deletingPathExtension().lastPathComponent
-        let ext = sourceURL.pathExtension
-        let fm = FileManager.default
-        var candidate = directory.appendingPathComponent(sourceURL.lastPathComponent)
-        var index = 1
-        while fm.fileExists(atPath: candidate.path) {
-            let suffix = ext.isEmpty ? "\(baseName)-\(index)" : "\(baseName)-\(index).\(ext)"
-            candidate = directory.appendingPathComponent(suffix)
-            index += 1
-        }
-        return candidate
+        OutputNaming.uniqueURL(forSourcePath: sourcePath, in: directory)
+    }
+
+    /// Hidden work file beside the final destination (never ExifTool's final path).
+    static func workURL(forFinal finalURL: URL) -> URL {
+        OutputNaming.workURL(forFinal: finalURL)
     }
 }

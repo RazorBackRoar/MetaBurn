@@ -5,8 +5,8 @@
 <!-- Key files touched and a one-line reason each. -->
 
 ## Testing performed
-- [ ] `uv run ruff check .`
-- [ ] `uv run pytest`
+- [ ] `swift build`
+- [ ] `swift test`
 - [ ] Manual run on macOS / Apple Silicon
 
 ## Safety notes

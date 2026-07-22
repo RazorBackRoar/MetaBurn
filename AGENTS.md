@@ -28,6 +28,7 @@ Cleaned copies are written to `~/Desktop/metaburn/Photos` and `~/Desktop/metabur
 
 | Module | Role |
 |--------|------|
+| `MetaBurnCore` | Pure rules: SupportedTypes, OutputNaming, MetadataRules (unit-tested) |
 | `Utilities/Brand.swift` | Display vs machine-safe IDs |
 | `Utilities/Paths.swift` | Application Support / cache / logs under **MetaBurn**; Desktop output under `metaburn/` |
 | `Utilities/Logging.swift` | Console + file logs under Application Support |
@@ -42,11 +43,12 @@ Behavioral SSOT: `../Docs/razorcore-api-spec.md`.
 ```zsh
 swift build
 swift run
+swift test
 ```
 
-`swift test` requires the full Xcode.app (XCTest); the command-line tools ship without it.
+`swift test` requires the full Xcode.app (Swift Testing); the command-line tools alone are not enough.
 
-Package a macOS `.app` and DMG with ad-hoc signing:
+Package a macOS `.app` and DMG with ad-hoc signing (or Developer ID + notarization when env credentials are set — see `BUILD_AND_RELEASE.md`):
 
 ```zsh
 ./scripts/build-mac.sh
@@ -58,7 +60,8 @@ Output is `build/Release/MetaBurn.dmg` only (the `.app` is consumed during packa
 
 - While processing, show category count bubbles (Photos, Videos, etc.) with counts beside the title so progress is visible by media type.
 - Theme setting (Auto / Light / Dark) must apply to the main window — do not force dark mode.
-- Mute video audio defaults on; cleaned files land under Desktop/metaburn.
+- Mute video audio defaults on and is shown only when the job includes videos.
+- Cleaned files land under Desktop/metaburn. Remind users that in-frame visual content is not stripped.
 
 ## Output folders
 
@@ -67,13 +70,15 @@ On launch and before each job, ensure:
 - `~/Desktop/metaburn/Photos`
 - `~/Desktop/metaburn/Videos`
 
-Supported files are copied there, then cleaned (and optionally muted). Originals stay untouched.
+Supported files are copied to a hidden work file, cleaned (and optionally muted), then promoted to the final path. Timeouts/failures discard the work file so destinations are never half-written. Originals stay untouched.
 
 ## Testing
 
 Image/video testing uses **only** `/Users/home/Desktop/MetaBurn & L!bra Test` (`photos/` for images, `videos/` for videos). Never pull or process test media from Desktop/Downloads/Pictures/Movies/Workspace/elsewhere; generated outputs stay under that directory. Before any test, verify the source path starts with that prefix or stop.
 
 App runtime output for real cleans is `~/Desktop/metaburn/` (separate from the agent test-media tree).
+
+Unit tests live in `Tests/MetaBurnTests` against `MetaBurnCore` (`swift test`).
 
 ## Repository rules
 

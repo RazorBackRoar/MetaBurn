@@ -1,4 +1,5 @@
 import SwiftUI
+import MetaBurnCore
 
 struct MetadataReport: View {
     let entry: LogEntry

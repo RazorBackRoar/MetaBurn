@@ -1,4 +1,5 @@
 import Foundation
+import MetaBurnCore
 
 typealias FileKind = SupportedTypes.FileKind
 typealias FileClassification = SupportedTypes.FileClassification
