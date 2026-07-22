@@ -1,7 +1,7 @@
 # MetaBurn
 
 [![CI](https://img.shields.io/github/actions/workflow/status/RazorBackRoar/MetaBurn/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/RazorBackRoar/MetaBurn/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.0.0-blue?style=for-the-badge)](Sources/MetaBurn/Resources/version.json)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue?style=for-the-badge)](Sources/MetaBurn/Resources/version.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blueviolet?style=for-the-badge)](LICENSE)
 [![Swift](https://img.shields.io/badge/Swift-F05138?style=for-the-badge&logo=swift&logoColor=white)](https://swift.org/)
 [![macOS](https://img.shields.io/badge/mac%20os-Apple%20Silicon-d32f2f?style=for-the-badge&logo=apple&logoColor=white)](https://support.apple.com/en-us/HT211814)
@@ -26,9 +26,10 @@
 ```bash
 swift build
 swift run
+swift test
 ```
 
-`swift test` requires the full Xcode.app (XCTest).
+`swift test` requires the full Xcode.app.
 
 Package a macOS `.app` and DMG with ad-hoc signing:
 
@@ -38,6 +39,7 @@ Package a macOS `.app` and DMG with ad-hoc signing:
 
 Output: `build/Release/MetaBurn.dmg` (no `.app` bundle is left in the app folder).
 
+Cleaned copies are written to `~/Desktop/metaburn/Photos` and `~/Desktop/metaburn/Videos` (originals untouched). Video mute is optional and video-only.
 ## Community & docs
 
 - [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) — prerequisites, build, packaging, release, versioning
