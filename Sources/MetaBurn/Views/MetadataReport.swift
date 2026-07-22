@@ -201,7 +201,7 @@ struct MetadataReport: View {
 
     private var outcomeLabel: String {
         switch entry.status {
-        case .cleaned: "Modified in place"
+        case .cleaned: "Saved to Desktop/metaburn"
         case .partial: "Partially cleaned"
         case .skipped: "Rejected / skipped"
         case .failed: "Error"

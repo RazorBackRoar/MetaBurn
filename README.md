@@ -11,7 +11,7 @@
 [![Tests](https://img.shields.io/badge/tests-build--gated-2ea44f?style=for-the-badge)]()
 [![Build](https://img.shields.io/badge/build-swift-F05138?style=for-the-badge)]()
 
-> **TL;DR:** Strip EXIF, GPS, and device metadata from photos and videos locally. Drag-and-drop workflow powered by ExifTool — nothing leaves your Mac.
+> **TL;DR:** Strip EXIF, GPS, and device metadata from photos and videos locally. Drag-and-drop workflow powered by ExifTool — cleaned copies land in `~/Desktop/metaburn` (Photos / Videos); originals stay untouched.
 
 ## Branding
 

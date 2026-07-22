@@ -22,6 +22,7 @@ struct MetaBurnApp: App {
         Log.shared.setup()
         Paths.ensureDirectory(Paths.applicationSupportDirectory())
         Paths.ensureLogsDirectory()
+        Paths.ensureDesktopOutputDirectories()
         NSApp?.setActivationPolicy(.regular)
     }
 }
@@ -30,6 +31,7 @@ struct MetaBurnApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp?.mainMenu = buildMenu()
+        ThemePreference.applyAppAppearance()
 
         if let iconURL = Resources.url(forResource: "AppIcon", withExtension: "icns"),
            let image = NSImage(contentsOf: iconURL) {
@@ -39,7 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         for window in NSApp?.windows ?? [] {
             window.titlebarAppearsTransparent = true
             window.titleVisibility = .hidden
-            window.backgroundColor = NSColor(red: 0.07, green: 0.07, blue: 0.08, alpha: 1)
+            window.backgroundColor = .windowBackgroundColor
             window.isOpaque = true
             window.minSize = NSSize(width: 640, height: 560)
         }

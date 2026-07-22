@@ -51,6 +51,7 @@ enum MetadataCleaner {
         let ext = url.pathExtension
         let base = url.deletingPathExtension().lastPathComponent
         let tempURL = dir.appendingPathComponent(".\(base).muted.tmp.\(ext)")
+        let fm = FileManager.default
 
         do {
             _ = try await ProcessRunner.runSimple(
@@ -58,10 +59,14 @@ enum MetadataCleaner {
                 arguments: ["-y", "-i", filePath, "-map", "0:v", "-c", "copy", "-an", tempURL.path],
                 timeout: 300
             )
-            try FileManager.default.moveItem(at: tempURL, to: url)
+            // `moveItem` fails when the destination already exists — replace explicitly.
+            if fm.fileExists(atPath: url.path) {
+                try fm.removeItem(at: url)
+            }
+            try fm.moveItem(at: tempURL, to: url)
             return (true, nil)
         } catch {
-            try? FileManager.default.removeItem(at: tempURL)
+            try? fm.removeItem(at: tempURL)
             return (false, error.localizedDescription)
         }
     }
@@ -80,7 +85,22 @@ enum MetadataCleaner {
             return CleanResult(path: filePath, status: .failed, reason: "exiftool not found")
         }
 
-        let metadataBefore = await readMetadata(exiftoolPath: exiftoolPath, filePath: filePath)
+        Paths.ensureDesktopOutputDirectories()
+        let outputDir = info.kind == .photo ? Paths.photosOutputDirectory() : Paths.videosOutputDirectory()
+        let outputURL = Paths.uniqueOutputURL(forSourcePath: filePath, in: outputDir)
+        let workPath = outputURL.path
+
+        do {
+            try FileManager.default.copyItem(atPath: filePath, toPath: workPath)
+        } catch {
+            return CleanResult(
+                path: filePath,
+                status: .failed,
+                reason: "could not copy to Desktop/\(Paths.desktopOutputFolderName): \(error.localizedDescription)"
+            )
+        }
+
+        let metadataBefore = await readMetadata(exiftoolPath: exiftoolPath, filePath: workPath)
 
         var muteReason: String? = nil
         if muteAudio && info.kind == .video {
@@ -91,7 +111,7 @@ enum MetadataCleaner {
                 resolvedFfmpeg = await resolveFfmpeg()
             }
             if let ffmpeg = resolvedFfmpeg {
-                let muted = await muteVideo(ffmpegPath: ffmpeg, filePath: filePath)
+                let muted = await muteVideo(ffmpegPath: ffmpeg, filePath: workPath)
                 if !muted.success {
                     muteReason = "audio removal failed: \(muted.reason ?? "ffmpeg failed")"
                 }
@@ -100,27 +120,27 @@ enum MetadataCleaner {
             }
         }
 
-        let args = buildArgs(kind: info.kind, filePath: filePath)
+        let args = buildArgs(kind: info.kind, filePath: workPath)
         do {
             let output = try await ProcessRunner.run(
                 executablePath: exiftoolPath,
                 arguments: args,
                 timeout: 60
             )
-            let metadataAfter = await readMetadata(exiftoolPath: exiftoolPath, filePath: filePath)
-            var result = interpretOutput(filePath: filePath, output: "\(output.stdout)\n\(output.stderr)")
+            let metadataAfter = await readMetadata(exiftoolPath: exiftoolPath, filePath: workPath)
+            var result = interpretOutput(filePath: workPath, output: "\(output.stdout)\n\(output.stderr)")
             result = verifyResult(result, kind: info.kind, metadataBefore: metadataBefore, metadataAfter: metadataAfter)
 
             if let reason = muteReason, result.status == .cleaned {
-                result = CleanResult(path: filePath, status: .partial, reason: reason, metadataBefore: metadataBefore, metadataAfter: metadataAfter)
+                result = CleanResult(path: workPath, status: .partial, reason: reason, metadataBefore: metadataBefore, metadataAfter: metadataAfter)
             } else if let reason = muteReason, result.status == .partial {
                 let combined = [result.reason, reason].compactMap { $0 }.joined(separator: "; ")
-                result = CleanResult(path: filePath, status: .partial, reason: combined, metadataBefore: metadataBefore, metadataAfter: metadataAfter)
+                result = CleanResult(path: workPath, status: .partial, reason: combined, metadataBefore: metadataBefore, metadataAfter: metadataAfter)
             }
             return result
         } catch {
-            let metadataAfter = await readMetadata(exiftoolPath: exiftoolPath, filePath: filePath)
-            return CleanResult(path: filePath, status: .failed, reason: error.localizedDescription, metadataBefore: metadataBefore, metadataAfter: metadataAfter)
+            let metadataAfter = await readMetadata(exiftoolPath: exiftoolPath, filePath: workPath)
+            return CleanResult(path: workPath, status: .failed, reason: error.localizedDescription, metadataBefore: metadataBefore, metadataAfter: metadataAfter)
         }
     }
 

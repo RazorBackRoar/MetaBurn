@@ -47,7 +47,6 @@ final class TaskRunner: ObservableObject {
     }
 
     private func run(jobId: String, droppedPaths: [String], muteAudio: Bool) async {
-        let ffmpegPath = muteAudio ? await MetadataCleaner.resolveFfmpeg() : nil
         let exiftoolPath = await MetadataCleaner.resolveExiftool()
 
         guard exiftoolPath != nil else {
@@ -56,8 +55,8 @@ final class TaskRunner: ObservableObject {
             return
         }
 
-        let ffmpegAvailable = ffmpegPath != nil
-        Log.shared.info("Starting job \(jobId) for \(droppedPaths.count) dropped path(s) (mute: \(muteAudio))", scope: "taskRunner")
+        Log.shared.info("Starting job \(jobId) for \(droppedPaths.count) dropped path(s)", scope: "taskRunner")
+        Paths.ensureDesktopOutputDirectories()
 
         do {
             await setState(.scanning)
@@ -67,15 +66,26 @@ final class TaskRunner: ObservableObject {
                 await appendLog(CleanResult(path: skip.path, status: .skipped, reason: skip.reason))
             }
 
+            var kinds = TypeCounts()
+            for file in scan.files {
+                kinds.recordTotal(for: file)
+            }
+
+            // Mute is video-only — never resolve ffmpeg or pass mute for photo-only jobs.
+            let muteVideos = muteAudio && kinds.videos > 0
+            let ffmpegPath = muteVideos ? await MetadataCleaner.resolveFfmpeg() : nil
+            let ffmpegAvailable = ffmpegPath != nil
+
             await MainActor.run {
                 counters.supported = scan.files.count
-                var kinds = TypeCounts()
-                for file in scan.files {
-                    kinds.recordTotal(for: file)
-                }
                 typeCounts = kinds
                 scanSummary = ScanSummary(fileCount: scan.files.count, totalBytes: scan.totalBytes)
             }
+
+            Log.shared.info(
+                "Job \(jobId): \(kinds.images) photo(s), \(kinds.videos) video(s), muteVideos=\(muteVideos)",
+                scope: "taskRunner"
+            )
 
             await setState(.cleaning)
 
@@ -85,7 +95,12 @@ final class TaskRunner: ObservableObject {
                     finish()
                     return
                 }
-                let result = await MetadataCleaner.cleanFile(filePath: file, muteAudio: muteAudio, ffmpegPath: ffmpegAvailable ? ffmpegPath : nil)
+                let isVideo = SupportedTypes.isVideo(filePath: file)
+                let result = await MetadataCleaner.cleanFile(
+                    filePath: file,
+                    muteAudio: muteVideos && isVideo,
+                    ffmpegPath: (muteVideos && isVideo && ffmpegAvailable) ? ffmpegPath : nil
+                )
                 await appendLog(result)
             }
 

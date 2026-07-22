@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @AppStorage("themeSource") private var themeSource: String = "system"
+    @AppStorage(ThemePreference.storageKey) private var themeSource: String = "system"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -13,24 +13,13 @@ struct SettingsView: View {
                 Text("Dark").tag("dark")
             }
             .pickerStyle(.radioGroup)
-            .onChange(of: themeSource) { applyTheme() }
+            .onChange(of: themeSource) { _, newValue in
+                ThemePreference.applyAppAppearance(for: newValue)
+            }
             Spacer()
         }
         .padding()
         .frame(width: 480, height: 240)
-        .onAppear { applyTheme() }
-    }
-
-    private func applyTheme() {
-        let appearance: NSAppearance?
-        switch themeSource {
-        case "light":
-            appearance = NSAppearance(named: .aqua)
-        case "dark":
-            appearance = NSAppearance(named: .darkAqua)
-        default:
-            appearance = nil
-        }
-        NSApp?.appearance = appearance
+        .onAppear { ThemePreference.applyAppAppearance(for: themeSource) }
     }
 }

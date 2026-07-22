@@ -4,13 +4,14 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     @StateObject private var runner = TaskRunner()
+    @AppStorage(ThemePreference.storageKey) private var themeSource: String = "system"
     @State private var exiftoolReady: Bool? = nil
     @State private var canInstallExiftool = false
     @State private var installingExiftool = false
     @State private var ffmpegReady: Bool? = nil
     @State private var canInstallFfmpeg = false
     @State private var installingFfmpeg = false
-    @State private var muteAudio = false
+    @State private var muteAudio = true
     @State private var isDragging = false
     @State private var dropNotice: String? = nil
     @State private var selectedEntry: LogEntry? = nil
@@ -23,6 +24,15 @@ struct ContentView: View {
         !runner.log.isEmpty
     }
 
+    /// Mute/ffmpeg UI is video-only — never shown for photo-only batches.
+    private var showsVideoMuteControls: Bool {
+        runner.typeCounts.videos > 0
+    }
+
+    private var preferredScheme: ColorScheme? {
+        ThemePreference.colorScheme(for: themeSource)
+    }
+
     var body: some View {
         Group {
             if exiftoolReady == false {
@@ -31,9 +41,13 @@ struct ContentView: View {
                 mainView
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(preferredScheme)
         .onAppear {
+            ThemePreference.applyAppAppearance(for: themeSource)
             Task { await checkExiftool() }
+        }
+        .onChange(of: themeSource) { _, newValue in
+            ThemePreference.applyAppAppearance(for: newValue)
         }
     }
 
@@ -136,7 +150,7 @@ struct ContentView: View {
         HStack(spacing: 6) {
             if runner.typeCounts.images > 0 {
                 typeBubble(
-                    label: "Images",
+                    label: "Photos",
                     done: runner.typeCounts.imagesDone,
                     total: runner.typeCounts.images
                 )
@@ -191,7 +205,7 @@ struct ContentView: View {
         var parts: [String] = []
         let counts = runner.typeCounts
         if counts.images > 0 {
-            parts.append("Images \(typeCountText(done: counts.imagesDone, total: counts.images))")
+            parts.append("Photos \(typeCountText(done: counts.imagesDone, total: counts.images))")
         }
         if counts.videos > 0 {
             parts.append("Videos \(typeCountText(done: counts.videosDone, total: counts.videos))")
@@ -226,13 +240,7 @@ struct ContentView: View {
                 noticeBanner(notice)
             }
 
-            muteRow
-
-            if muteAudio, ffmpegReady == false {
-                ffmpegNotice
-            }
-
-            Text("Files are cleaned in place — originals are modified, no copies are created.")
+            Text("Cleaned copies go to Desktop/metaburn — Photos and Videos. Originals are left untouched.")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -253,6 +261,18 @@ struct ContentView: View {
                 .padding(.horizontal, 14)
                 .padding(.top, 10)
                 .padding(.bottom, 10)
+
+            if showsVideoMuteControls {
+                muteRow
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 10)
+
+                if muteAudio, ffmpegReady == false {
+                    ffmpegNotice
+                        .padding(.horizontal, 14)
+                        .padding(.bottom, 10)
+                }
+            }
 
             Divider().overlay(MetaBurnTheme.divider)
 
@@ -324,7 +344,7 @@ struct ContentView: View {
                 }
                 Text(processing ? "Processing…" : "Drop photos, videos, or folders")
                     .font(.system(size: 16, weight: .semibold))
-                Text(processing ? "Cleaning metadata in place…" : "Click to browse · originals are modified in place")
+                Text(processing ? "Saving cleaned copies to Desktop/metaburn…" : "Click to browse · cleaned copies → Desktop/metaburn")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
@@ -336,7 +356,7 @@ struct ContentView: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(
-                        isDragging ? MetaBurnTheme.accent : Color.white.opacity(0.22),
+                        isDragging ? MetaBurnTheme.accent : MetaBurnTheme.divider,
                         style: StrokeStyle(lineWidth: isDragging ? 2 : 1.5, dash: isDragging ? [] : [8, 6])
                     )
             )
@@ -354,7 +374,7 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Mute video audio")
                     .font(.system(size: 13, weight: .semibold))
-                Text("Remove audio tracks before cleaning metadata.")
+                Text("Strip audio from video copies so ambient sound and voices are not shared.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
@@ -470,11 +490,13 @@ struct ContentView: View {
             .buttonStyle(MetaBurnSecondaryButtonStyle())
             .disabled(processing)
 
-            muteCompact
+            if showsVideoMuteControls {
+                muteCompact
+            }
 
             Spacer(minLength: 8)
 
-            Text("In-place · no copies")
+            Text("Desktop/metaburn")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }
@@ -484,7 +506,7 @@ struct ContentView: View {
 
     private var muteCompact: some View {
         Toggle(isOn: $muteAudio) {
-            Text("Mute audio")
+            Text("Mute video audio")
                 .font(.system(size: 12))
         }
         .toggleStyle(.checkbox)
@@ -551,7 +573,7 @@ struct ContentView: View {
     private var outcomeSubtitle: String {
         var parts: [String] = []
         if runner.counters.cleaned > 0 {
-            parts.append("\(runner.counters.cleaned) cleaned in place")
+            parts.append("\(runner.counters.cleaned) saved to Desktop/metaburn")
         }
         if runner.counters.skipped > 0 {
             parts.append("\(runner.counters.skipped) skipped / rejected")
@@ -756,10 +778,34 @@ private struct FileRow: View {
 // MARK: - Theme / buttons
 
 enum MetaBurnTheme {
-    static let background = Color(red: 0.07, green: 0.07, blue: 0.08)
-    static let surface = Color.white.opacity(0.06)
-    static let divider = Color.white.opacity(0.10)
     static let accent = Color(red: 0.90, green: 0.22, blue: 0.22)
+
+    static var background: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
+                return NSColor(red: 0.07, green: 0.07, blue: 0.08, alpha: 1)
+            }
+            return NSColor(red: 0.96, green: 0.96, blue: 0.97, alpha: 1)
+        })
+    }
+
+    static var surface: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
+                return NSColor.white.withAlphaComponent(0.06)
+            }
+            return NSColor.black.withAlphaComponent(0.05)
+        })
+    }
+
+    static var divider: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
+                return NSColor.white.withAlphaComponent(0.10)
+            }
+            return NSColor.black.withAlphaComponent(0.12)
+        })
+    }
 }
 
 struct MetaBurnPrimaryButtonStyle: ButtonStyle {
