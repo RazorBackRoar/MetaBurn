@@ -246,7 +246,7 @@ struct ContentView: View {
                 .multilineTextAlignment(.center)
                 .padding(.top, 2)
 
-            Text("Metadata and optional video audio are removed — what’s visible in the frame is not.")
+            Text("We strip hidden metadata (and can mute video sound). We don’t change what’s visible in the picture or video.")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
