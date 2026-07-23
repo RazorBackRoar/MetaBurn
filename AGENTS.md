@@ -102,7 +102,7 @@ Unit tests live in `Tests/MetaBurnTests` against `MetaBurnCore` (`swift test`).
 - Duplicate cleaned filenames use zero-padded sequential suffixes (`001`, `002`, `003`) — never `-1`/`-2` or trailing `X`/`XX`.
 - Privacy is the product priority, but never at the cost of visible quality loss or destroying the photo/video; prefer remux/strip over re-encode.
 - Prefer a slightly taller/wider default window and one step larger UI font across the app.
-- When rebuilding for the user to try, put `MetaBurn.dmg` on the Desktop and open it **once** via `scripts/open-dmg.sh` only. Never run both `open …dmg` and AppleScript `open disk` (that doubles the Finder window). Never also open `build/Release/MetaBurn.dmg` in the same session. Keep the locked 500×420 DMG layout. Workspace/Apps SSOT: `Apps/AGENTS.md` Post-Build + `Apps/.razorcore/AGENTS.md`.
+- When rebuilding for the user to try: build in-repo (`build/Release/MetaBurn.dmg`), copy to `~/Desktop/MetaBurn.dmg`, then **stop** — do not open/mount/launch; the user double-clicks the Desktop DMG, drags to Applications, and ejects manually. Never open a DMG twice. `scripts/open-dmg.sh` only if they explicitly ask to open it. Keep the locked 500×420 DMG layout. SSOT: `Apps/AGENTS.md` Post-Build.
 
 ## Learned Workspace Facts
 
