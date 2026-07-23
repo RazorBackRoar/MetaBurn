@@ -10,6 +10,8 @@ final class TaskRunner: ObservableObject {
     @Published private(set) var scanSummary: ScanSummary?
     @Published private(set) var message: String?
     @Published private(set) var log: [LogEntry] = []
+    @Published private(set) var currentFile: String?
+    @Published private(set) var currentFileNumber = 0
 
     private var activeJob: Task<Void, Never>?
     private var isCancelled = false
@@ -23,6 +25,8 @@ final class TaskRunner: ObservableObject {
         scanSummary = nil
         message = nil
         log = []
+        currentFile = nil
+        currentFileNumber = 0
 
         let jobId = UUID().uuidString
         activeJob = Task { [weak self] in
@@ -45,6 +49,8 @@ final class TaskRunner: ObservableObject {
         scanSummary = nil
         message = nil
         log = []
+        currentFile = nil
+        currentFileNumber = 0
     }
 
     private func run(jobId: String, droppedPaths: [String], muteAudio: Bool) async {
@@ -88,20 +94,26 @@ final class TaskRunner: ObservableObject {
                 scope: "taskRunner"
             )
 
+            Log.shared.info("Scan complete: \(scan.files.count) supported, \(scan.skipped.count) skipped, job \(jobId)", scope: "taskRunner")
+
             await setState(.cleaning)
 
-            for file in scan.files {
+            for (index, file) in scan.files.enumerated() {
                 if Task.isCancelled || isCancelled {
                     await setState(.cancelled)
                     finish()
                     return
                 }
+                currentFile = file
+                currentFileNumber = index + 1
+                Log.shared.info("[file-start] \(index + 1)/\(scan.files.count): \(file)", scope: "taskRunner")
                 let isVideo = SupportedTypes.isVideo(filePath: file)
                 let result = await MetadataCleaner.cleanFile(
                     filePath: file,
                     muteAudio: muteVideos && isVideo,
                     ffmpegPath: (muteVideos && isVideo && ffmpegAvailable) ? ffmpegPath : nil
                 )
+                Log.shared.info("[file-done] \(index + 1)/\(scan.files.count): \(file) -> \(result.status.rawValue)", scope: "taskRunner")
                 await appendLog(result)
             }
 
@@ -122,6 +134,8 @@ final class TaskRunner: ObservableObject {
 
     private func appendLog(_ result: CleanResult) async {
         await MainActor.run {
+            currentFile = nil
+            currentFileNumber = 0
             switch result.status {
             case .cleaned: counters.cleaned += 1
             case .skipped: counters.skipped += 1
@@ -137,5 +151,7 @@ final class TaskRunner: ObservableObject {
     private func finish() {
         activeJob = nil
         isCancelled = false
+        currentFile = nil
+        currentFileNumber = 0
     }
 }

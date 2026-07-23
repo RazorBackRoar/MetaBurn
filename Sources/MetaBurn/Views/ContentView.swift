@@ -25,6 +25,17 @@ struct ContentView: View {
         !runner.log.isEmpty
     }
 
+    private var sortedLog: [LogEntry] {
+        runner.log.sorted { lhs, rhs in
+            let lhsUnmodified = (lhs.status == .skipped || lhs.status == .failed)
+            let rhsUnmodified = (rhs.status == .skipped || rhs.status == .failed)
+            if lhsUnmodified != rhsUnmodified {
+                return !lhsUnmodified
+            }
+            return false
+        }
+    }
+
     /// Mute/ffmpeg UI is always shown so the user can opt out before the first drop.
     private var showsVideoMuteControls: Bool {
         true
@@ -109,7 +120,7 @@ struct ContentView: View {
         .onAppear { Task { await checkFfmpeg() } }
         .onChange(of: runner.log.count) { _, _ in
             if selectedEntry == nil {
-                selectedEntry = runner.log.first
+                selectedEntry = sortedLog.first
             }
         }
     }
@@ -312,6 +323,21 @@ struct ContentView: View {
                 }
             }
 
+            if let currentFile = runner.currentFile {
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Cleaning \(runner.currentFileNumber) of \(runner.counters.supported):")
+                        .font(.system(size: 11, weight: .semibold))
+                    Text(URL(fileURLWithPath: currentFile).lastPathComponent)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .accessibilityElement(children: .combine)
+            }
+
             if runner.state == .done || runner.state == .failed || runner.state == .cancelled {
                 HStack(spacing: 6) {
                     Image(systemName: outcomeIcon)
@@ -376,7 +402,7 @@ struct ContentView: View {
     private var muteRow: some View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: "speaker.slash.fill")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(muteAudio ? MetaBurnTheme.accent : .secondary)
                 .frame(width: 20)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Mute video audio")
@@ -387,7 +413,7 @@ struct ContentView: View {
             }
             Spacer()
             Toggle("", isOn: $muteAudio)
-                .toggleStyle(.switch)
+                .toggleStyle(RedSwitchToggleStyle())
                 .labelsHidden()
                 .disabled(processing)
                 .onChange(of: muteAudio) { _, _ in
@@ -441,7 +467,7 @@ struct ContentView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text("\(runner.log.count)")
+                Text(processing ? "\(sortedLog.count)/\(runner.counters.supported)" : "\(sortedLog.count)")
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
             }
@@ -452,9 +478,14 @@ struct ContentView: View {
 
             List(selection: Binding(
                 get: { selectedEntry?.id },
-                set: { id in selectedEntry = runner.log.first { $0.id == id } }
+                set: { id in selectedEntry = sortedLog.first { $0.id == id } }
             )) {
-                ForEach(runner.log) { entry in
+                if let currentFile = runner.currentFile {
+                    ProcessingFileRow(path: currentFile)
+                        .listRowInsets(EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6))
+                        .listRowBackground(Color.clear)
+                }
+                ForEach(sortedLog) { entry in
                     FileRow(entry: entry)
                         .tag(entry.id)
                         .listRowInsets(EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6))
@@ -471,7 +502,7 @@ struct ContentView: View {
 
     private var detailPane: some View {
         Group {
-            if let entry = selectedEntry ?? runner.log.first {
+            if let entry = selectedEntry ?? sortedLog.first {
                 MetadataReport(entry: entry)
             } else {
                 VStack(spacing: 8) {
@@ -751,6 +782,30 @@ struct ContentView: View {
 
 // MARK: - File row
 
+private struct ProcessingFileRow: View {
+    let path: String
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            ProgressView()
+                .controlSize(.small)
+                .frame(width: 7, height: 7)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(URL(fileURLWithPath: path).lastPathComponent)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text("Cleaning")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.blue)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 5)
+        .padding(.horizontal, 4)
+    }
+}
+
 private struct FileRow: View {
     let entry: LogEntry
 
@@ -849,5 +904,30 @@ struct MetaBurnSecondaryButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
                     .strokeBorder(MetaBurnTheme.divider, lineWidth: 1)
             )
+    }
+}
+
+struct RedSwitchToggleStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 8) {
+            configuration.label
+            Button {
+                withAnimation(.spring(response: 0.22, dampingFraction: 0.78)) {
+                    configuration.isOn.toggle()
+                }
+            } label: {
+                Capsule()
+                    .fill(configuration.isOn ? MetaBurnTheme.accent : Color(red: 0.55, green: 0.15, blue: 0.15))
+                    .frame(width: 40, height: 22)
+                    .overlay(
+                        Circle()
+                            .fill(Color.white)
+                            .shadow(color: .black.opacity(0.3), radius: 1.5, x: 0, y: 1)
+                            .padding(2.5),
+                        alignment: configuration.isOn ? .trailing : .leading
+                    )
+            }
+            .buttonStyle(.plain)
+        }
     }
 }
