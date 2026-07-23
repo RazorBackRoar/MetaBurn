@@ -93,3 +93,19 @@ Unit tests live in `Tests/MetaBurnTests` against `MetaBurnCore` (`swift test`).
 
 - Do not create `Shared/razorcore-swift/` for v1.1.
 - Do not commit, push, or create branches unless explicitly requested.
+
+## Learned User Preferences
+
+- Drag-and-drop only forever — never add browse/file-picker UI, and never auto-open Finder or Open panels to Desktop, Downloads, or output folders.
+- Mute video audio belongs on the empty start screen (not only after a drop); mute means permanently omit audio tracks so they cannot be recovered from the cleaned file.
+- Metadata table field order: Make, Model, Camera, Created, Lens, GPS, Modified, Size, Resolution, Type — keep Make/Model/Camera; do not drop columns that regressions previously removed.
+- Duplicate cleaned filenames use zero-padded sequential suffixes (`001`, `002`, `003`) — never `-1`/`-2` or trailing `X`/`XX`.
+- Privacy is the product priority, but never at the cost of visible quality loss or destroying the photo/video; prefer remux/strip over re-encode.
+- Prefer a slightly taller/wider default window and one step larger UI font across the app.
+- When rebuilding for the user to try, put `MetaBurn.dmg` on the Desktop and open it **once** via `scripts/open-dmg.sh` only. Never run both `open …dmg` and AppleScript `open disk` (that doubles the Finder window). Never also open `build/Release/MetaBurn.dmg` in the same session. Keep the locked 500×420 DMG layout. Workspace/Apps SSOT: `Apps/AGENTS.md` Post-Build + `Apps/.razorcore/AGENTS.md`.
+
+## Learned Workspace Facts
+
+- Re-dropping the same folder must always finish every file; half-written destinations and leftover `.metaburn.tmp` work files are bugs — discard the work file on timeout/failure and never promote it.
+- Current product line is MetaBurn **2.0.0**; native ImageIO + AVFoundation only (no ExifTool/ffmpeg/Homebrew runtime deps).
+- Cancel must interrupt in-flight AVFoundation exports; batch jobs must not stall mid-count.

@@ -1,14 +1,22 @@
 {
   "version": 1,
-  "updatedAtMs": 1784773596466,
+  "updatedAtMs": 1784782029019,
   "transcripts": {
     "/Users/home/.cursor/projects/Users-home-Workspace-Apps-MetaBurn/agent-transcripts/2d016c4e-02de-4135-85cc-e68b117ecf1d/2d016c4e-02de-4135-85cc-e68b117ecf1d.jsonl": {
-      "mtimeMs": 1784773539722.6663,
-      "size": 151747
+      "mtimeMs": 1784781907583.8647,
+      "size": 491102
     },
     "/Users/home/.cursor/projects/Users-home-Workspace-Apps-MetaBurn/agent-transcripts/2d016c4e-02de-4135-85cc-e68b117ecf1d/subagents/83481432-4f5b-427a-99e5-34c4747c67e2.jsonl": {
-      "mtimeMs": 1784773563965.2986,
-      "size": 2542
+      "mtimeMs": 1784773619562.1892,
+      "size": 12349
+    },
+    "/Users/home/.cursor/projects/Users-home-Workspace-Apps-MetaBurn/agent-transcripts/2d016c4e-02de-4135-85cc-e68b117ecf1d/subagents/a341240f-85af-4441-95af-0cf2d2360643.jsonl": {
+      "mtimeMs": 1784777681344.7341,
+      "size": 11501
+    },
+    "/Users/home/.cursor/projects/Users-home-Workspace-Apps-MetaBurn/agent-transcripts/2d016c4e-02de-4135-85cc-e68b117ecf1d/subagents/d2940700-122d-4c2b-98d7-0cdcd27c01e1.jsonl": {
+      "mtimeMs": 1784781929973.0093,
+      "size": 2970
     },
     "/Users/home/.cursor/projects/Users-home-Workspace-Apps-MetaBurn/agent-transcripts/664f2cdc-dcba-4d61-a359-a0a62ff783d7/664f2cdc-dcba-4d61-a359-a0a62ff783d7.jsonl": {
       "mtimeMs": 1784759172672.7102,
@@ -273,6 +281,10 @@
     "/Users/home/.cursor/projects/Users-home-Workspace/agent-transcripts/c52c8515-59b6-42a0-8b3b-52e400835852/c52c8515-59b6-42a0-8b3b-52e400835852.jsonl": {
       "mtimeMs": 1784342187463.6057,
       "size": 854
+    },
+    "/Users/home/.cursor/projects/Users-home-Workspace/agent-transcripts/cc1222f3-6de7-4a11-b319-aa7992a70052/cc1222f3-6de7-4a11-b319-aa7992a70052.jsonl": {
+      "mtimeMs": 1784777284940.802,
+      "size": 53261
     },
     "/Users/home/.cursor/projects/Users-home-Workspace/agent-transcripts/d0e398f8-d0b0-4411-ae9d-ff3f56cdc763/d0e398f8-d0b0-4411-ae9d-ff3f56cdc763.jsonl": {
       "mtimeMs": 1783365397895.2297,
