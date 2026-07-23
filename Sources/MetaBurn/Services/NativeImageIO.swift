@@ -19,10 +19,11 @@ enum NativeImageIO {
             .appendingPathComponent(".\(UUID().uuidString).metaburn.native.tmp.\(url.pathExtension)")
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
+        let frameCount = CGImageSourceGetCount(source)
         guard let destination = CGImageDestinationCreateWithURL(
             tempURL as CFURL,
             uti,
-            1,
+            frameCount,
             nil
         ) else {
             return false
@@ -30,15 +31,19 @@ enum NativeImageIO {
 
         // HEIC/JPEG: AddImageFromSource with empty props often keeps maker data.
         // Decode → re-encode keeps pixels/orientation and drops metadata dictionaries.
-        if let image = CGImageSourceCreateImageAtIndex(source, 0, options as CFDictionary) {
-            var writeProps: [CFString: Any] = [:]
-            if let sourceProps = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any],
-               let orientation = sourceProps[kCGImagePropertyOrientation as String] {
-                writeProps[kCGImagePropertyOrientation] = orientation
+        // Multi-page TIFF / animated WEBP must preserve every frame — writing only index 0
+        // silently truncates visible content.
+        for index in 0..<frameCount {
+            if let image = CGImageSourceCreateImageAtIndex(source, index, options as CFDictionary) {
+                var writeProps: [CFString: Any] = [:]
+                if let sourceProps = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [String: Any],
+                   let orientation = sourceProps[kCGImagePropertyOrientation as String] {
+                    writeProps[kCGImagePropertyOrientation] = orientation
+                }
+                CGImageDestinationAddImage(destination, image, writeProps as CFDictionary)
+            } else if !addImageFromSourceStripped(destination: destination, source: source, index: index) {
+                return false
             }
-            CGImageDestinationAddImage(destination, image, writeProps as CFDictionary)
-        } else if !addImageFromSourceStripped(destination: destination, source: source) {
-            return false
         }
 
         guard CGImageDestinationFinalize(destination) else {
@@ -60,9 +65,10 @@ enum NativeImageIO {
     /// Fallback when decode fails: copy frame but explicitly null metadata dictionaries.
     private static func addImageFromSourceStripped(
         destination: CGImageDestination,
-        source: CGImageSource
+        source: CGImageSource,
+        index: Int
     ) -> Bool {
-        var props = (CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any]) ?? [:]
+        var props = (CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [String: Any]) ?? [:]
         let removable: [CFString] = [
             kCGImagePropertyExifDictionary,
             kCGImagePropertyGPSDictionary,
@@ -85,7 +91,7 @@ enum NativeImageIO {
         // XMP key varies by SDK; clear common string forms when present.
         props["{XMP}"] = kCFNull
         props[kCGImagePropertyExifAuxDictionary as String] = kCFNull
-        CGImageDestinationAddImageFromSource(destination, source, 0, props as CFDictionary)
+        CGImageDestinationAddImageFromSource(destination, source, index, props as CFDictionary)
         return true
     }
 

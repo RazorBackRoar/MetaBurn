@@ -256,3 +256,42 @@ struct MetadataRulesTests {
         #expect(result.outcome == "partial")
     }
 }
+
+@Suite("AudioPreservation")
+struct AudioPreservationTests {
+    @Test("fails when mute is off and no audio tracks could be preserved")
+    func failsWhenAllAudioLost() {
+        #expect(AudioPreservation.requiresFailure(
+            sourceAudioTrackCount: 2,
+            preservedAudioTrackCount: 0,
+            muteAudio: false
+        ))
+    }
+
+    @Test("succeeds when at least one audio track is preserved")
+    func succeedsWithPartialAudio() {
+        #expect(!AudioPreservation.requiresFailure(
+            sourceAudioTrackCount: 2,
+            preservedAudioTrackCount: 1,
+            muteAudio: false
+        ))
+    }
+
+    @Test("mute on never requires audio preservation failure")
+    func muteOnSkipsCheck() {
+        #expect(!AudioPreservation.requiresFailure(
+            sourceAudioTrackCount: 1,
+            preservedAudioTrackCount: 0,
+            muteAudio: true
+        ))
+    }
+
+    @Test("source without audio never requires failure")
+    func noSourceAudio() {
+        #expect(!AudioPreservation.requiresFailure(
+            sourceAudioTrackCount: 0,
+            preservedAudioTrackCount: 0,
+            muteAudio: false
+        ))
+    }
+}

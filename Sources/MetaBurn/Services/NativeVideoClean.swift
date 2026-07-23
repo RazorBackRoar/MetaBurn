@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import MetaBurnCore
 
 /// Native AVFoundation video clean: strip container metadata and optionally omit all audio.
 /// Replaces the file at `path`. Passthrough remux when possible (no quality loss).
@@ -58,16 +59,29 @@ enum NativeVideoClean {
 
             if !muteAudio {
                 let audioTracks = try await asset.loadTracks(withMediaType: .audio)
+                var audioInserted = 0
                 for track in audioTracks {
                     guard let compTrack = composition.addMutableTrack(
                         withMediaType: .audio,
                         preferredTrackID: kCMPersistentTrackID_Invalid
                     ) else { continue }
-                    try? compTrack.insertTimeRange(
-                        CMTimeRange(start: .zero, duration: duration),
-                        of: track,
-                        at: .zero
-                    )
+                    do {
+                        try compTrack.insertTimeRange(
+                            CMTimeRange(start: .zero, duration: duration),
+                            of: track,
+                            at: .zero
+                        )
+                        audioInserted += 1
+                    } catch {
+                        // Try remaining tracks; fail only when none could be preserved.
+                    }
+                }
+                if AudioPreservation.requiresFailure(
+                    sourceAudioTrackCount: audioTracks.count,
+                    preservedAudioTrackCount: audioInserted,
+                    muteAudio: muteAudio
+                ) {
+                    return (false, "could not preserve audio tracks")
                 }
             }
 
