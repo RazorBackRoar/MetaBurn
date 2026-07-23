@@ -97,8 +97,8 @@ Unit tests live in `Tests/MetaBurnTests` against `MetaBurnCore` (`swift test`).
 ## Learned User Preferences
 
 - Drag-and-drop only forever — never add browse/file-picker UI, and never auto-open Finder or Open panels to Desktop, Downloads, or output folders.
-- Mute video audio belongs on the empty start screen (not only after a drop); mute means permanently omit audio tracks so they cannot be recovered from the cleaned file.
-- Metadata table field order: Make, Model, Camera, Created, Lens, GPS, Modified, Size, Resolution, Type — keep Make/Model/Camera; do not drop columns that regressions previously removed.
+- Mute video audio toggle lives in the bottom-right footer (no top mute banner; no Desktop/MetaBurn path label there); mute means permanently omit audio tracks so they cannot be recovered from the cleaned file.
+- Metadata table primary order: Created, Lens, GPS, Size, Modified, Resolution, Type; never show Software; pin fields untouched by the burn to the bottom of the list.
 - Duplicate cleaned filenames use zero-padded sequential suffixes (`001`, `002`, `003`) — never `-1`/`-2` or trailing `X`/`XX`.
 - Privacy is the product priority, but never at the cost of visible quality loss or destroying the photo/video; prefer remux/strip over re-encode.
 - Prefer a slightly taller/wider default window and one step larger UI font across the app.

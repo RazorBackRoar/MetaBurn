@@ -66,11 +66,17 @@ cat > "$APP_PATH/Contents/Info.plist" <<EOF
     <string>14.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © $(date +%Y) RazorBackRoar. All rights reserved.</string>
 </dict>
 </plist>
 EOF
 
 chmod +x "$APP_PATH/Contents/MacOS/$APP_NAME"
+
+# Keep copyright year current via shared helper (does not touch DMG layout).
+RAZORCORE_DIR="$(cd "$SCRIPT_DIR/../../.razorcore" && pwd)"
+"$RAZORCORE_DIR/patch-app-branding.sh" "$APP_PATH"
 
 if [ -n "$SIGN_IDENTITY" ]; then
     echo "Signing $APP_NAME.app with Developer ID ($SIGN_IDENTITY)..."
@@ -83,43 +89,14 @@ fi
 
 echo "Creating $APP_NAME.dmg with shared layout..."
 mkdir -p "$RELEASE_DIR"
-RAZORCORE_DIR="$(cd "$SCRIPT_DIR/../../.razorcore" && pwd)"
-DMG_SETTINGS="$RAZORCORE_DIR/dmg-settings.py"
-VOL_ICNS="$APP_PATH/Contents/Resources/AppIcon.icns"
 # Versioned volume name so Finder does not reuse a remembered (broken) window size
 # from an older "MetaBurn" mount.
 VOLUME_NAME="$APP_NAME $VERSION"
-rm -f "$DMG_PATH"
-
-dmg_defines=(-D "app=$APP_PATH" -D "app_name=$APP_NAME")
-if [ -f "$VOL_ICNS" ]; then
-    dmg_defines+=(-D "vol_icon=$VOL_ICNS")
-fi
-
-dmg_ok=0
-for attempt in 1 2 3; do
-    if [ -d "/Volumes/$VOLUME_NAME" ]; then
-        hdiutil detach "/Volumes/$VOLUME_NAME" -force -quiet 2>/dev/null || true
-    fi
-    if [ -d "/Volumes/$APP_NAME" ]; then
-        hdiutil detach "/Volumes/$APP_NAME" -force -quiet 2>/dev/null || true
-    fi
-    rm -f "$DMG_PATH"
-    if uvx --from dmgbuild dmgbuild -s "$DMG_SETTINGS" "${dmg_defines[@]}" "$VOLUME_NAME" "$DMG_PATH"; then
-        dmg_ok=1
-        break
-    fi
-    echo "Warning: DMG build attempt ${attempt}/3 failed for ${APP_NAME}; retrying..."
-    sleep 2
-done
-
-if [ "$dmg_ok" -ne 1 ]; then
-    echo "Error: DMG build failed after 3 attempts for ${APP_NAME}." >&2
-    exit 1
-fi
-
-echo "Verifying locked DMG layout..."
-python3 "$RAZORCORE_DIR/verify-dmg-layout.py" "$DMG_PATH" "$APP_NAME"
+"$RAZORCORE_DIR/package-dmg.sh" \
+  --app "$APP_PATH" \
+  --dmg "$DMG_PATH" \
+  --app-name "$APP_NAME" \
+  --volname "$VOLUME_NAME"
 
 if [ -n "$SIGN_IDENTITY" ]; then
     echo "Signing $APP_NAME.dmg..."
