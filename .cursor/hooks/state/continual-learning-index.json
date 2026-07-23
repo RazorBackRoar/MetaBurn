@@ -1,18 +1,26 @@
 {
   "version": 1,
-  "updatedAtMs": 1784756462577,
+  "updatedAtMs": 1784773596466,
   "transcripts": {
+    "/Users/home/.cursor/projects/Users-home-Workspace-Apps-MetaBurn/agent-transcripts/2d016c4e-02de-4135-85cc-e68b117ecf1d/2d016c4e-02de-4135-85cc-e68b117ecf1d.jsonl": {
+      "mtimeMs": 1784773539722.6663,
+      "size": 151747
+    },
+    "/Users/home/.cursor/projects/Users-home-Workspace-Apps-MetaBurn/agent-transcripts/2d016c4e-02de-4135-85cc-e68b117ecf1d/subagents/83481432-4f5b-427a-99e5-34c4747c67e2.jsonl": {
+      "mtimeMs": 1784773563965.2986,
+      "size": 2542
+    },
     "/Users/home/.cursor/projects/Users-home-Workspace-Apps-MetaBurn/agent-transcripts/664f2cdc-dcba-4d61-a359-a0a62ff783d7/664f2cdc-dcba-4d61-a359-a0a62ff783d7.jsonl": {
-      "mtimeMs": 1784756365230.4958,
-      "size": 177157
+      "mtimeMs": 1784759172672.7102,
+      "size": 199366
     },
     "/Users/home/.cursor/projects/Users-home-Workspace-Apps-MetaBurn/agent-transcripts/664f2cdc-dcba-4d61-a359-a0a62ff783d7/subagents/8ff15b9f-69d5-4923-b7d1-79d35cc459d3.jsonl": {
       "mtimeMs": 1784342549026.3354,
       "size": 21747
     },
     "/Users/home/.cursor/projects/Users-home-Workspace-Apps-MetaBurn/agent-transcripts/664f2cdc-dcba-4d61-a359-a0a62ff783d7/subagents/b579313c-60c3-4242-9e4c-5d0ef67f55e0.jsonl": {
-      "mtimeMs": 1784756372449.8455,
-      "size": 3217
+      "mtimeMs": 1784756474469.6504,
+      "size": 16113
     },
     "/Users/home/.cursor/projects/Users-home-Workspace-Apps-MetaBurn/agent-transcripts/664f2cdc-dcba-4d61-a359-a0a62ff783d7/subagents/d6586eb2-e357-4d4b-b83a-ad01e7923cc3.jsonl": {
       "mtimeMs": 1784753845631.507,
@@ -61,6 +69,10 @@
     "/Users/home/.cursor/projects/Users-home-Workspace/agent-transcripts/1372069d-0eb2-4f1e-90e8-0258a412a23b/subagents/a35d077d-dc60-4ead-9f8c-7160b97ee324.jsonl": {
       "mtimeMs": 1784678449473.899,
       "size": 14138
+    },
+    "/Users/home/.cursor/projects/Users-home-Workspace/agent-transcripts/18c8b0e9-b4dd-48f5-8962-21f66b621791/18c8b0e9-b4dd-48f5-8962-21f66b621791.jsonl": {
+      "mtimeMs": 1784772211163.0417,
+      "size": 3241
     },
     "/Users/home/.cursor/projects/Users-home-Workspace/agent-transcripts/26b06490-a416-4378-a08f-ba7761773816/26b06490-a416-4378-a08f-ba7761773816.jsonl": {
       "mtimeMs": 1783813835097.354,
@@ -153,6 +165,10 @@
     "/Users/home/.cursor/projects/Users-home-Workspace/agent-transcripts/3ec4a5bf-8696-4e28-9c28-562465af3698/3ec4a5bf-8696-4e28-9c28-562465af3698.jsonl": {
       "mtimeMs": 1783474892249.3357,
       "size": 124
+    },
+    "/Users/home/.cursor/projects/Users-home-Workspace/agent-transcripts/4b34ef09-e46a-4552-b85f-4075c477e105/4b34ef09-e46a-4552-b85f-4075c477e105.jsonl": {
+      "mtimeMs": 1784767274738.387,
+      "size": 1616
     },
     "/Users/home/.cursor/projects/Users-home-Workspace/agent-transcripts/4caf735e-103c-47f3-aaf4-7feb75ce8db6/4caf735e-103c-47f3-aaf4-7feb75ce8db6.jsonl": {
       "mtimeMs": 1784260023430.0657,

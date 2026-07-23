@@ -5,7 +5,7 @@ import MetaBurnCore
 enum Paths {
     static var appName: String { Brand.displayName }
 
-    /// User-facing cleaned output root: `~/Desktop/MetaBurn`.
+    /// User-facing cleaned output root: `~/Desktop/MetaBurn` (created only when first needed).
     static var desktopOutputFolderName: String { OutputNaming.desktopFolderName }
 
     static func applicationSupportDirectory() -> URL {
@@ -55,10 +55,18 @@ enum Paths {
         ensureDirectory(cacheDirectory())
     }
 
-    /// Creates `~/Desktop/MetaBurn/{Photos,Videos,Skippable}` for cleaned output and bypassed files.
-    static func ensureDesktopOutputDirectories() {
+    /// Create only the Photos output folder (and `Desktop/MetaBurn` if needed).
+    static func ensurePhotosOutputDirectory() {
         ensureDirectory(photosOutputDirectory())
+    }
+
+    /// Create only the Videos output folder (and `Desktop/MetaBurn` if needed).
+    static func ensureVideosOutputDirectory() {
         ensureDirectory(videosOutputDirectory())
+    }
+
+    /// Create only the Skippable output folder (and `Desktop/MetaBurn` if needed).
+    static func ensureSkippableOutputDirectory() {
         ensureDirectory(skippableOutputDirectory())
     }
 
@@ -78,13 +86,19 @@ enum Paths {
         return url
     }
 
-    /// Remove leftover `*.metaburn.tmp*` from cache and Desktop output folders (cancelled/hung jobs).
+    /// Remove leftover `*.metaburn.tmp*` from cache and any Desktop output folders that already exist.
+    /// Never creates `Desktop/MetaBurn` or its children.
     @discardableResult
     static func cleanupOrphanWorkFiles() -> [URL] {
         ensureCacheDirectory()
-        ensureDesktopOutputDirectories()
-        return WorkFileSafety.cleanupOrphanWorkFiles(
-            in: [cacheDirectory(), photosOutputDirectory(), videosOutputDirectory()]
-        )
+        var dirs = [cacheDirectory()]
+        let fm = FileManager.default
+        for dir in [photosOutputDirectory(), videosOutputDirectory(), skippableOutputDirectory()] {
+            var isDir: ObjCBool = false
+            if fm.fileExists(atPath: dir.path, isDirectory: &isDir), isDir.boolValue {
+                dirs.append(dir)
+            }
+        }
+        return WorkFileSafety.cleanupOrphanWorkFiles(in: dirs)
     }
 }

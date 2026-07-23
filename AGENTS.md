@@ -22,7 +22,7 @@ Local photo/video metadata stripper (ExifTool). Swift + SwiftUI.
 - Services: `Sources/MetaBurn/Services/`
 - Utilities: `Sources/MetaBurn/Utilities/`
 
-Cleaned copies are written to `~/Desktop/MetaBurn/Photos`, `~/Desktop/MetaBurn/Videos`, and bypassed files to `~/Desktop/MetaBurn/Skippable`. Originals are never overwritten.
+Cleaned copies are written under `~/Desktop/MetaBurn/` only when needed: `Photos` for cleaned photos, `Videos` for cleaned videos, `Skippable` for bypassed files. Subfolders (and the root) are created dynamically — never on launch. Originals are never overwritten.
 
 ### RazorCore contracts (v1.1)
 
@@ -66,11 +66,13 @@ Output is `build/Release/MetaBurn.dmg` only (the `.app` is consumed during packa
 
 ## Output folders
 
-On launch and before each job, ensure:
+Do **not** create `~/Desktop/MetaBurn` (or Photos / Videos / Skippable) on launch or at job start.
 
-- `~/Desktop/MetaBurn/Photos`
-- `~/Desktop/MetaBurn/Videos`
-- `~/Desktop/MetaBurn/Skippable` (unsupported / non-writable drops; includes `skipped-summary.txt`)
+Create each folder only when first needed:
+
+- `Photos` — when cleaning a photo
+- `Videos` — when cleaning a video
+- `Skippable` — when exporting skipped/unsupported files (`skipped-summary.txt` lives here)
 
 Supported files are copied to a local cache work file, cleaned (and optionally muted), then promoted to the final path. Timeouts/failures discard the work file so destinations are never half-written. Originals stay untouched. GIF and WebM are always unsupported and routed to Skippable.
 

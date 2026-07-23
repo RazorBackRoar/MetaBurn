@@ -63,14 +63,13 @@ final class TaskRunner: ObservableObject {
         }
 
         Log.shared.info("Starting job \(jobId) for \(droppedPaths.count) dropped path(s)", scope: "taskRunner")
-        Paths.ensureDesktopOutputDirectories()
         Paths.cleanupOrphanWorkFiles()
 
         do {
             await setState(.scanning)
             let scan = try await Scanner.buildFileList(droppedPaths: droppedPaths)
 
-            // Always park bypassed files in Desktop/MetaBurn/Skippable + write the audit log.
+            // Park bypassed files in Skippable only when there are skips (creates that folder on demand).
             _ = try? SkipExporter.export(skipped: scan.skipped)
 
             var kinds = TypeCounts()

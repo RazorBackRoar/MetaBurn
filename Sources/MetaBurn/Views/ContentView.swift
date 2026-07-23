@@ -256,7 +256,7 @@ struct ContentView: View {
                 noticeBanner(message)
             }
 
-            Text("Cleaned copies go to Desktop/MetaBurn — Photos, Videos, and Skippable. Originals are left untouched.")
+            Text("Cleaned copies go to Desktop/MetaBurn only when needed (Photos, Videos, or Skippable). Originals stay untouched.")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -375,7 +375,7 @@ struct ContentView: View {
                 }
                 Text(processing ? "Processing…" : "Drop photos, videos, or folders")
                     .font(.system(size: 16, weight: .semibold))
-                Text(processing ? "Saving cleaned copies to Desktop/MetaBurn…" : "Click to browse · cleaned copies → Desktop/MetaBurn")
+                Text(processing ? "Saving cleaned copies…" : "Click to browse · cleaned copies → Desktop/MetaBurn when needed")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }

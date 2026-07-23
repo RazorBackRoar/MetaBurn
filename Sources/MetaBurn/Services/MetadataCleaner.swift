@@ -90,8 +90,14 @@ enum MetadataCleaner {
             return CleanResult(path: filePath, status: .failed, reason: "exiftool not found")
         }
 
-        Paths.ensureDesktopOutputDirectories()
-        let outputDir = info.kind == .photo ? Paths.photosOutputDirectory() : Paths.videosOutputDirectory()
+        let outputDir: URL
+        if info.kind == .photo {
+            Paths.ensurePhotosOutputDirectory()
+            outputDir = Paths.photosOutputDirectory()
+        } else {
+            Paths.ensureVideosOutputDirectory()
+            outputDir = Paths.videosOutputDirectory()
+        }
         let finalURL = Paths.uniqueOutputURL(forSourcePath: filePath, in: outputDir)
         let workURL = Paths.workURL(forFinal: finalURL)
         let workPath = workURL.path

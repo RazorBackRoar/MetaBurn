@@ -13,7 +13,7 @@ enum SkipExporter {
     static func export(skipped: [(path: String, reason: String)]) throws -> Result? {
         guard !skipped.isEmpty else { return nil }
 
-        Paths.ensureDesktopOutputDirectories()
+        Paths.ensureSkippableOutputDirectory()
         let folder = Paths.skippableOutputDirectory()
         let fm = FileManager.default
         var copied = 0
