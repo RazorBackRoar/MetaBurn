@@ -10,7 +10,6 @@ struct ContentView: View {
     @State private var isDragging = false
     @State private var dropNotice: String? = nil
     @State private var selectedEntry: LogEntry? = nil
-    @AppStorage("lastBrowseDirectory") private var lastBrowseDirectory: String = ""
 
     private var processing: Bool {
         runner.state == .scanning || runner.state == .cleaning
@@ -304,41 +303,38 @@ struct ContentView: View {
     }
 
     private var dropZone: some View {
-        Button {
-            browseFiles()
-        } label: {
-            VStack(spacing: 10) {
-                if processing {
-                    ProgressView()
-                        .controlSize(.regular)
-                        .padding(.bottom, 2)
-                } else {
-                    Image(systemName: isDragging ? "arrow.down.doc.fill" : "square.and.arrow.down")
-                        .font(.system(size: 29, weight: .medium))
-                        .foregroundStyle(isDragging ? MetaBurnTheme.accent : .secondary)
-                }
-                Text(processing ? "Processing…" : "Drop photos, videos, or folders")
-                    .font(.system(size: 17, weight: .semibold))
-                Text(processing ? "Saving cleaned copies…" : "Click to browse · cleaned copies → Desktop/MetaBurn when needed")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
+        VStack(spacing: 10) {
+            if processing {
+                ProgressView()
+                    .controlSize(.regular)
+                    .padding(.bottom, 2)
+            } else {
+                Image(systemName: isDragging ? "arrow.down.doc.fill" : "square.and.arrow.down")
+                    .font(.system(size: 29, weight: .medium))
+                    .foregroundStyle(isDragging ? MetaBurnTheme.accent : .secondary)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(isDragging ? MetaBurnTheme.accent.opacity(0.12) : MetaBurnTheme.surface)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(
-                        isDragging ? MetaBurnTheme.accent : MetaBurnTheme.divider,
-                        style: StrokeStyle(lineWidth: isDragging ? 2 : 1.5, dash: isDragging ? [] : [8, 6])
-                    )
-            )
+            Text(processing ? "Processing…" : "Drop photos, videos, or folders")
+                .font(.system(size: 17, weight: .semibold))
+            Text(processing ? "Saving cleaned copies…" : "Drag and drop only · cleaned copies → Desktop/MetaBurn when needed")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
         }
-        .buttonStyle(.plain)
-        .disabled(processing)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(isDragging ? MetaBurnTheme.accent.opacity(0.12) : MetaBurnTheme.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(
+                    isDragging ? MetaBurnTheme.accent : MetaBurnTheme.divider,
+                    style: StrokeStyle(lineWidth: isDragging ? 2 : 1.5, dash: isDragging ? [] : [8, 6])
+                )
+        )
         .animation(.easeInOut(duration: 0.15), value: isDragging)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Drop zone")
+        .accessibilityHint("Drop photos, videos, or folders to clean metadata")
     }
 
     private func counterPill(_ label: String, _ value: Int, _ color: Color) -> some View {
@@ -417,15 +413,14 @@ struct ContentView: View {
 
     private var footerBar: some View {
         HStack(alignment: .center, spacing: 12) {
-            Button {
-                browseFiles()
-            } label: {
-                Label("Add more…", systemImage: "plus")
-            }
-            .buttonStyle(MetaBurnSecondaryButtonStyle())
-            .disabled(processing)
+            Text("Drop more files onto this window to clean another batch.")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
 
             Spacer(minLength: 8)
+
+            muteFooterToggle
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
@@ -565,34 +560,14 @@ struct ContentView: View {
         group.notify(queue: .main) {
             if paths.isEmpty {
                 dropNotice = loaded > 0
-                    ? "Couldn't read those items' file paths. Click the drop area to browse instead."
-                    : "No files detected. Drop photos, videos, or a folder — or click to browse."
+                    ? "Couldn't read those items' file paths. Try dropping again."
+                    : "No files detected. Drop photos, videos, or a folder."
             } else {
                 dropNotice = nil
                 startJob(paths: paths)
             }
         }
         return true
-    }
-
-    private func browseFiles() {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = true
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = true
-        panel.allowedContentTypes = [.image, .movie, .data]
-        if !lastBrowseDirectory.isEmpty {
-            panel.directoryURL = URL(fileURLWithPath: lastBrowseDirectory)
-        } else {
-            panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop")
-        }
-        if panel.runModal() == .OK {
-            if let firstURL = panel.urls.first {
-                lastBrowseDirectory = firstURL.deletingLastPathComponent().path
-            }
-            dropNotice = nil
-            startJob(paths: panel.urls.map(\.path))
-        }
     }
 
     private func startJob(paths: [String]) {

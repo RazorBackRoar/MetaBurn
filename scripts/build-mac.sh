@@ -86,6 +86,9 @@ mkdir -p "$RELEASE_DIR"
 RAZORCORE_DIR="$(cd "$SCRIPT_DIR/../../.razorcore" && pwd)"
 DMG_SETTINGS="$RAZORCORE_DIR/dmg-settings.py"
 VOL_ICNS="$APP_PATH/Contents/Resources/AppIcon.icns"
+# Versioned volume name so Finder does not reuse a remembered (broken) window size
+# from an older "MetaBurn" mount.
+VOLUME_NAME="$APP_NAME $VERSION"
 rm -f "$DMG_PATH"
 
 dmg_defines=(-D "app=$APP_PATH" -D "app_name=$APP_NAME")
@@ -95,11 +98,14 @@ fi
 
 dmg_ok=0
 for attempt in 1 2 3; do
+    if [ -d "/Volumes/$VOLUME_NAME" ]; then
+        hdiutil detach "/Volumes/$VOLUME_NAME" -force -quiet 2>/dev/null || true
+    fi
     if [ -d "/Volumes/$APP_NAME" ]; then
         hdiutil detach "/Volumes/$APP_NAME" -force -quiet 2>/dev/null || true
     fi
     rm -f "$DMG_PATH"
-    if uvx --from dmgbuild dmgbuild -s "$DMG_SETTINGS" "${dmg_defines[@]}" "$APP_NAME" "$DMG_PATH"; then
+    if uvx --from dmgbuild dmgbuild -s "$DMG_SETTINGS" "${dmg_defines[@]}" "$VOLUME_NAME" "$DMG_PATH"; then
         dmg_ok=1
         break
     fi

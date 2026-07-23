@@ -62,9 +62,10 @@ Output is `build/Release/MetaBurn.dmg` only (the `.app` is consumed during packa
 
 ## UI
 
+- Drag-and-drop only — no browse / file-picker UI (never).
 - While processing, show category count bubbles (Photos, Videos, etc.) with counts beside the title so progress is visible by media type.
 - Theme setting (Auto / Light / Dark) must apply to the main window — do not force dark mode.
-- Mute video audio defaults on and is shown only when the job includes videos.
+- Mute video audio defaults on and is shown on the empty start screen (and results footer).
 - Cleaned files land under Desktop/MetaBurn. Remind users that visible picture/video content is not altered (only hidden metadata / optional audio).
 - Packaging stays **ad-hoc signed** until a paid Apple Developer ID is available; do not require notarization.
 
