@@ -64,6 +64,7 @@ final class TaskRunner: ObservableObject {
 
         Log.shared.info("Starting job \(jobId) for \(droppedPaths.count) dropped path(s)", scope: "taskRunner")
         Paths.ensureDesktopOutputDirectories()
+        Paths.cleanupOrphanWorkFiles()
 
         do {
             await setState(.scanning)

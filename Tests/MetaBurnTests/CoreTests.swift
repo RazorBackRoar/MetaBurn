@@ -49,12 +49,45 @@ struct OutputNamingTests {
         #expect(url.lastPathComponent == "shot-2.jpg")
     }
 
-    @Test("workURL stays hidden beside the final file")
-    func workURLHidden() {
+    @Test("workURL stays in an explicit work directory")
+    func workURLInDirectory() {
+        let final = URL(fileURLWithPath: "/tmp/metaburn/Photos/img.heic")
+        let workDir = URL(fileURLWithPath: "/tmp/metaburn-cache", isDirectory: true)
+        let work = OutputNaming.workURL(in: workDir, forFinal: final, uuid: "ABC")
+        #expect(work.lastPathComponent == "ABC.metaburn.tmp.heic")
+        #expect(work.deletingLastPathComponent() == workDir)
+    }
+
+    @Test("legacy sibling workURL stays hidden beside the final file")
+    func workURLHiddenSibling() {
         let final = URL(fileURLWithPath: "/tmp/metaburn/Photos/img.heic")
         let work = OutputNaming.workURL(forFinal: final, uuid: "ABC")
         #expect(work.lastPathComponent == ".ABC.metaburn.tmp.heic")
         #expect(work.deletingLastPathComponent() == final.deletingLastPathComponent())
+    }
+
+    @Test("uniqueURL second pass increments past existing copies")
+    func uniqueSecondPass() {
+        let dir = URL(fileURLWithPath: "/tmp/metaburn-test", isDirectory: true)
+        let existing: Set<String> = [
+            "/tmp/metaburn-test/IMG_2667_plus.JPG",
+            "/tmp/metaburn-test/IMG_2667_plus-1.JPG",
+            "/tmp/metaburn-test/IMG_2667.jpeg",
+            "/tmp/metaburn-test/IMG_2667-1.jpeg"
+        ]
+        let plus = OutputNaming.uniqueURL(
+            forSourcePath: "/in/IMG_2667_plus.JPG",
+            in: dir,
+            fileExists: { existing.contains($0) }
+        )
+        #expect(plus.lastPathComponent == "IMG_2667_plus-2.JPG")
+    }
+
+    @Test("isWorkFileName detects metaburn temp markers")
+    func workFileMarker() {
+        #expect(OutputNaming.isWorkFileName("ABC.metaburn.tmp.JPG"))
+        #expect(OutputNaming.isWorkFileName(".ABC.metaburn.tmp.jpeg"))
+        #expect(!OutputNaming.isWorkFileName("IMG_2667_plus.JPG"))
     }
 }
 

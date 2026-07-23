@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import MetaBurnCore
 
@@ -72,9 +73,10 @@ enum MetadataCleaner {
         }
     }
 
-    /// Copies to a hidden work file, cleans/mutes there, then atomically promotes to the final
+    /// Copies to a local cache work file, cleans/mutes there, then moves to the final
     /// Desktop/MetaBurn path. Failures/timeouts delete the work file and never leave a half-written
     /// destination (important for HEIC where ExifTool may hang mid-`-overwrite_original`).
+    /// Work files stay off Desktop/iCloud so quarantine + file-provider sync cannot stall a job.
     static func cleanFile(filePath: String, muteAudio: Bool, ffmpegPath: String?) async -> CleanResult {
         let info = SupportedTypes.classify(filePath: filePath)
 
@@ -98,6 +100,9 @@ enum MetadataCleaner {
 
         do {
             try fm.copyItem(atPath: filePath, toPath: workPath)
+            // Quarantine / MACL xattrs from AirDrop/iCloud sources can stall tools on Desktop-
+            // synced paths; clear them on the local cache work copy before ExifTool runs.
+            Self.stripStallingXattrs(atPath: workPath)
         } catch {
             return CleanResult(
                 path: filePath,
@@ -213,6 +218,18 @@ enum MetadataCleaner {
             try fm.removeItem(at: finalURL)
         }
         try fm.moveItem(at: workURL, to: finalURL)
+    }
+
+    /// Drop xattrs that commonly stall ExifTool / file coordination on iCloud Desktop.
+    private static func stripStallingXattrs(atPath path: String) {
+        let names = ["com.apple.quarantine", "com.apple.macl", "com.apple.FinderInfo"]
+        for name in names {
+            _ = path.withCString { pathPtr in
+                name.withCString { namePtr in
+                    removexattr(pathPtr, namePtr, 0)
+                }
+            }
+        }
     }
 
     static func installExiftool() async -> (success: Bool, message: String?) {

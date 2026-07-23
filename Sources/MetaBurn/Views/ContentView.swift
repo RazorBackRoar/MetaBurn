@@ -280,16 +280,10 @@ struct ContentView: View {
                 .padding(.top, 10)
                 .padding(.bottom, 10)
 
-            if showsVideoMuteControls {
-                muteRow
+            if showsVideoMuteControls, muteAudio, ffmpegReady == false {
+                ffmpegNotice
                     .padding(.horizontal, 14)
                     .padding(.bottom, 10)
-
-                if muteAudio, ffmpegReady == false {
-                    ffmpegNotice
-                        .padding(.horizontal, 14)
-                        .padding(.bottom, 10)
-                }
             }
 
             Divider().overlay(MetaBurnTheme.divider)
@@ -399,32 +393,6 @@ struct ContentView: View {
         .animation(.easeInOut(duration: 0.15), value: isDragging)
     }
 
-    private var muteRow: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image(systemName: "speaker.slash.fill")
-                .foregroundStyle(muteAudio ? MetaBurnTheme.accent : .secondary)
-                .frame(width: 20)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Mute video audio")
-                    .font(.system(size: 13, weight: .semibold))
-                Text("Strip audio from video copies so ambient sound and voices are not shared.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Toggle("", isOn: $muteAudio)
-                .toggleStyle(RedSwitchToggleStyle())
-                .labelsHidden()
-                .disabled(processing)
-                .onChange(of: muteAudio) { _, _ in
-                    Task { await checkFfmpeg() }
-                }
-        }
-        .padding(12)
-        .background(MetaBurnTheme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-    }
-
     private var ffmpegNotice: some View {
         HStack(spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill")
@@ -529,26 +497,27 @@ struct ContentView: View {
             .buttonStyle(MetaBurnSecondaryButtonStyle())
             .disabled(processing)
 
-            if showsVideoMuteControls {
-                muteCompact
-            }
-
             Spacer(minLength: 8)
 
-            Text("Desktop/MetaBurn")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+            if showsVideoMuteControls {
+                muteFooterToggle
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
     }
 
-    private var muteCompact: some View {
+    private var muteFooterToggle: some View {
         Toggle(isOn: $muteAudio) {
-            Text("Mute video audio")
-                .font(.system(size: 12))
+            HStack(spacing: 8) {
+                Image(systemName: "speaker.slash.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(muteAudio ? MetaBurnTheme.accent : .secondary)
+                Text("Mute video audio")
+                    .font(.system(size: 12))
+            }
         }
-        .toggleStyle(.checkbox)
+        .toggleStyle(RedSwitchToggleStyle())
         .disabled(processing)
         .onChange(of: muteAudio) { _, _ in
             Task { await checkFfmpeg() }

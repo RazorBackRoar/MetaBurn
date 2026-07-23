@@ -274,49 +274,33 @@ enum MetadataFieldBuilder {
         return w.isEmpty || h.isEmpty ? "" : "\(w) × \(h)"
     }
 
-    private static func camera(_ map: Map) -> String {
-        let make = get(map, "Make")
-        let model = get(map, "Model", "CameraModelName")
-        if !make.isEmpty && !model.isEmpty {
-            return model.contains(make) ? model : "\(make) \(model)"
-        }
-        return model.isEmpty ? make : model
-    }
-
     private static func gps(_ map: Map) -> String {
         get(map, "GPSPosition", "GPSCoordinates", "GPSLatitude", "LocationInformation", "Location", "City", "Sub-location", "Country")
     }
 
     private static let photoSpecs: [Spec] = [
-        Spec(label: "GPS", mirror: false, resolve: { m, _ in gps(m) }),
-        Spec(label: "Make", mirror: false, resolve: { m, _ in get(m, "Make") }),
-        Spec(label: "Model", mirror: false, resolve: { m, _ in get(m, "Model", "CameraModelName", "HostComputer") }),
-        Spec(label: "Camera", mirror: false, resolve: { m, _ in camera(m) }),
-        Spec(label: "Software", mirror: false, resolve: { m, _ in get(m, "Software", "HostComputer", "CreatorTool") }),
+        // Removable / burn-touched fields first
         Spec(label: "Created", mirror: false, resolve: { m, _ in get(m, "CreateDate", "CreationDate", "DateTimeOriginal", "CreationTime") }),
         Spec(label: "Lens", mirror: false, resolve: { m, _ in get(m, "LensModel", "LensInfo", "LensMake", "Lens") }),
-        Spec(label: "Comment", mirror: false, resolve: { m, _ in get(m, "Comment", "Description", "UserComment", "ImageDescription") }),
-        Spec(label: "Modified", mirror: true, resolve: { m, _ in get(m, "ModifyDate", "FileModifyDate") }),
+        Spec(label: "GPS", mirror: false, resolve: { m, _ in gps(m) }),
+        // Permanent / unmodified fields pinned at the bottom
         Spec(label: "Size", mirror: true, resolve: { m, _ in get(m, "FileSize") }),
-        Spec(label: "Type", mirror: false, resolve: { m, _ in get(m, "FileType", "MIMEType") }),
-        Spec(label: "Resolution", mirror: true, resolve: { m, _ in resolution(m) })
+        Spec(label: "Modified", mirror: true, resolve: { m, _ in get(m, "ModifyDate", "FileModifyDate") }),
+        Spec(label: "Resolution", mirror: true, resolve: { m, _ in resolution(m) }),
+        Spec(label: "Type", mirror: true, resolve: { m, _ in get(m, "FileType", "MIMEType") })
     ]
 
     private static let videoSpecs: [Spec] = [
-        Spec(label: "GPS", mirror: false, resolve: { m, _ in gps(m) }),
-        Spec(label: "Make", mirror: false, resolve: { m, _ in get(m, "Make") }),
-        Spec(label: "Model", mirror: false, resolve: { m, _ in get(m, "Model", "CameraModelName") }),
-        Spec(label: "Camera", mirror: false, resolve: { m, _ in camera(m) }),
-        Spec(label: "Software", mirror: false, resolve: { m, _ in get(m, "Software", "Encoder", "HandlerDescription") }),
         Spec(label: "Created", mirror: false, resolve: { m, _ in get(m, "CreateDate", "CreationDate") }),
         Spec(label: "Recorded", mirror: false, resolve: { m, _ in get(m, "CreationDate", "MediaCreateDate", "DateTimeOriginal", "CreateDate") }),
+        Spec(label: "Lens", mirror: false, resolve: { m, _ in get(m, "LensModel", "Lens") }),
+        Spec(label: "GPS", mirror: false, resolve: { m, _ in gps(m) }),
         Spec(label: "Codec", mirror: false, resolve: { m, _ in get(m, "CompressorName", "VideoCodec", "CompressorID") }),
         Spec(label: "Audio", mirror: false, resolve: { m, _ in get(m, "AudioFormat", "AudioChannels", "AudioSampleRate", "AudioBitsPerSample") }),
-        Spec(label: "Lens", mirror: false, resolve: { m, _ in get(m, "LensModel", "Lens") }),
-        Spec(label: "Modified", mirror: true, resolve: { m, _ in get(m, "ModifyDate", "FileModifyDate") }),
         Spec(label: "Size", mirror: true, resolve: { m, _ in get(m, "FileSize") }),
-        Spec(label: "Type", mirror: false, resolve: { m, _ in get(m, "FileType", "MIMEType") }),
+        Spec(label: "Modified", mirror: true, resolve: { m, _ in get(m, "ModifyDate", "FileModifyDate") }),
         Spec(label: "Resolution", mirror: true, resolve: { m, _ in resolution(m) }),
+        Spec(label: "Type", mirror: true, resolve: { m, _ in get(m, "FileType", "MIMEType") }),
         Spec(label: "Duration", mirror: true, resolve: { m, _ in get(m, "Duration", "MediaDuration", "TrackDuration") }),
         Spec(label: "FPS", mirror: true, resolve: { m, _ in get(m, "VideoFrameRate", "FrameRate") })
     ]

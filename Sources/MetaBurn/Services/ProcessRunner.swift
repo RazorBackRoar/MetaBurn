@@ -39,13 +39,18 @@ final class ProcessRunner {
             throw ProcessRunnerError.launchFailure(error.localizedDescription)
         }
 
-        let timeoutTask = Task {
-            try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+        // Detached so a blocked waitUntilExit can never starve the timeout.
+        let timeoutTask = Task.detached(priority: .utility) {
+            do {
+                try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+            } catch {
+                return
+            }
             if process.isRunning {
                 timedOut.set()
                 process.terminate()
                 // ExifTool can hang on some HEIC/media files after SIGTERM; escalate.
-                try await Task.sleep(nanoseconds: 2_000_000_000)
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
                 if process.isRunning {
                     kill(process.processIdentifier, SIGKILL)
                 }
@@ -53,17 +58,21 @@ final class ProcessRunner {
         }
 
         do {
-            let stdoutData = try await readDataToEnd(from: stdoutHandle)
-            let stderrData = try await readDataToEnd(from: stderrHandle)
-            process.waitUntilExit()
+            // Concurrent reads avoid classic pipe-fill deadlock (stderr fills while awaiting stdout).
+            async let stdoutData = readDataToEnd(from: stdoutHandle)
+            async let stderrData = readDataToEnd(from: stderrHandle)
+            let out = try await stdoutData
+            let err = try await stderrData
+
+            try await waitForExit(process)
             timeoutTask.cancel()
 
             if timedOut.value {
                 throw ProcessRunnerError.timeout
             }
 
-            let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
-            let stderr = String(data: stderrData, encoding: .utf8) ?? ""
+            let stdout = String(data: out, encoding: .utf8) ?? ""
+            let stderr = String(data: err, encoding: .utf8) ?? ""
             return ProcessOutput(stdout: stdout, stderr: stderr, exitCode: process.terminationStatus)
         } catch let error as ProcessRunnerError {
             timeoutTask.cancel()
@@ -91,11 +100,20 @@ final class ProcessRunner {
     }
 
     private static func readDataToEnd(from handle: FileHandle) async throws -> Data {
-        return try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 let data = handle.readDataToEndOfFile()
                 handle.closeFile()
                 continuation.resume(returning: data)
+            }
+        }
+    }
+
+    private static func waitForExit(_ process: Process) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            DispatchQueue.global(qos: .userInitiated).async {
+                process.waitUntilExit()
+                continuation.resume()
             }
         }
     }

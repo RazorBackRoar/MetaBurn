@@ -62,8 +62,23 @@ enum Paths {
         OutputNaming.uniqueURL(forSourcePath: sourcePath, in: directory)
     }
 
-    /// Hidden work file beside the final destination (never ExifTool's final path).
+    /// Local cache work file (not on Desktop/iCloud) so ExifTool never mid-writes the final path.
     static func workURL(forFinal finalURL: URL) -> URL {
-        OutputNaming.workURL(forFinal: finalURL)
+        ensureCacheDirectory()
+        return OutputNaming.workURL(in: cacheDirectory(), forFinal: finalURL)
+    }
+
+    /// Remove leftover `*.metaburn.tmp*` from cache and Desktop output folders (cancelled/hung jobs).
+    static func cleanupOrphanWorkFiles() {
+        ensureCacheDirectory()
+        ensureDesktopOutputDirectories()
+        let fm = FileManager.default
+        let dirs = [cacheDirectory(), photosOutputDirectory(), videosOutputDirectory()]
+        for dir in dirs {
+            guard let names = try? fm.contentsOfDirectory(atPath: dir.path) else { continue }
+            for name in names where OutputNaming.isWorkFileName(name) {
+                try? fm.removeItem(at: dir.appendingPathComponent(name))
+            }
+        }
     }
 }
