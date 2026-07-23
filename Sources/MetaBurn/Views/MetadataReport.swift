@@ -43,7 +43,7 @@ struct MetadataReport: View {
             header
             Divider().overlay(MetaBurnTheme.divider)
 
-            if entry.status == .failed || entry.status == .skipped {
+            if entry.status == .failed || entry.status == .skipped || entry.status == .partial {
                 messageBlock
                 Divider().overlay(MetaBurnTheme.divider)
             }
@@ -74,7 +74,7 @@ struct MetadataReport: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .center, spacing: 8) {
                 Text(fileName)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold))
                     .lineLimit(1)
                     .truncationMode(.middle)
                 statusBadge
@@ -82,7 +82,7 @@ struct MetadataReport: View {
             }
 
             Text(directory)
-                .font(.system(size: 11))
+                .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -105,12 +105,12 @@ struct MetadataReport: View {
     private var emptyMetadata: some View {
         VStack(spacing: 6) {
             Image(systemName: "checkmark.shield")
-                .font(.system(size: 22))
+                .font(.system(size: 23))
                 .foregroundStyle(.green.opacity(0.85))
             Text(entry.status == .cleaned ? "No removable metadata found" : "No metadata fields to compare")
-                .font(.system(size: 13, weight: .medium))
+                .font(.system(size: 14, weight: .medium))
             Text("This file had little or no EXIF/XMP to strip. Pixels were left unchanged.")
-                .font(.system(size: 11))
+                .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
@@ -120,13 +120,13 @@ struct MetadataReport: View {
 
     private var messageBlock: some View {
         HStack(alignment: .top, spacing: 8) {
-            Image(systemName: entry.status == .failed ? "xmark.octagon.fill" : "slash.circle.fill")
+            Image(systemName: messageIcon)
                 .foregroundStyle(statusColor)
             VStack(alignment: .leading, spacing: 2) {
-                Text(entry.status == .failed ? "Could not process this file" : "File was not cleaned")
-                    .font(.system(size: 12, weight: .semibold))
-                Text(entry.reason ?? "No additional details.")
-                    .font(.system(size: 11))
+                Text(messageTitle)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(entry.reason ?? messageFallback)
+                    .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -135,6 +135,31 @@ struct MetadataReport: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(statusColor.opacity(0.08))
+    }
+
+    private var messageIcon: String {
+        switch entry.status {
+        case .failed: "xmark.octagon.fill"
+        case .skipped: "slash.circle.fill"
+        case .partial: "exclamationmark.triangle.fill"
+        case .cleaned: "info.circle.fill"
+        }
+    }
+
+    private var messageTitle: String {
+        switch entry.status {
+        case .failed: "Could not process this file"
+        case .skipped: "File was not cleaned"
+        case .partial: "Mostly cleaned — some metadata remains"
+        case .cleaned: "Cleaned"
+        }
+    }
+
+    private var messageFallback: String {
+        switch entry.status {
+        case .partial: "Hidden tags were reduced, but at least one removable field is still present."
+        default: "No additional details."
+        }
     }
 
     private var tableHeader: some View {
@@ -146,7 +171,7 @@ struct MetadataReport: View {
             Text("After")
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .font(.system(size: 10, weight: .semibold))
+        .font(.system(size: 11, weight: .semibold))
         .foregroundStyle(.secondary)
         .padding(.horizontal, 14)
         .padding(.vertical, 6)
@@ -156,18 +181,18 @@ struct MetadataReport: View {
     private func compactRow(_ row: FieldRow) -> some View {
         HStack(alignment: .top, spacing: 0) {
             Text(row.label)
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.secondary)
                 .frame(width: 110, alignment: .leading)
 
             Text(display(row.before))
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.primary)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(display(row.after))
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(row.stripped ? MetaBurnTheme.accent : .primary)
                 .strikethrough(row.stripped && !row.after.isEmpty, color: MetaBurnTheme.accent.opacity(0.7))
                 .textSelection(.enabled)
@@ -183,13 +208,22 @@ struct MetadataReport: View {
     }
 
     private var statusBadge: some View {
-        Text(entry.status.rawValue.capitalized)
-            .font(.system(size: 10, weight: .bold))
+        Text(statusBadgeLabel)
+            .font(.system(size: 11, weight: .bold))
             .padding(.horizontal, 7)
             .padding(.vertical, 2)
             .background(statusColor.opacity(0.18))
             .foregroundStyle(statusColor)
             .clipShape(Capsule())
+    }
+
+    private var statusBadgeLabel: String {
+        switch entry.status {
+        case .cleaned: "Cleaned"
+        case .partial: "Leftovers"
+        case .skipped: "Skipped"
+        case .failed: "Failed"
+        }
     }
 
     private var statusColor: Color {
@@ -204,7 +238,7 @@ struct MetadataReport: View {
     private var outcomeLabel: String {
         switch entry.status {
         case .cleaned: "Saved to Desktop/MetaBurn"
-        case .partial: "Partially cleaned"
+        case .partial: "Some metadata remains"
         case .skipped: "Rejected / skipped"
         case .failed: "Error"
         }
@@ -212,7 +246,7 @@ struct MetadataReport: View {
 
     private func metaChip(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 10, weight: .medium))
+            .font(.system(size: 11, weight: .medium))
             .foregroundStyle(.secondary)
             .padding(.horizontal, 7)
             .padding(.vertical, 2)
@@ -274,31 +308,53 @@ enum MetadataFieldBuilder {
         return w.isEmpty || h.isEmpty ? "" : "\(w) × \(h)"
     }
 
+    private static func camera(_ map: Map) -> String {
+        let make = get(map, "Make")
+        let model = get(map, "Model", "CameraModelName")
+        if !make.isEmpty && !model.isEmpty {
+            return model.contains(make) ? model : "\(make) \(model)"
+        }
+        return model.isEmpty ? make : model
+    }
+
     private static func gps(_ map: Map) -> String {
-        get(map, "GPSPosition", "GPSCoordinates", "GPSLatitude", "LocationInformation", "Location", "City", "Sub-location", "Country")
+        let pos = get(map, "GPSPosition", "GPSCoordinates")
+        if !pos.isEmpty {
+            return pos
+        }
+        let lat = get(map, "GPSLatitude")
+        let lon = get(map, "GPSLongitude")
+        if !lat.isEmpty && !lon.isEmpty {
+            return "\(lat), \(lon)"
+        }
+        return get(map, "LocationInformation", "Location", "City", "Sub-location", "Country")
     }
 
     private static let photoSpecs: [Spec] = [
-        // Removable / burn-touched fields first
+        Spec(label: "Make", mirror: false, resolve: { m, _ in get(m, "Make") }),
+        Spec(label: "Model", mirror: false, resolve: { m, _ in get(m, "Model", "CameraModelName", "HostComputer") }),
+        Spec(label: "Camera", mirror: false, resolve: { m, _ in camera(m) }),
         Spec(label: "Created", mirror: false, resolve: { m, _ in get(m, "CreateDate", "CreationDate", "DateTimeOriginal", "CreationTime") }),
         Spec(label: "Lens", mirror: false, resolve: { m, _ in get(m, "LensModel", "LensInfo", "LensMake", "Lens") }),
         Spec(label: "GPS", mirror: false, resolve: { m, _ in gps(m) }),
-        // Permanent / unmodified fields pinned at the bottom
-        Spec(label: "Size", mirror: true, resolve: { m, _ in get(m, "FileSize") }),
         Spec(label: "Modified", mirror: true, resolve: { m, _ in get(m, "ModifyDate", "FileModifyDate") }),
+        Spec(label: "Size", mirror: true, resolve: { m, _ in get(m, "FileSize") }),
         Spec(label: "Resolution", mirror: true, resolve: { m, _ in resolution(m) }),
         Spec(label: "Type", mirror: true, resolve: { m, _ in get(m, "FileType", "MIMEType") })
     ]
 
     private static let videoSpecs: [Spec] = [
+        Spec(label: "Make", mirror: false, resolve: { m, _ in get(m, "Make") }),
+        Spec(label: "Model", mirror: false, resolve: { m, _ in get(m, "Model", "CameraModelName") }),
+        Spec(label: "Camera", mirror: false, resolve: { m, _ in camera(m) }),
         Spec(label: "Created", mirror: false, resolve: { m, _ in get(m, "CreateDate", "CreationDate") }),
-        Spec(label: "Recorded", mirror: false, resolve: { m, _ in get(m, "CreationDate", "MediaCreateDate", "DateTimeOriginal", "CreateDate") }),
         Spec(label: "Lens", mirror: false, resolve: { m, _ in get(m, "LensModel", "Lens") }),
         Spec(label: "GPS", mirror: false, resolve: { m, _ in gps(m) }),
+        Spec(label: "Recorded", mirror: false, resolve: { m, _ in get(m, "CreationDate", "MediaCreateDate", "DateTimeOriginal", "CreateDate") }),
         Spec(label: "Codec", mirror: false, resolve: { m, _ in get(m, "CompressorName", "VideoCodec", "CompressorID") }),
         Spec(label: "Audio", mirror: false, resolve: { m, _ in get(m, "AudioFormat", "AudioChannels", "AudioSampleRate", "AudioBitsPerSample") }),
-        Spec(label: "Size", mirror: true, resolve: { m, _ in get(m, "FileSize") }),
         Spec(label: "Modified", mirror: true, resolve: { m, _ in get(m, "ModifyDate", "FileModifyDate") }),
+        Spec(label: "Size", mirror: true, resolve: { m, _ in get(m, "FileSize") }),
         Spec(label: "Resolution", mirror: true, resolve: { m, _ in resolution(m) }),
         Spec(label: "Type", mirror: true, resolve: { m, _ in get(m, "FileType", "MIMEType") }),
         Spec(label: "Duration", mirror: true, resolve: { m, _ in get(m, "Duration", "MediaDuration", "TrackDuration") }),

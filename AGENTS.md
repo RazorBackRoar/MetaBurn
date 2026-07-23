@@ -15,7 +15,9 @@ Constants: `Sources/MetaBurn/Utilities/Brand.swift`.
 
 ## Purpose and entry points
 
-Local photo/video metadata stripper (ExifTool). Swift + SwiftUI.
+Local photo/video metadata stripper. Swift + SwiftUI.
+
+Photos prefer native **ImageIO** strip/read (HEIC/JPEG/PNG/etc.); ExifTool is the fallback for photos and is still required for videos. Optional mute uses **AVFoundation** (audio tracks omitted — no ffmpeg). Cancel kills in-flight ExifTool child processes and cancels AVFoundation export.
 
 - App entry: `Sources/MetaBurn/MetaBurnApp.swift`
 - UI views: `Sources/MetaBurn/Views/`

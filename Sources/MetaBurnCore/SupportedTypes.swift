@@ -18,7 +18,16 @@ public enum SupportedTypes: Sendable {
         }
     }
 
-    private static let photoExts: Set<String> = [".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp", ".tiff"]
+    /// Standard still-image formats cleaned via ImageIO (with ExifTool fallback).
+    private static let photoExts: Set<String> = [
+        ".jpg", ".jpeg", ".jpe", ".jfif",
+        ".png",
+        ".heic", ".heif",
+        ".webp",
+        ".tif", ".tiff",
+        ".bmp",
+        ".jp2", ".j2k"
+    ]
     /// Writable video containers ExifTool can clean safely.
     private static let videoExts: Set<String> = [".mov", ".mp4", ".m4v"]
     /// Known video-like types we refuse to rewrite (routed to Skippable).
@@ -57,7 +66,7 @@ public enum SupportedTypes: Sendable {
         classify(filePath: filePath).kind == .photo
     }
 
-    /// Processable = photo/video ExifTool can safely clean. `nil` means queue for cleaning.
+    /// Processable = photo/video we can safely clean. `nil` means queue for cleaning.
     public static func skipReason(filePath: String) -> String? {
         let info = classify(filePath: filePath)
         let label = info.ext.isEmpty ? "unknown type" : info.ext

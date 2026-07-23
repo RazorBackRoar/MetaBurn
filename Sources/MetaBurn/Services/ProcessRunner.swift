@@ -9,16 +9,31 @@ struct ProcessOutput {
 enum ProcessRunnerError: Error, Equatable {
     case timeout
     case launchFailure(String)
+    case cancelled
 }
 
-final class ProcessRunner {
-    private init() {}
+/// Runs external tools with hard cancel + timeout so Cancel always kills ExifTool.
+enum ProcessRunner {
+    private static let lock = NSLock()
+    private static var active: [ObjectIdentifier: Process] = [:]
+
+    /// Kill every in-flight child process (Cancel button).
+    static func cancelAll() {
+        lock.lock()
+        let procs = Array(active.values)
+        lock.unlock()
+        for process in procs {
+            terminate(process)
+        }
+    }
 
     static func run(
         executablePath: String,
         arguments: [String],
         timeout: TimeInterval = 60
     ) async throws -> ProcessOutput {
+        try Task.checkCancellation()
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executablePath)
         process.arguments = arguments
@@ -30,8 +45,8 @@ final class ProcessRunner {
 
         let stdoutHandle = stdoutPipe.fileHandleForReading
         let stderrHandle = stderrPipe.fileHandleForReading
-
         let timedOut = LockedFlag()
+        let id = ObjectIdentifier(process)
 
         do {
             try process.run()
@@ -39,7 +54,9 @@ final class ProcessRunner {
             throw ProcessRunnerError.launchFailure(error.localizedDescription)
         }
 
-        // Detached so a blocked waitUntilExit can never starve the timeout.
+        register(process, id: id)
+        defer { unregister(id) }
+
         let timeoutTask = Task.detached(priority: .utility) {
             do {
                 try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
@@ -48,40 +65,46 @@ final class ProcessRunner {
             }
             if process.isRunning {
                 timedOut.set()
-                process.terminate()
-                // ExifTool can hang on some HEIC/media files after SIGTERM; escalate.
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
-                if process.isRunning {
-                    kill(process.processIdentifier, SIGKILL)
-                }
+                terminate(process)
             }
         }
 
         do {
-            // Concurrent reads avoid classic pipe-fill deadlock (stderr fills while awaiting stdout).
-            async let stdoutData = readDataToEnd(from: stdoutHandle)
-            async let stderrData = readDataToEnd(from: stderrHandle)
-            let out = try await stdoutData
-            let err = try await stderrData
+            return try await withTaskCancellationHandler {
+                async let stdoutData = readDataToEnd(from: stdoutHandle)
+                async let stderrData = readDataToEnd(from: stderrHandle)
+                let out = try await stdoutData
+                let err = try await stderrData
+                try await waitForExit(process)
+                timeoutTask.cancel()
 
-            try await waitForExit(process)
-            timeoutTask.cancel()
+                try Task.checkCancellation()
+                if timedOut.value {
+                    throw ProcessRunnerError.timeout
+                }
+                if Task.isCancelled {
+                    throw ProcessRunnerError.cancelled
+                }
 
-            if timedOut.value {
-                throw ProcessRunnerError.timeout
+                return ProcessOutput(
+                    stdout: String(data: out, encoding: .utf8) ?? "",
+                    stderr: String(data: err, encoding: .utf8) ?? "",
+                    exitCode: process.terminationStatus
+                )
+            } onCancel: {
+                terminate(process)
             }
-
-            let stdout = String(data: out, encoding: .utf8) ?? ""
-            let stderr = String(data: err, encoding: .utf8) ?? ""
-            return ProcessOutput(stdout: stdout, stderr: stderr, exitCode: process.terminationStatus)
+        } catch is CancellationError {
+            timeoutTask.cancel()
+            terminate(process)
+            throw ProcessRunnerError.cancelled
         } catch let error as ProcessRunnerError {
             timeoutTask.cancel()
             throw error
         } catch {
             timeoutTask.cancel()
-            if timedOut.value {
-                throw ProcessRunnerError.timeout
-            }
+            if timedOut.value { throw ProcessRunnerError.timeout }
+            if Task.isCancelled { throw ProcessRunnerError.cancelled }
             throw error
         }
     }
@@ -97,6 +120,32 @@ final class ProcessRunner {
             throw ProcessError(message: combined.isEmpty ? "process exited with \(output.exitCode)" : combined)
         }
         return output.stdout
+    }
+
+    private static func register(_ process: Process, id: ObjectIdentifier) {
+        lock.lock()
+        active[id] = process
+        lock.unlock()
+    }
+
+    private static func unregister(_ id: ObjectIdentifier) {
+        lock.lock()
+        active.removeValue(forKey: id)
+        lock.unlock()
+    }
+
+    private static func terminate(_ process: Process) {
+        guard process.isRunning else { return }
+        process.terminate()
+        // ExifTool can ignore SIGTERM on HEIC — escalate quickly.
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.4) {
+            if process.isRunning {
+                kill(process.processIdentifier, SIGKILL)
+            }
+        }
+        if process.isRunning {
+            kill(process.processIdentifier, SIGKILL)
+        }
     }
 
     private static func readDataToEnd(from handle: FileHandle) async throws -> Data {
@@ -124,7 +173,6 @@ final class ProcessRunner {
     }
 }
 
-/// Tiny lock for timeout flag shared with the timeout Task.
 private final class LockedFlag: @unchecked Sendable {
     private let lock = NSLock()
     private var _value = false

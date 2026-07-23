@@ -15,9 +15,13 @@ final class TaskRunner: ObservableObject {
 
     private var activeJob: Task<Void, Never>?
     private var isCancelled = false
+    /// Invalidates an in-flight job when Cancel/Reset fires so late completions cannot resume cleaning.
+    private var runToken = UUID()
 
     func start(droppedPaths: [String], muteAudio: Bool) {
         guard activeJob == nil else { return }
+        let token = UUID()
+        runToken = token
         isCancelled = false
         state = .scanning
         counters = Counters()
@@ -30,19 +34,30 @@ final class TaskRunner: ObservableObject {
 
         let jobId = UUID().uuidString
         activeJob = Task { [weak self] in
-            await self?.run(jobId: jobId, droppedPaths: droppedPaths, muteAudio: muteAudio)
+            await self?.run(jobId: jobId, token: token, droppedPaths: droppedPaths, muteAudio: muteAudio)
         }
     }
 
     func cancel() {
+        runToken = UUID()
         isCancelled = true
+        ProcessRunner.cancelAll()
         activeJob?.cancel()
+        // Reflect Cancel immediately in the UI even if a file is mid-clean.
+        if state == .scanning || state == .cleaning {
+            state = .cancelled
+            message = "Cancelled — in-flight tools were stopped."
+            currentFile = nil
+            currentFileNumber = 0
+        }
     }
 
     func reset() {
         cancel()
-        activeJob = nil
-        isCancelled = false
+        // Keep isCancelled until finish() so a dying job cannot keep cleaning.
+        if activeJob == nil {
+            isCancelled = false
+        }
         state = .waiting
         counters = Counters()
         typeCounts = TypeCounts()
@@ -53,12 +68,11 @@ final class TaskRunner: ObservableObject {
         currentFileNumber = 0
     }
 
-    private func run(jobId: String, droppedPaths: [String], muteAudio: Bool) async {
+    private func run(jobId: String, token: UUID, droppedPaths: [String], muteAudio: Bool) async {
         let exiftoolPath = await MetadataCleaner.resolveExiftool()
 
-        guard exiftoolPath != nil else {
-            await setState(.exiftoolMissing, message: "ExifTool is required. Install it with: brew install exiftool")
-            finish()
+        guard !isStale(token) else {
+            finish(token: token)
             return
         }
 
@@ -69,12 +83,25 @@ final class TaskRunner: ObservableObject {
             await setState(.scanning)
             let scan = try await Scanner.buildFileList(droppedPaths: droppedPaths)
 
+            guard !isStale(token) else {
+                await markCancelledIfStillRunning(message: "Cancelled during scan.")
+                finish(token: token)
+                return
+            }
+
             // Park bypassed files in Skippable only when there are skips (creates that folder on demand).
             _ = try? SkipExporter.export(skipped: scan.skipped)
 
             var kinds = TypeCounts()
             for file in scan.files {
                 kinds.recordTotal(for: file)
+            }
+
+            // Videos still need ExifTool; photo-only jobs can run on native ImageIO alone.
+            if kinds.videos > 0, exiftoolPath == nil {
+                await setState(.exiftoolMissing, message: "ExifTool is required for videos. Install it with: brew install exiftool")
+                finish(token: token)
+                return
             }
 
             await MainActor.run {
@@ -104,14 +131,12 @@ final class TaskRunner: ObservableObject {
                     .done,
                     message: "No supported photos or videos found. \(skipNote)"
                 )
-                finish()
+                finish(token: token)
                 return
             }
 
-            // Mute is video-only — never resolve ffmpeg or pass mute for photo-only jobs.
+            // Mute is video-only; AVFoundation handles it in-process (no ffmpeg).
             let muteVideos = muteAudio && kinds.videos > 0
-            let ffmpegPath = muteVideos ? await MetadataCleaner.resolveFfmpeg() : nil
-            let ffmpegAvailable = ffmpegPath != nil
 
             Log.shared.info(
                 "Job \(jobId): \(kinds.images) photo(s), \(kinds.videos) video(s), muteVideos=\(muteVideos), skipped=\(scan.skipped.count)",
@@ -121,9 +146,11 @@ final class TaskRunner: ObservableObject {
             await setState(.cleaning)
 
             for (index, file) in scan.files.enumerated() {
-                if Task.isCancelled || isCancelled {
-                    await setState(.cancelled)
-                    finish()
+                if isStale(token) {
+                    await markCancelledIfStillRunning(
+                        message: "Cancelled after \(counters.cleaned + counters.partial) file(s)."
+                    )
+                    finish(token: token)
                     return
                 }
                 currentFile = file
@@ -132,11 +159,29 @@ final class TaskRunner: ObservableObject {
                 let isVideo = SupportedTypes.isVideo(filePath: file)
                 let result = await MetadataCleaner.cleanFile(
                     filePath: file,
-                    muteAudio: muteVideos && isVideo,
-                    ffmpegPath: (muteVideos && isVideo && ffmpegAvailable) ? ffmpegPath : nil
+                    muteAudio: muteVideos && isVideo
                 )
+                if isStale(token) {
+                    // Don't count a cancelled mid-file as a normal failure in the log.
+                    if result.reason != "cancelled" {
+                        await appendLog(result)
+                    }
+                    await markCancelledIfStillRunning(
+                        message: "Cancelled after \(counters.cleaned + counters.partial) file(s)."
+                    )
+                    finish(token: token)
+                    return
+                }
                 Log.shared.info("[file-done] \(index + 1)/\(scan.files.count): \(file) -> \(result.status.rawValue)", scope: "taskRunner")
                 await appendLog(result)
+            }
+
+            if isStale(token) {
+                await markCancelledIfStillRunning(
+                    message: "Cancelled after \(counters.cleaned + counters.partial) file(s)."
+                )
+                finish(token: token)
+                return
             }
 
             if scan.skipped.count > 0 {
@@ -147,10 +192,32 @@ final class TaskRunner: ObservableObject {
             } else {
                 await setState(.done)
             }
-            finish()
+            finish(token: token)
         } catch {
-            await setState(.failed, message: error.localizedDescription)
-            finish()
+            if isStale(token) {
+                await markCancelledIfStillRunning(message: "Cancelled.")
+            } else {
+                await setState(.failed, message: error.localizedDescription)
+            }
+            finish(token: token)
+        }
+    }
+
+    private func isStale(_ token: UUID) -> Bool {
+        Task.isCancelled || isCancelled || token != runToken
+    }
+
+    /// Avoid clobbering Waiting/Reset UI when a dying job notices cancel late.
+    private func markCancelledIfStillRunning(message: String) async {
+        await MainActor.run {
+            if state == .scanning || state == .cleaning {
+                state = .cancelled
+                self.message = message
+                currentFile = nil
+                currentFileNumber = 0
+            } else if state == .cancelled, self.message == nil || self.message?.isEmpty == true {
+                self.message = message
+            }
         }
     }
 
@@ -177,10 +244,14 @@ final class TaskRunner: ObservableObject {
         }
     }
 
-    private func finish() {
-        activeJob = nil
-        isCancelled = false
-        currentFile = nil
-        currentFileNumber = 0
+    private func finish(token: UUID) {
+        guard activeJob != nil else { return }
+        // Clear when this token is current, or when Cancel/Reset invalidated it.
+        if token == runToken || isCancelled {
+            activeJob = nil
+            isCancelled = false
+            currentFile = nil
+            currentFileNumber = 0
+        }
     }
 }

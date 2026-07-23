@@ -8,7 +8,7 @@ Organization-standard build and release guide for
 MetaBurn is a native macOS app built with **Swift** / **SwiftUI**
 (swift-tools **6.3**, macOS 14+), packaged as an ad-hoc or Developer ID–signed `.dmg`.
 
-Requires **ExifTool** at runtime (`brew install exiftool`); optional **ffmpeg** for mute-audio.
+Requires **ExifTool** at runtime (`brew install exiftool`). Video mute uses built-in AVFoundation (no ffmpeg).
 
 ## Platform Requirements
 

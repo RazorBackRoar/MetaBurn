@@ -57,7 +57,7 @@ public enum MetadataRules: Sendable {
         if group.hasPrefix("XMP") { return true }
         if group.hasPrefix("ICC") { return kind != .photo }
         switch group {
-        case "EXIF", "GPS", "IPTC", "MakerNotes", "Photoshop", "JFIF", "Ducky",
+        case "EXIF", "GPS", "IPTC", "MakerNotes", "MakerApple", "Photoshop", "JFIF", "Ducky",
              "PDF", "MIE", "MIELensInfo", "CanonVRD", "FotoStation", "Adobe",
              "XML", "ItemList", "UserData", "Keys", "AudioKeys", "VideoKeys":
             return true
@@ -87,9 +87,9 @@ public enum MetadataRules: Sendable {
             return ("cleaned", interpreted.reason)
         }
         if tagsEqual(beforeRemovable, afterRemovable) {
-            return ("failed", "metadata not removed by exiftool")
+            return ("failed", "metadata was not removed")
         }
-        return ("partial", "some metadata remains")
+        return ("partial", "some removable metadata remains after cleaning")
     }
 
     private static func tagsEqual(_ lhs: [Tag], _ rhs: [Tag]) -> Bool {

@@ -9,9 +9,6 @@ struct ContentView: View {
     @State private var exiftoolReady: Bool? = nil
     @State private var canInstallExiftool = false
     @State private var installingExiftool = false
-    @State private var ffmpegReady: Bool? = nil
-    @State private var canInstallFfmpeg = false
-    @State private var installingFfmpeg = false
     @State private var muteAudio = true
     @State private var isDragging = false
     @State private var dropNotice: String? = nil
@@ -35,11 +32,6 @@ struct ContentView: View {
             }
             return false
         }
-    }
-
-    /// Mute/ffmpeg UI is always shown so the user can opt out before the first drop.
-    private var showsVideoMuteControls: Bool {
-        true
     }
 
     private var preferredScheme: ColorScheme? {
@@ -69,12 +61,12 @@ struct ContentView: View {
     private var missingExiftoolView: some View {
         VStack(spacing: 20) {
             Image(systemName: "flame.fill")
-                .font(.system(size: 44))
+                .font(.system(size: 45))
                 .foregroundStyle(MetaBurnTheme.accent)
             Text("ExifTool is required")
-                .font(.system(size: 22, weight: .semibold))
+                .font(.system(size: 23, weight: .semibold))
             Text("MetaBurn uses ExifTool to strip metadata locally.\nInstall it with Homebrew, then re-check.")
-                .font(.system(size: 13))
+                .font(.system(size: 14))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             HStack(spacing: 10) {
@@ -92,7 +84,7 @@ struct ContentView: View {
                 .disabled(installingExiftool)
             }
             Text("brew install exiftool")
-                .font(.system(size: 12, design: .monospaced))
+                .font(.system(size: 13, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .padding(.top, 4)
         }
@@ -114,11 +106,10 @@ struct ContentView: View {
             }
         }
         .background(MetaBurnTheme.background)
-        .frame(minWidth: 640, minHeight: 560)
+        .frame(minWidth: 720, minHeight: 640)
         .onDrop(of: [.fileURL], isTargeted: $isDragging) { providers in
             handleDrop(providers: providers)
         }
-        .onAppear { Task { await checkFfmpeg() } }
         .onChange(of: runner.log.count) { _, _ in
             if selectedEntry == nil {
                 selectedEntry = sortedLog.first
@@ -129,10 +120,10 @@ struct ContentView: View {
     private var headerBar: some View {
         HStack(spacing: 12) {
             Image(systemName: "flame.fill")
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(MetaBurnTheme.accent)
             Text("MetaBurn")
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: 16, weight: .semibold))
                 .onTapGesture(count: 2) { showAbout() }
                 .contextMenu {
                     Button("Check for Updates…") { checkForUpdates() }
@@ -190,10 +181,10 @@ struct ContentView: View {
     private func typeBubble(label: String, done: Int, total: Int) -> some View {
         HStack(spacing: 4) {
             Text(label)
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
             Text(typeCountText(done: done, total: total))
-                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .font(.system(size: 12, weight: .bold, design: .rounded))
                 .foregroundStyle(.primary)
                 .monospacedDigit()
         }
@@ -235,7 +226,7 @@ struct ContentView: View {
                 .fill(statusColor)
                 .frame(width: 7, height: 7)
             Text(stateLabel)
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 10)
@@ -256,14 +247,20 @@ struct ContentView: View {
                 noticeBanner(message)
             }
 
+            HStack {
+                Spacer(minLength: 0)
+                muteFooterToggle
+            }
+            .padding(.top, 4)
+
             Text("Cleaned copies go to Desktop/MetaBurn only when needed (Photos, Videos, or Skippable). Originals stay untouched.")
-                .font(.system(size: 11))
+                .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.top, 2)
 
             Text("We strip hidden metadata (and can mute video sound). We don’t change what’s visible in the picture or video.")
-                .font(.system(size: 11))
+                .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
@@ -283,12 +280,6 @@ struct ContentView: View {
                 .padding(.horizontal, 14)
                 .padding(.top, 10)
                 .padding(.bottom, 10)
-
-            if showsVideoMuteControls, muteAudio, ffmpegReady == false {
-                ffmpegNotice
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 10)
-            }
 
             Divider().overlay(MetaBurnTheme.divider)
 
@@ -312,7 +303,7 @@ struct ContentView: View {
                 counterPill("Found", runner.counters.supported, .secondary)
                 counterPill("Cleaned", runner.counters.cleaned, .green)
                 counterPill("Skipped", runner.counters.skipped, .secondary)
-                counterPill("Partial", runner.counters.partial, .orange)
+                counterPill("Leftovers", runner.counters.partial, .orange)
                 counterPill("Failed", runner.counters.failed, .red)
                 Spacer(minLength: 0)
                 if processing {
@@ -326,9 +317,9 @@ struct ContentView: View {
                     ProgressView()
                         .controlSize(.small)
                     Text("Cleaning \(runner.currentFileNumber) of \(runner.counters.supported):")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                     Text(URL(fileURLWithPath: currentFile).lastPathComponent)
-                        .font(.system(size: 11))
+                        .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
@@ -339,14 +330,14 @@ struct ContentView: View {
             if runner.state == .done || runner.state == .failed || runner.state == .cancelled {
                 HStack(spacing: 6) {
                     Image(systemName: outcomeIcon)
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(bannerColor)
                     Text(outcomeTitle)
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 13, weight: .semibold))
                     Text("·")
                         .foregroundStyle(.secondary)
                     Text(outcomeSubtitle)
-                        .font(.system(size: 11))
+                        .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                     Spacer(minLength: 0)
@@ -370,13 +361,13 @@ struct ContentView: View {
                         .padding(.bottom, 2)
                 } else {
                     Image(systemName: isDragging ? "arrow.down.doc.fill" : "square.and.arrow.down")
-                        .font(.system(size: 28, weight: .medium))
+                        .font(.system(size: 29, weight: .medium))
                         .foregroundStyle(isDragging ? MetaBurnTheme.accent : .secondary)
                 }
                 Text(processing ? "Processing…" : "Drop photos, videos, or folders")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 17, weight: .semibold))
                 Text(processing ? "Saving cleaned copies…" : "Click to browse · cleaned copies → Desktop/MetaBurn when needed")
-                    .font(.system(size: 12))
+                    .font(.system(size: 13))
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -397,33 +388,13 @@ struct ContentView: View {
         .animation(.easeInOut(duration: 0.15), value: isDragging)
     }
 
-    private var ffmpegNotice: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-            Text("ffmpeg is required to mute audio.")
-                .font(.system(size: 12))
-            Spacer()
-            if canInstallFfmpeg {
-                Button(installingFfmpeg ? "Installing…" : "Install") {
-                    Task { await installFfmpeg() }
-                }
-                .buttonStyle(MetaBurnSecondaryButtonStyle())
-                .disabled(installingFfmpeg)
-            }
-        }
-        .padding(10)
-        .background(Color.orange.opacity(0.12))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-
     private func counterPill(_ label: String, _ value: Int, _ color: Color) -> some View {
         HStack(spacing: 3) {
             Text("\(value)")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .font(.system(size: 13, weight: .bold, design: .rounded))
                 .foregroundStyle(color)
             Text(label)
-                .font(.system(size: 10))
+                .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 7)
@@ -436,11 +407,11 @@ struct ContentView: View {
         VStack(spacing: 0) {
             HStack {
                 Text("Files")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
                 Text(processing ? "\(sortedLog.count)/\(runner.counters.supported)" : "\(sortedLog.count)")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 10)
@@ -479,10 +450,10 @@ struct ContentView: View {
             } else {
                 VStack(spacing: 8) {
                     Image(systemName: "doc.text.magnifyingglass")
-                        .font(.system(size: 28))
+                        .font(.system(size: 29))
                         .foregroundStyle(.secondary)
                     Text("Select a file to inspect before-and-after metadata.")
-                        .font(.system(size: 13))
+                        .font(.system(size: 14))
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -502,10 +473,6 @@ struct ContentView: View {
             .disabled(processing)
 
             Spacer(minLength: 8)
-
-            if showsVideoMuteControls {
-                muteFooterToggle
-            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
@@ -515,17 +482,14 @@ struct ContentView: View {
         Toggle(isOn: $muteAudio) {
             HStack(spacing: 8) {
                 Image(systemName: "speaker.slash.fill")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(muteAudio ? MetaBurnTheme.accent : .secondary)
                 Text("Mute video audio")
-                    .font(.system(size: 12))
+                    .font(.system(size: 13))
             }
         }
         .toggleStyle(RedSwitchToggleStyle())
         .disabled(processing)
-        .onChange(of: muteAudio) { _, _ in
-            Task { await checkFfmpeg() }
-        }
     }
 
     // MARK: - Status helpers
@@ -600,7 +564,7 @@ struct ContentView: View {
             )
         }
         if runner.counters.partial > 0 {
-            parts.append("\(runner.counters.partial) partial")
+            parts.append("\(runner.counters.partial) with leftovers")
         }
         if runner.counters.failed > 0 {
             parts.append("\(runner.counters.failed) failed")
@@ -616,7 +580,7 @@ struct ContentView: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
             Text(message)
-                .font(.system(size: 12))
+                .font(.system(size: 13))
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
@@ -700,28 +664,11 @@ struct ContentView: View {
         }
     }
 
-    private func checkFfmpeg() async {
-        if await MetadataCleaner.resolveFfmpeg() != nil {
-            ffmpegReady = true
-            canInstallFfmpeg = false
-        } else {
-            ffmpegReady = false
-            canInstallFfmpeg = await MetadataCleaner.resolveBrew() != nil
-        }
-    }
-
     private func installExiftool() async {
         installingExiftool = true
         let result = await MetadataCleaner.installExiftool()
         if result.success { await checkExiftool() }
         installingExiftool = false
-    }
-
-    private func installFfmpeg() async {
-        installingFfmpeg = true
-        let result = await MetadataCleaner.installFfmpeg()
-        if result.success { await checkFfmpeg() }
-        installingFfmpeg = false
     }
 
     private func showAbout() {
@@ -774,11 +721,11 @@ private struct ProcessingFileRow: View {
                 .frame(width: 7, height: 7)
             VStack(alignment: .leading, spacing: 1) {
                 Text(URL(fileURLWithPath: path).lastPathComponent)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Text("Cleaning")
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.blue)
             }
             Spacer(minLength: 0)
@@ -798,15 +745,15 @@ private struct FileRow: View {
                 .frame(width: 7, height: 7)
             VStack(alignment: .leading, spacing: 1) {
                 Text(URL(fileURLWithPath: entry.path).lastPathComponent)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Text(entry.status.rawValue.capitalized)
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(statusColor)
                 if let reason = entry.reason, entry.status != .cleaned {
                     Text(reason)
-                        .font(.system(size: 10))
+                        .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
@@ -864,7 +811,7 @@ enum MetaBurnTheme {
 struct MetaBurnPrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13, weight: .semibold))
+            .font(.system(size: 14, weight: .semibold))
             .padding(.horizontal, 14)
             .padding(.vertical, 7)
             .background(MetaBurnTheme.accent.opacity(configuration.isPressed ? 0.75 : 1))
@@ -876,7 +823,7 @@ struct MetaBurnPrimaryButtonStyle: ButtonStyle {
 struct MetaBurnSecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 11, weight: .medium))
+            .font(.system(size: 12, weight: .medium))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(MetaBurnTheme.surface.opacity(configuration.isPressed ? 0.7 : 1))

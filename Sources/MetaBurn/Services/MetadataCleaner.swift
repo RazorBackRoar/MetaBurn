@@ -6,11 +6,9 @@ enum MetadataCleaner {
     enum CleanStatus: String, Equatable { case cleaned, skipped, failed, partial }
 
     private static let exiftoolCandidates = ["/opt/homebrew/bin/exiftool", "/usr/local/bin/exiftool"]
-    private static let ffmpegCandidates = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"]
     private static let brewCandidates = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
 
     private static var cachedExiftoolPath: String? = nil
-    private static var cachedFfmpegPath: String? = nil
 
     static func resolveExiftool() async -> String? {
         if let cached = cachedExiftoolPath { return cached }
@@ -18,18 +16,11 @@ enum MetadataCleaner {
         return cachedExiftoolPath
     }
 
-    static func resolveFfmpeg() async -> String? {
-        if let cached = cachedFfmpegPath { return cached }
-        cachedFfmpegPath = await resolveBinary(name: "ffmpeg", candidates: ffmpegCandidates)
-        return cachedFfmpegPath
-    }
-
     static func resolveBrew() async -> String? {
         await resolveBinary(name: "brew", candidates: brewCandidates)
     }
 
     static func invalidateExiftoolCache() { cachedExiftoolPath = nil }
-    static func invalidateFfmpegCache() { cachedFfmpegPath = nil }
 
     private static func resolveBinary(name: String, candidates: [String]) async -> String? {
         for candidate in candidates {
@@ -46,47 +37,31 @@ enum MetadataCleaner {
         }
     }
 
-    static func muteVideo(ffmpegPath: String, filePath: String) async -> (success: Bool, reason: String?) {
-        let url = URL(fileURLWithPath: filePath)
-        let dir = url.deletingLastPathComponent()
-        let ext = url.pathExtension
-        let base = url.deletingPathExtension().lastPathComponent
-        let tempURL = dir.appendingPathComponent(".\(base).muted.tmp.\(ext)")
-        let fm = FileManager.default
-
-        do {
-            _ = try await ProcessRunner.runSimple(
-                executablePath: ffmpegPath,
-                arguments: ["-y", "-i", filePath, "-map", "0:v", "-c", "copy", "-an", tempURL.path],
-                timeout: 300
-            )
-            // `moveItem` fails when the destination already exists — replace explicitly.
-            if fm.fileExists(atPath: url.path) {
-                try fm.removeItem(at: url)
-            }
-            try fm.moveItem(at: tempURL, to: url)
-            return (true, nil)
-        } catch {
-            try? fm.removeItem(at: tempURL)
-            return (false, error.localizedDescription)
-        }
+    /// Omit all audio tracks via AVFoundation (no ffmpeg). Replaces the file in place.
+    static func muteVideo(filePath: String) async -> (success: Bool, reason: String?) {
+        await NativeVideoMute.stripAudio(atPath: filePath)
     }
 
-    /// Copies to a local cache work file, cleans/mutes there, then moves to the final
-    /// Desktop/MetaBurn path. Failures/timeouts delete the work file and never leave a half-written
-    /// destination (important for HEIC where ExifTool may hang mid-`-overwrite_original`).
-    /// Work files stay off Desktop/iCloud so quarantine + file-provider sync cannot stall a job.
-    static func cleanFile(filePath: String, muteAudio: Bool, ffmpegPath: String?) async -> CleanResult {
+    /// Copies to a local cache work file, cleans/mutes there, then moves to the final Desktop path.
+    /// Photos prefer native ImageIO (fast, no ExifTool hang). Videos still use ExifTool.
+    /// Mute uses AVFoundation remux (audio omitted from the cleaned copy).
+    static func cleanFile(filePath: String, muteAudio: Bool) async -> CleanResult {
+        if Task.isCancelled {
+            return CleanResult(path: filePath, status: .failed, reason: "cancelled")
+        }
+
         let info = SupportedTypes.classify(filePath: filePath)
 
         if info.kind == .unsupported {
             return CleanResult(path: filePath, status: .skipped, reason: "unsupported file type")
         }
         if info.kind == .video && !info.writable {
-            return CleanResult(path: filePath, status: .skipped, reason: "container not safely writable by ExifTool")
+            return CleanResult(path: filePath, status: .skipped, reason: "container not safely writable")
         }
 
-        guard let exiftoolPath = await resolveExiftool() else {
+        // Photos can clean with ImageIO alone; videos still need ExifTool.
+        let exiftoolPath = await resolveExiftool()
+        if info.kind == .video, exiftoolPath == nil {
             return CleanResult(path: filePath, status: .failed, reason: "exiftool not found")
         }
 
@@ -103,7 +78,6 @@ enum MetadataCleaner {
         let workPath = workURL.path
         let fm = FileManager.default
 
-        // Always discard the work copy unless it was successfully promoted to Desktop.
         var promoted = false
         defer {
             if !promoted {
@@ -111,10 +85,16 @@ enum MetadataCleaner {
             }
         }
 
+        // Baseline from the original path so the Before column always reflects the source file.
+        let metadataBefore = await readMetadata(
+            filePath: filePath,
+            kind: info.kind,
+            exiftoolPath: exiftoolPath
+        )
+
         do {
+            try Task.checkCancellation()
             try fm.copyItem(atPath: filePath, toPath: workPath)
-            // Quarantine / MACL xattrs from AirDrop/iCloud sources can stall tools on Desktop-
-            // synced paths; clear them on the local cache work copy before ExifTool runs.
             let stripped = WorkFileSafety.stripStallingXattrs(atPath: workPath)
             if !stripped.isEmpty {
                 Log.shared.info(
@@ -122,56 +102,227 @@ enum MetadataCleaner {
                     scope: "cleaner"
                 )
             }
+        } catch is CancellationError {
+            return CleanResult(path: filePath, status: .failed, reason: "cancelled", metadataBefore: metadataBefore)
         } catch {
             return CleanResult(
                 path: filePath,
                 status: .failed,
-                reason: "could not copy to Desktop/\(Paths.desktopOutputFolderName): \(error.localizedDescription)"
+                reason: "could not copy to Desktop/\(Paths.desktopOutputFolderName): \(error.localizedDescription)",
+                metadataBefore: metadataBefore
             )
         }
 
-        let metadataBefore = await readMetadata(exiftoolPath: exiftoolPath, filePath: workPath)
-
-        var muteReason: String? = nil
-        if muteAudio && info.kind == .video {
-            let resolvedFfmpeg: String?
-            if let path = ffmpegPath {
-                resolvedFfmpeg = path
-            } else {
-                resolvedFfmpeg = await resolveFfmpeg()
-            }
-            if let ffmpeg = resolvedFfmpeg {
-                let muted = await muteVideo(ffmpegPath: ffmpeg, filePath: workPath)
-                if !muted.success {
-                    muteReason = "audio removal failed: \(muted.reason ?? "ffmpeg failed")"
-                }
-            } else {
-                muteReason = "ffmpeg not installed — audio not removed"
-            }
+        if info.kind == .photo {
+            return await cleanPhotoNativeOrExif(
+                filePath: filePath,
+                workURL: workURL,
+                workPath: workPath,
+                finalURL: finalURL,
+                metadataBefore: metadataBefore,
+                exiftoolPath: exiftoolPath,
+                promoted: &promoted
+            )
         }
 
-        let args = MetadataRules.buildArgs(kind: info.kind, filePath: workPath)
+        return await cleanVideoExif(
+            filePath: filePath,
+            workURL: workURL,
+            workPath: workPath,
+            finalURL: finalURL,
+            metadataBefore: metadataBefore,
+            muteAudio: muteAudio,
+            exiftoolPath: exiftoolPath!,
+            promoted: &promoted
+        )
+    }
+
+    private static func cleanPhotoNativeOrExif(
+        filePath: String,
+        workURL: URL,
+        workPath: String,
+        finalURL: URL,
+        metadataBefore: [MetadataEntry],
+        exiftoolPath: String?,
+        promoted: inout Bool
+    ) async -> CleanResult {
+        if Task.isCancelled {
+            return CleanResult(path: filePath, status: .failed, reason: "cancelled", metadataBefore: metadataBefore)
+        }
+
+        var usedNative = false
+        if NativeImageIO.canHandle(filePath: filePath), NativeImageIO.stripMetadata(atPath: workPath) {
+            usedNative = true
+            Log.shared.info("Native ImageIO strip OK: \(URL(fileURLWithPath: filePath).lastPathComponent)", scope: "cleaner")
+        } else if let exiftoolPath {
+            let stripped = await runExiftoolPhotoStrip(
+                exiftoolPath: exiftoolPath,
+                workPath: workPath,
+                filePath: filePath,
+                metadataBefore: metadataBefore
+            )
+            if case let .failure(result) = stripped { return result }
+        } else {
+            return CleanResult(
+                path: filePath,
+                status: .failed,
+                reason: "could not strip photo metadata (ImageIO failed; ExifTool not installed)",
+                metadataBefore: metadataBefore
+            )
+        }
+
+        var metadataAfter = await readMetadata(filePath: workPath, kind: .photo, exiftoolPath: exiftoolPath)
+        var verified = MetadataRules.verify(
+            interpreted: MetadataRules.InterpretResult(outcome: .cleaned),
+            kind: .photo,
+            before: metadataBefore.map { MetadataRules.Tag(group: $0.group, tag: $0.tag, value: $0.value) },
+            after: metadataAfter.map { MetadataRules.Tag(group: $0.group, tag: $0.tag, value: $0.value) }
+        )
+
+        // Native HEIC rewrite can still leave maker tags — finish with ExifTool when needed.
+        if usedNative, verified.outcome != "cleaned", let exiftoolPath {
+            Log.shared.info(
+                "Native strip left removable tags; ExifTool fallback: \(URL(fileURLWithPath: filePath).lastPathComponent)",
+                scope: "cleaner"
+            )
+            let stripped = await runExiftoolPhotoStrip(
+                exiftoolPath: exiftoolPath,
+                workPath: workPath,
+                filePath: filePath,
+                metadataBefore: metadataBefore
+            )
+            if case let .failure(result) = stripped { return result }
+            metadataAfter = await readMetadata(filePath: workPath, kind: .photo, exiftoolPath: exiftoolPath)
+            verified = MetadataRules.verify(
+                interpreted: MetadataRules.InterpretResult(outcome: .cleaned),
+                kind: .photo,
+                before: metadataBefore.map { MetadataRules.Tag(group: $0.group, tag: $0.tag, value: $0.value) },
+                after: metadataAfter.map { MetadataRules.Tag(group: $0.group, tag: $0.tag, value: $0.value) }
+            )
+        }
+
+        let status = CleanStatus(rawValue: verified.outcome) ?? .failed
+        var reason = verified.reason
+        if status == .cleaned {
+            reason = nil
+        } else if status == .partial {
+            reason = "some removable metadata remains after cleaning"
+        }
+
+        if status == .failed {
+            return CleanResult(
+                path: filePath,
+                status: .failed,
+                reason: reason,
+                metadataBefore: metadataBefore,
+                metadataAfter: metadataAfter
+            )
+        }
+
         do {
-            let output = try await ProcessRunner.run(
-                executablePath: exiftoolPath,
-                arguments: args,
-                timeout: 60
+            try promoteWorkFile(workURL, to: finalURL)
+            promoted = true
+        } catch {
+            return CleanResult(
+                path: filePath,
+                status: .failed,
+                reason: "could not finalize cleaned copy: \(error.localizedDescription)",
+                metadataBefore: metadataBefore,
+                metadataAfter: metadataAfter
             )
-            let metadataAfter = await readMetadata(exiftoolPath: exiftoolPath, filePath: workPath)
+        }
+
+        return CleanResult(
+            path: finalURL.path,
+            status: status,
+            reason: reason,
+            metadataBefore: metadataBefore,
+            metadataAfter: metadataAfter
+        )
+    }
+
+    private enum ExifStripOutcome {
+        case success
+        case failure(CleanResult)
+    }
+
+    private static func runExiftoolPhotoStrip(
+        exiftoolPath: String,
+        workPath: String,
+        filePath: String,
+        metadataBefore: [MetadataEntry]
+    ) async -> ExifStripOutcome {
+        do {
+            try Task.checkCancellation()
+            let args = MetadataRules.buildArgs(kind: .photo, filePath: workPath)
+            _ = try await ProcessRunner.run(executablePath: exiftoolPath, arguments: args, timeout: 45)
+            return .success
+        } catch ProcessRunnerError.cancelled {
+            return .failure(CleanResult(path: filePath, status: .failed, reason: "cancelled", metadataBefore: metadataBefore))
+        } catch is CancellationError {
+            return .failure(CleanResult(path: filePath, status: .failed, reason: "cancelled", metadataBefore: metadataBefore))
+        } catch ProcessRunnerError.timeout {
+            return .failure(CleanResult(
+                path: filePath,
+                status: .failed,
+                reason: "exiftool timed out — work copy discarded",
+                metadataBefore: metadataBefore
+            ))
+        } catch {
+            return .failure(CleanResult(
+                path: filePath,
+                status: .failed,
+                reason: error.localizedDescription,
+                metadataBefore: metadataBefore
+            ))
+        }
+    }
+
+    private static func cleanVideoExif(
+        filePath: String,
+        workURL: URL,
+        workPath: String,
+        finalURL: URL,
+        metadataBefore: [MetadataEntry],
+        muteAudio: Bool,
+        exiftoolPath: String,
+        promoted: inout Bool
+    ) async -> CleanResult {
+        var muteReason: String? = nil
+        if muteAudio {
+            if Task.isCancelled {
+                return CleanResult(path: filePath, status: .failed, reason: "cancelled", metadataBefore: metadataBefore)
+            }
+            let muted = await muteVideo(filePath: workPath)
+            if muted.reason == "cancelled" {
+                return CleanResult(path: filePath, status: .failed, reason: "cancelled", metadataBefore: metadataBefore)
+            }
+            if !muted.success {
+                muteReason = "audio removal failed: \(muted.reason ?? "AVFoundation mute failed")"
+            }
+        }
+
+        do {
+            try Task.checkCancellation()
+            let args = MetadataRules.buildArgs(kind: .video, filePath: workPath)
+            let output = try await ProcessRunner.run(executablePath: exiftoolPath, arguments: args, timeout: 60)
+            let metadataAfter = await readMetadata(filePath: workPath, kind: .video, exiftoolPath: exiftoolPath)
             let interpreted = MetadataRules.interpretOutput(
                 filePath: workPath,
                 output: "\(output.stdout)\n\(output.stderr)"
             )
             let verified = MetadataRules.verify(
                 interpreted: interpreted,
-                kind: info.kind,
+                kind: .video,
                 before: metadataBefore.map { MetadataRules.Tag(group: $0.group, tag: $0.tag, value: $0.value) },
                 after: metadataAfter.map { MetadataRules.Tag(group: $0.group, tag: $0.tag, value: $0.value) }
             )
 
             var status = CleanStatus(rawValue: verified.outcome) ?? .failed
             var reason = verified.reason
-
+            if status == .partial {
+                reason = "some removable metadata remains after cleaning"
+            }
             if let muteReason, status == .cleaned {
                 status = .partial
                 reason = muteReason
@@ -189,19 +340,8 @@ enum MetadataCleaner {
                 )
             }
 
-            do {
-                try promoteWorkFile(workURL, to: finalURL)
-                promoted = true
-            } catch {
-                return CleanResult(
-                    path: filePath,
-                    status: .failed,
-                    reason: "could not finalize cleaned copy: \(error.localizedDescription)",
-                    metadataBefore: metadataBefore,
-                    metadataAfter: metadataAfter
-                )
-            }
-
+            try promoteWorkFile(workURL, to: finalURL)
+            promoted = true
             return CleanResult(
                 path: finalURL.path,
                 status: status,
@@ -209,21 +349,23 @@ enum MetadataCleaner {
                 metadataBefore: metadataBefore,
                 metadataAfter: metadataAfter
             )
+        } catch ProcessRunnerError.cancelled {
+            return CleanResult(path: filePath, status: .failed, reason: "cancelled", metadataBefore: metadataBefore)
+        } catch is CancellationError {
+            return CleanResult(path: filePath, status: .failed, reason: "cancelled", metadataBefore: metadataBefore)
         } catch ProcessRunnerError.timeout {
             return CleanResult(
                 path: filePath,
                 status: .failed,
-                reason: "exiftool timed out — work copy discarded (destination untouched)",
-                metadataBefore: metadataBefore,
-                metadataAfter: []
+                reason: "exiftool timed out — work copy discarded",
+                metadataBefore: metadataBefore
             )
         } catch {
             return CleanResult(
                 path: filePath,
                 status: .failed,
                 reason: error.localizedDescription,
-                metadataBefore: metadataBefore,
-                metadataAfter: []
+                metadataBefore: metadataBefore
             )
         }
     }
@@ -250,23 +392,26 @@ enum MetadataCleaner {
         }
     }
 
-    static func installFfmpeg() async -> (success: Bool, message: String?) {
-        guard let brew = await resolveBrew() else {
-            return (false, "Homebrew not found. Install ffmpeg manually: brew install ffmpeg")
+    private static func readMetadata(
+        filePath: String,
+        kind: SupportedTypes.FileKind,
+        exiftoolPath: String?
+    ) async -> [MetadataEntry] {
+        if kind == .photo {
+            let native = NativeImageIO.readEntries(atPath: filePath)
+            if !native.isEmpty { return native }
         }
-        do {
-            _ = try await ProcessRunner.runSimple(executablePath: brew, arguments: ["install", "ffmpeg"], timeout: 600)
-            invalidateFfmpegCache()
-            let found = await resolveFfmpeg() != nil
-            return (found, found ? nil : "ffmpeg installed but not found on PATH")
-        } catch {
-            return (false, error.localizedDescription)
-        }
+        guard let exiftoolPath else { return NativeImageIO.readEntries(atPath: filePath) }
+        return await readMetadataExiftool(exiftoolPath: exiftoolPath, filePath: filePath)
     }
 
-    private static func readMetadata(exiftoolPath: String, filePath: String) async -> [MetadataEntry] {
+    private static func readMetadataExiftool(exiftoolPath: String, filePath: String) async -> [MetadataEntry] {
         do {
-            let output = try await ProcessRunner.runSimple(executablePath: exiftoolPath, arguments: ["-G1", "-j", filePath], timeout: 60)
+            let output = try await ProcessRunner.runSimple(
+                executablePath: exiftoolPath,
+                arguments: ["-G1", "-j", filePath],
+                timeout: 30
+            )
             guard let data = output.data(using: .utf8),
                   let json = try JSONSerialization.jsonObject(with: data) as? [[String: Any]],
                   let record = json.first else { return [] }
@@ -295,7 +440,7 @@ enum MetadataCleaner {
             }
             return entries.sorted { "\($0.group):\($0.tag)" < "\($1.group):\($1.tag)" }
         } catch {
-            return []
+            return NativeImageIO.readEntries(atPath: filePath)
         }
     }
 }

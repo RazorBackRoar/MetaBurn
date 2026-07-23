@@ -6,7 +6,10 @@ import Testing
 struct SupportedTypesTests {
     @Test("classifies common photo extensions")
     func photos() {
-        for path in ["a.jpg", "b.JPEG", "c.png", "d.heic", "e.webp", "f.tiff"] {
+        for path in [
+            "a.jpg", "b.JPEG", "c.jpe", "d.jfif", "e.png", "f.heic", "g.heif",
+            "h.webp", "i.tiff", "j.tif", "k.bmp", "l.jp2", "m.j2k"
+        ] {
             let info = SupportedTypes.classify(filePath: path)
             #expect(info.kind == .photo)
             #expect(info.writable)
