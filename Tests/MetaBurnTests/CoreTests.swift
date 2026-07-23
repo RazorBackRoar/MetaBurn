@@ -55,14 +55,14 @@ struct OutputNamingTests {
         let dir = URL(fileURLWithPath: "/tmp/metaburn-test", isDirectory: true)
         let existing: Set<String> = [
             "/tmp/metaburn-test/shot.jpg",
-            "/tmp/metaburn-test/shot-1.jpg"
+            "/tmp/metaburn-test/shot-001.jpg"
         ]
         let url = OutputNaming.uniqueURL(
             forSourcePath: "/in/shot.jpg",
             in: dir,
             fileExists: { existing.contains($0) }
         )
-        #expect(url.lastPathComponent == "shot-2.jpg")
+        #expect(url.lastPathComponent == "shot-002.jpg")
     }
 
     @Test("workURL stays in an explicit work directory")
@@ -87,16 +87,16 @@ struct OutputNamingTests {
         let dir = URL(fileURLWithPath: "/tmp/metaburn-test", isDirectory: true)
         let existing: Set<String> = [
             "/tmp/metaburn-test/IMG_2667_plus.JPG",
-            "/tmp/metaburn-test/IMG_2667_plus-1.JPG",
+            "/tmp/metaburn-test/IMG_2667_plus-001.JPG",
             "/tmp/metaburn-test/IMG_2667.jpeg",
-            "/tmp/metaburn-test/IMG_2667-1.jpeg"
+            "/tmp/metaburn-test/IMG_2667-001.jpeg"
         ]
         let plus = OutputNaming.uniqueURL(
             forSourcePath: "/in/IMG_2667_plus.JPG",
             in: dir,
             fileExists: { existing.contains($0) }
         )
-        #expect(plus.lastPathComponent == "IMG_2667_plus-2.JPG")
+        #expect(plus.lastPathComponent == "IMG_2667_plus-002.JPG")
     }
 
     @Test("isWorkFileName detects metaburn temp markers")

@@ -41,12 +41,11 @@ final class TaskRunner: ObservableObject {
     func cancel() {
         runToken = UUID()
         isCancelled = true
-        ProcessRunner.cancelAll()
         activeJob?.cancel()
         // Reflect Cancel immediately in the UI even if a file is mid-clean.
         if state == .scanning || state == .cleaning {
             state = .cancelled
-            message = "Cancelled — in-flight tools were stopped."
+            message = "Cancelled — in-flight export was stopped."
             currentFile = nil
             currentFileNumber = 0
         }
@@ -69,8 +68,6 @@ final class TaskRunner: ObservableObject {
     }
 
     private func run(jobId: String, token: UUID, droppedPaths: [String], muteAudio: Bool) async {
-        let exiftoolPath = await MetadataCleaner.resolveExiftool()
-
         guard !isStale(token) else {
             finish(token: token)
             return
@@ -95,13 +92,6 @@ final class TaskRunner: ObservableObject {
             var kinds = TypeCounts()
             for file in scan.files {
                 kinds.recordTotal(for: file)
-            }
-
-            // Videos still need ExifTool; photo-only jobs can run on native ImageIO alone.
-            if kinds.videos > 0, exiftoolPath == nil {
-                await setState(.exiftoolMissing, message: "ExifTool is required for videos. Install it with: brew install exiftool")
-                finish(token: token)
-                return
             }
 
             await MainActor.run {
@@ -135,7 +125,7 @@ final class TaskRunner: ObservableObject {
                 return
             }
 
-            // Mute is video-only; AVFoundation handles it in-process (no ffmpeg).
+            // Mute is video-only; AVFoundation handles strip + mute in-process.
             let muteVideos = muteAudio && kinds.videos > 0
 
             Log.shared.info(

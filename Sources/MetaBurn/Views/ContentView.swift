@@ -6,9 +6,6 @@ import MetaBurnCore
 struct ContentView: View {
     @StateObject private var runner = TaskRunner()
     @AppStorage(ThemePreference.storageKey) private var themeSource: String = "system"
-    @State private var exiftoolReady: Bool? = nil
-    @State private var canInstallExiftool = false
-    @State private var installingExiftool = false
     @State private var muteAudio = true
     @State private var isDragging = false
     @State private var dropNotice: String? = nil
@@ -39,58 +36,14 @@ struct ContentView: View {
     }
 
     var body: some View {
-        Group {
-            if exiftoolReady == false {
-                missingExiftoolView
-            } else {
-                mainView
+        mainView
+            .preferredColorScheme(preferredScheme)
+            .onAppear {
+                ThemePreference.applyAppAppearance(for: themeSource)
             }
-        }
-        .preferredColorScheme(preferredScheme)
-        .onAppear {
-            ThemePreference.applyAppAppearance(for: themeSource)
-            Task { await checkExiftool() }
-        }
-        .onChange(of: themeSource) { _, newValue in
-            ThemePreference.applyAppAppearance(for: newValue)
-        }
-    }
-
-    // MARK: - Missing ExifTool
-
-    private var missingExiftoolView: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "flame.fill")
-                .font(.system(size: 45))
-                .foregroundStyle(MetaBurnTheme.accent)
-            Text("ExifTool is required")
-                .font(.system(size: 23, weight: .semibold))
-            Text("MetaBurn uses ExifTool to strip metadata locally.\nInstall it with Homebrew, then re-check.")
-                .font(.system(size: 14))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            HStack(spacing: 10) {
-                if canInstallExiftool {
-                    Button(installingExiftool ? "Installing…" : "Install ExifTool") {
-                        Task { await installExiftool() }
-                    }
-                    .buttonStyle(MetaBurnPrimaryButtonStyle())
-                    .disabled(installingExiftool)
-                }
-                Button("Re-check") {
-                    Task { await checkExiftool() }
-                }
-                .buttonStyle(MetaBurnSecondaryButtonStyle())
-                .disabled(installingExiftool)
+            .onChange(of: themeSource) { _, newValue in
+                ThemePreference.applyAppAppearance(for: newValue)
             }
-            Text("brew install exiftool")
-                .font(.system(size: 13, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .padding(.top, 4)
-        }
-        .padding(32)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(MetaBurnTheme.background)
     }
 
     // MARK: - Main
@@ -384,7 +337,7 @@ struct ContentView: View {
             )
         }
         .buttonStyle(.plain)
-        .disabled(processing || exiftoolReady != true)
+        .disabled(processing)
         .animation(.easeInOut(duration: 0.15), value: isDragging)
     }
 
@@ -499,7 +452,7 @@ struct ContentView: View {
         case .waiting, .cancelled: .secondary
         case .scanning, .cleaning: .blue
         case .done: .green
-        case .failed, .exiftoolMissing: .red
+        case .failed: .red
         }
     }
 
@@ -511,7 +464,6 @@ struct ContentView: View {
         case .done: "Done"
         case .failed: "Failed"
         case .cancelled: "Cancelled"
-        case .exiftoolMissing: "ExifTool missing"
         }
     }
 
@@ -593,7 +545,7 @@ struct ContentView: View {
     // MARK: - Actions
 
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
-        guard exiftoolReady == true, !processing else { return false }
+        guard !processing else { return false }
         let group = DispatchGroup()
         var paths: [String] = []
         var loaded = 0
@@ -652,23 +604,6 @@ struct ContentView: View {
         selectedEntry = nil
         dropNotice = nil
         runner.reset()
-    }
-
-    private func checkExiftool() async {
-        if await MetadataCleaner.resolveExiftool() != nil {
-            exiftoolReady = true
-            canInstallExiftool = false
-        } else {
-            exiftoolReady = false
-            canInstallExiftool = await MetadataCleaner.resolveBrew() != nil
-        }
-    }
-
-    private func installExiftool() async {
-        installingExiftool = true
-        let result = await MetadataCleaner.installExiftool()
-        if result.success { await checkExiftool() }
-        installingExiftool = false
     }
 
     private func showAbout() {

@@ -75,7 +75,7 @@ enum Paths {
         OutputNaming.uniqueURL(forSourcePath: sourcePath, in: directory)
     }
 
-    /// Local cache work file (not on Desktop/iCloud) so ExifTool never mid-writes the final path.
+    /// Local cache work file (not on Desktop/iCloud) so cleaning never mid-writes the final path.
     static func workURL(forFinal finalURL: URL) -> URL {
         ensureCacheDirectory()
         let url = OutputNaming.workURL(in: cacheDirectory(), forFinal: finalURL)

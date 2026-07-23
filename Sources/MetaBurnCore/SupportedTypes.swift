@@ -18,7 +18,7 @@ public enum SupportedTypes: Sendable {
         }
     }
 
-    /// Standard still-image formats cleaned via ImageIO (with ExifTool fallback).
+    /// Standard still-image formats cleaned via ImageIO.
     private static let photoExts: Set<String> = [
         ".jpg", ".jpeg", ".jpe", ".jfif",
         ".png",
@@ -28,7 +28,7 @@ public enum SupportedTypes: Sendable {
         ".bmp",
         ".jp2", ".j2k"
     ]
-    /// Writable video containers ExifTool can clean safely.
+    /// Writable video containers cleaned via AVFoundation remux.
     private static let videoExts: Set<String> = [".mov", ".mp4", ".m4v"]
     /// Known video-like types we refuse to rewrite (routed to Skippable).
     private static let nonWritableVideoExts: Set<String> = [".avi", ".mkv"]

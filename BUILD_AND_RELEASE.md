@@ -8,7 +8,7 @@ Organization-standard build and release guide for
 MetaBurn is a native macOS app built with **Swift** / **SwiftUI**
 (swift-tools **6.3**, macOS 14+), packaged as an ad-hoc or Developer ID–signed `.dmg`.
 
-Requires **ExifTool** at runtime (`brew install exiftool`). Video mute uses built-in AVFoundation (no ffmpeg).
+No Homebrew runtime dependencies. Photos use ImageIO; videos use AVFoundation (strip + optional mute).
 
 ## Platform Requirements
 
@@ -100,7 +100,7 @@ in-frame content remain. Share only the cleaned copies you intend to publish.
 | Gatekeeper blocks launch | Right-click → **Open**, or notarize with Developer ID |
 | Stale `/Applications` copy | Mount `build/Release/MetaBurn.dmg` and drag `MetaBurn.app` to `/Applications` |
 | Window size restored huge | Quit app; relaunch after upgrading (defaults may cache old frames) |
-| ExifTool timeout on HEIC | Work copy is discarded; destination never written — retry or convert |
+| HEIC / video remux failure | Work copy is discarded; destination never written — retry |
 
 ## Related Docs
 

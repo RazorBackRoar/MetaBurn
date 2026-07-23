@@ -9,7 +9,7 @@ public enum OutputNaming: Sendable {
     public static let skippedSummaryFileName = "skipped-summary.txt"
     public static let workFileMarker = "metaburn.tmp"
 
-    /// Unique path under `directory` for `sourcePath`'s filename (`name.ext`, `name-1.ext`, …).
+    /// Unique path under `directory` (`name.ext`, then `name-001.ext`, `name-002.ext`, …).
     public static func uniqueURL(
         forSourcePath sourcePath: String,
         in directory: URL,
@@ -21,7 +21,8 @@ public enum OutputNaming: Sendable {
         var candidate = directory.appendingPathComponent(sourceURL.lastPathComponent)
         var index = 1
         while fileExists(candidate.path) {
-            let suffix = ext.isEmpty ? "\(baseName)-\(index)" : "\(baseName)-\(index).\(ext)"
+            let padded = String(format: "%03d", index)
+            let suffix = ext.isEmpty ? "\(baseName)-\(padded)" : "\(baseName)-\(padded).\(ext)"
             candidate = directory.appendingPathComponent(suffix)
             index += 1
         }
