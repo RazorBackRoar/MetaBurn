@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
+import MetaBurnCore
 
 struct ContentView: View {
     @StateObject private var runner = TaskRunner()
@@ -22,7 +23,7 @@ struct ContentView: View {
     }
 
     private var hasResults: Bool {
-        !runner.log.isEmpty
+        !runner.log.isEmpty || (runner.state == .done && runner.counters.skipped > 0 && runner.counters.supported == 0)
     }
 
     private var sortedLog: [LogEntry] {
@@ -250,9 +251,12 @@ struct ContentView: View {
 
             if let notice = dropNotice {
                 noticeBanner(notice)
+            } else if let message = runner.message,
+                      runner.state == .done || runner.state == .failed || runner.state == .cancelled {
+                noticeBanner(message)
             }
 
-            Text("Cleaned copies go to Desktop/MetaBurn — Photos and Videos. Originals are left untouched.")
+            Text("Cleaned copies go to Desktop/MetaBurn — Photos, Videos, and Skippable. Originals are left untouched.")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -568,6 +572,9 @@ struct ContentView: View {
     private var outcomeTitle: String {
         switch runner.state {
         case .done:
+            if runner.counters.supported == 0 {
+                return "No supported media found"
+            }
             if runner.counters.failed > 0 || runner.counters.partial > 0 {
                 return "Finished with issues"
             }
@@ -579,12 +586,18 @@ struct ContentView: View {
     }
 
     private var outcomeSubtitle: String {
+        if runner.state == .done, runner.counters.supported == 0 {
+            return runner.message
+                ?? "Drop photos, videos, or a folder that contains them."
+        }
         var parts: [String] = []
         if runner.counters.cleaned > 0 {
             parts.append("\(runner.counters.cleaned) saved to Desktop/MetaBurn")
         }
         if runner.counters.skipped > 0 {
-            parts.append("\(runner.counters.skipped) skipped / rejected")
+            parts.append(
+                "\(runner.counters.skipped) skipped → Desktop/MetaBurn/\(OutputNaming.skippableFolderName)"
+            )
         }
         if runner.counters.partial > 0 {
             parts.append("\(runner.counters.partial) partial")

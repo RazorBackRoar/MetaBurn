@@ -39,6 +39,10 @@ enum Paths {
         desktopOutputRoot().appendingPathComponent(OutputNaming.videosFolderName, isDirectory: true)
     }
 
+    static func skippableOutputDirectory() -> URL {
+        desktopOutputRoot().appendingPathComponent(OutputNaming.skippableFolderName, isDirectory: true)
+    }
+
     static func ensureDirectory(_ url: URL) {
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true, attributes: nil)
     }
@@ -51,10 +55,11 @@ enum Paths {
         ensureDirectory(cacheDirectory())
     }
 
-    /// Creates `~/Desktop/MetaBurn/{Photos,Videos}` for cleaned output.
+    /// Creates `~/Desktop/MetaBurn/{Photos,Videos,Skippable}` for cleaned output and bypassed files.
     static func ensureDesktopOutputDirectories() {
         ensureDirectory(photosOutputDirectory())
         ensureDirectory(videosOutputDirectory())
+        ensureDirectory(skippableOutputDirectory())
     }
 
     /// Unique path under `directory` for `sourcePath`'s filename (`name.ext`, `name-1.ext`, …).
@@ -65,20 +70,21 @@ enum Paths {
     /// Local cache work file (not on Desktop/iCloud) so ExifTool never mid-writes the final path.
     static func workURL(forFinal finalURL: URL) -> URL {
         ensureCacheDirectory()
-        return OutputNaming.workURL(in: cacheDirectory(), forFinal: finalURL)
+        let url = OutputNaming.workURL(in: cacheDirectory(), forFinal: finalURL)
+        assert(
+            !WorkFileSafety.isWorkFileOnDesktopOutput(workURL: url, desktopOutputRoot: desktopOutputRoot()),
+            "MetaBurn work files must not live under Desktop/MetaBurn"
+        )
+        return url
     }
 
     /// Remove leftover `*.metaburn.tmp*` from cache and Desktop output folders (cancelled/hung jobs).
-    static func cleanupOrphanWorkFiles() {
+    @discardableResult
+    static func cleanupOrphanWorkFiles() -> [URL] {
         ensureCacheDirectory()
         ensureDesktopOutputDirectories()
-        let fm = FileManager.default
-        let dirs = [cacheDirectory(), photosOutputDirectory(), videosOutputDirectory()]
-        for dir in dirs {
-            guard let names = try? fm.contentsOfDirectory(atPath: dir.path) else { continue }
-            for name in names where OutputNaming.isWorkFileName(name) {
-                try? fm.removeItem(at: dir.appendingPathComponent(name))
-            }
-        }
+        return WorkFileSafety.cleanupOrphanWorkFiles(
+            in: [cacheDirectory(), photosOutputDirectory(), videosOutputDirectory()]
+        )
     }
 }

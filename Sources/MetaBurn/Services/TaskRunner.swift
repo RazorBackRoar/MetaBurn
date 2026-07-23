@@ -70,13 +70,43 @@ final class TaskRunner: ObservableObject {
             await setState(.scanning)
             let scan = try await Scanner.buildFileList(droppedPaths: droppedPaths)
 
-            for skip in scan.skipped {
-                await appendLog(CleanResult(path: skip.path, status: .skipped, reason: skip.reason))
-            }
+            // Always park bypassed files in Desktop/MetaBurn/Skippable + write the audit log.
+            _ = try? SkipExporter.export(skipped: scan.skipped)
 
             var kinds = TypeCounts()
             for file in scan.files {
                 kinds.recordTotal(for: file)
+            }
+
+            await MainActor.run {
+                counters.supported = scan.files.count
+                counters.skipped = scan.skipped.count
+                typeCounts = kinds
+                scanSummary = ScanSummary(fileCount: scan.files.count, totalBytes: scan.totalBytes)
+            }
+
+            Log.shared.info(
+                "Scan complete: \(scan.files.count) processable, \(scan.skipped.count) skipped, job \(jobId)",
+                scope: "taskRunner"
+            )
+
+            // Zero-file guard — no phantom cleaning job when the drop had nothing we can burn.
+            if scan.files.isEmpty {
+                let skipNote: String
+                if scan.skipped.count > 0 {
+                    skipNote =
+                        "\(scan.skipped.count) skipped file(s) saved to Desktop/MetaBurn/\(OutputNaming.skippableFolderName) (see \(OutputNaming.skippedSummaryFileName))."
+                } else if scan.skipped.isEmpty {
+                    skipNote = "Drop photos, videos, or a folder that contains them."
+                } else {
+                    skipNote = "\(scan.skipped.count) file(s) were skipped."
+                }
+                await setState(
+                    .done,
+                    message: "No supported photos or videos found. \(skipNote)"
+                )
+                finish()
+                return
             }
 
             // Mute is video-only — never resolve ffmpeg or pass mute for photo-only jobs.
@@ -84,18 +114,10 @@ final class TaskRunner: ObservableObject {
             let ffmpegPath = muteVideos ? await MetadataCleaner.resolveFfmpeg() : nil
             let ffmpegAvailable = ffmpegPath != nil
 
-            await MainActor.run {
-                counters.supported = scan.files.count
-                typeCounts = kinds
-                scanSummary = ScanSummary(fileCount: scan.files.count, totalBytes: scan.totalBytes)
-            }
-
             Log.shared.info(
-                "Job \(jobId): \(kinds.images) photo(s), \(kinds.videos) video(s), muteVideos=\(muteVideos)",
+                "Job \(jobId): \(kinds.images) photo(s), \(kinds.videos) video(s), muteVideos=\(muteVideos), skipped=\(scan.skipped.count)",
                 scope: "taskRunner"
             )
-
-            Log.shared.info("Scan complete: \(scan.files.count) supported, \(scan.skipped.count) skipped, job \(jobId)", scope: "taskRunner")
 
             await setState(.cleaning)
 
@@ -118,7 +140,14 @@ final class TaskRunner: ObservableObject {
                 await appendLog(result)
             }
 
-            await setState(.done)
+            if scan.skipped.count > 0 {
+                await setState(
+                    .done,
+                    message: "\(scan.skipped.count) skipped file(s) saved to Desktop/MetaBurn/\(OutputNaming.skippableFolderName)."
+                )
+            } else {
+                await setState(.done)
+            }
             finish()
         } catch {
             await setState(.failed, message: error.localizedDescription)

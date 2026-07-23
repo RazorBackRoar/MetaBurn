@@ -13,22 +13,35 @@ struct SupportedTypesTests {
         }
     }
 
-    @Test("classifies writable and non-writable videos")
+    @Test("classifies writable videos; avi/mkv are non-writable videos")
     func videos() {
         #expect(SupportedTypes.classify(filePath: "clip.mov").writable)
         #expect(SupportedTypes.classify(filePath: "clip.mp4").writable)
         #expect(SupportedTypes.classify(filePath: "clip.m4v").writable)
         #expect(!SupportedTypes.classify(filePath: "clip.mkv").writable)
-        #expect(!SupportedTypes.classify(filePath: "clip.webm").writable)
         #expect(!SupportedTypes.classify(filePath: "clip.avi").writable)
         #expect(SupportedTypes.classify(filePath: "clip.mkv").kind == .video)
+        #expect(SupportedTypes.skipReason(filePath: "clip.mkv") != nil)
+        #expect(SupportedTypes.isProcessable(filePath: "clip.mov"))
     }
 
-    @Test("rejects unsupported types")
+    @Test("gif and webm are unsupported and not processable")
+    func gifAndWebmUnsupported() {
+        #expect(SupportedTypes.classify(filePath: "anim.gif").kind == .unsupported)
+        #expect(SupportedTypes.classify(filePath: "clip.webm").kind == .unsupported)
+        #expect(!SupportedTypes.isProcessable(filePath: "anim.gif"))
+        #expect(!SupportedTypes.isProcessable(filePath: "clip.webm"))
+        #expect(SupportedTypes.skipReason(filePath: "anim.gif")?.contains(".gif") == true)
+        #expect(SupportedTypes.skipReason(filePath: "clip.webm")?.contains(".webm") == true)
+    }
+
+    @Test("rejects unsupported office and script types")
     func unsupported() {
-        let info = SupportedTypes.classify(filePath: "notes.txt")
-        #expect(info.kind == .unsupported)
-        #expect(!SupportedTypes.isSupported(filePath: "notes.txt"))
+        for path in ["notes.txt", "report.pdf", "memo.doc", "run.sh", "data.xlsx"] {
+            #expect(SupportedTypes.classify(filePath: path).kind == .unsupported)
+            #expect(!SupportedTypes.isProcessable(filePath: path))
+            #expect(SupportedTypes.skipReason(filePath: path) != nil)
+        }
     }
 }
 
@@ -88,6 +101,105 @@ struct OutputNamingTests {
         #expect(OutputNaming.isWorkFileName("ABC.metaburn.tmp.JPG"))
         #expect(OutputNaming.isWorkFileName(".ABC.metaburn.tmp.jpeg"))
         #expect(!OutputNaming.isWorkFileName("IMG_2667_plus.JPG"))
+    }
+
+    @Test("skippable folder and summary names are stable")
+    func skippableNames() {
+        #expect(OutputNaming.skippableFolderName == "Skippable")
+        #expect(OutputNaming.skippedSummaryFileName == "skipped-summary.txt")
+    }
+}
+
+@Suite("SkipSummary")
+struct SkipSummaryTests {
+    @Test("lines are numbered with file name and reason")
+    func numberedLines() {
+        let line = SkipSummary.line(index: 1, filePath: "/in/photo.gif", reason: "unsupported file type (.gif)")
+        #expect(line == "1. photo.gif - unsupported file type (.gif)")
+    }
+
+    @Test("document lists every bypassed file")
+    func documentBody() {
+        let body = SkipSummary.document(entries: [
+            (path: "/a/photo.gif", reason: "unsupported file type (.gif)"),
+            (path: "/a/clip.webm", reason: "unsupported file type (.webm)"),
+            (path: "/a/notes.pdf", reason: "unsupported file type (.pdf)")
+        ])
+        #expect(body.contains("Count: 3"))
+        #expect(body.contains("1. photo.gif - unsupported file type (.gif)"))
+        #expect(body.contains("2. clip.webm - unsupported file type (.webm)"))
+        #expect(body.contains("3. notes.pdf - unsupported file type (.pdf)"))
+    }
+}
+
+@Suite("WorkFileSafety")
+struct WorkFileSafetyTests {
+    @Test("work files must not live under Desktop/MetaBurn output")
+    func rejectsDesktopWorkPath() {
+        let desktop = URL(fileURLWithPath: "/Users/home/Desktop/MetaBurn", isDirectory: true)
+        let bad = URL(fileURLWithPath: "/Users/home/Desktop/MetaBurn/Photos/.ABC.metaburn.tmp.JPG")
+        let good = URL(fileURLWithPath: "/Users/home/Library/Caches/MetaBurn/ABC.metaburn.tmp.JPG")
+        #expect(WorkFileSafety.isWorkFileOnDesktopOutput(workURL: bad, desktopOutputRoot: desktop))
+        #expect(!WorkFileSafety.isWorkFileOnDesktopOutput(workURL: good, desktopOutputRoot: desktop))
+    }
+
+    @Test("cache workURL is never under the final Desktop photos folder")
+    func cacheWorkIsolatedFromFinal() {
+        let photos = URL(fileURLWithPath: "/Users/me/Desktop/MetaBurn/Photos", isDirectory: true)
+        let cache = URL(fileURLWithPath: "/Users/me/Library/Caches/MetaBurn", isDirectory: true)
+        let final = photos.appendingPathComponent("IMG_2667_plus.JPG")
+        let work = OutputNaming.workURL(in: cache, forFinal: final, uuid: "DEADBEEF")
+        let desktopRoot = URL(fileURLWithPath: "/Users/me/Desktop/MetaBurn", isDirectory: true)
+        #expect(work.path.contains("Library/Caches/MetaBurn"))
+        #expect(!WorkFileSafety.isWorkFileOnDesktopOutput(workURL: work, desktopOutputRoot: desktopRoot))
+        #expect(OutputNaming.isWorkFileName(work.lastPathComponent))
+    }
+
+    @Test("stripStallingXattrs removes quarantine like the hung IMG_2667_plus work file")
+    func stripsQuarantine() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("metaburn-xattr-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        // Reproduce the smoking-gun name pattern from the stalled 4th file.
+        let work = dir.appendingPathComponent("647BB6F7-2A12-453D-9058-A36B2172D479.metaburn.tmp.JPG")
+        try Data([0xFF, 0xD8, 0xFF, 0xD9]).write(to: work)
+
+        #expect(WorkFileSafety.setXattr(atPath: work.path, name: "com.apple.quarantine", value: "0081;test"))
+        #expect(WorkFileSafety.setXattr(atPath: work.path, name: "com.apple.macl", value: "x"))
+        #expect(WorkFileSafety.hasXattr(atPath: work.path, name: "com.apple.quarantine"))
+        #expect(WorkFileSafety.hasXattr(atPath: work.path, name: "com.apple.macl"))
+
+        let removed = WorkFileSafety.stripStallingXattrs(atPath: work.path)
+        #expect(removed.contains("com.apple.quarantine"))
+        #expect(removed.contains("com.apple.macl"))
+        #expect(!WorkFileSafety.hasXattr(atPath: work.path, name: "com.apple.quarantine"))
+        #expect(!WorkFileSafety.hasXattr(atPath: work.path, name: "com.apple.macl"))
+    }
+
+    @Test("cleanupOrphanWorkFiles removes legacy dotted Desktop orphans and cache leftovers")
+    func cleansOrphans() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("metaburn-orphan-\(UUID().uuidString)", isDirectory: true)
+        let photos = root.appendingPathComponent("Photos", isDirectory: true)
+        let cache = root.appendingPathComponent("Cache", isDirectory: true)
+        try FileManager.default.createDirectory(at: photos, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let legacy = photos.appendingPathComponent(".647BB6F7.metaburn.tmp.JPG")
+        let cached = cache.appendingPathComponent("AABBCC.metaburn.tmp.jpeg")
+        let keep = photos.appendingPathComponent("IMG_2667_plus.JPG")
+        try Data([1]).write(to: legacy)
+        try Data([2]).write(to: cached)
+        try Data([3]).write(to: keep)
+
+        let removed = WorkFileSafety.cleanupOrphanWorkFiles(in: [photos, cache])
+        #expect(removed.count == 2)
+        #expect(!FileManager.default.fileExists(atPath: legacy.path))
+        #expect(!FileManager.default.fileExists(atPath: cached.path))
+        #expect(FileManager.default.fileExists(atPath: keep.path))
     }
 }
 

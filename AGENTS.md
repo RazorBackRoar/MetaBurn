@@ -22,7 +22,7 @@ Local photo/video metadata stripper (ExifTool). Swift + SwiftUI.
 - Services: `Sources/MetaBurn/Services/`
 - Utilities: `Sources/MetaBurn/Utilities/`
 
-Cleaned copies are written to `~/Desktop/MetaBurn/Photos` and `~/Desktop/MetaBurn/Videos`. Originals are never overwritten.
+Cleaned copies are written to `~/Desktop/MetaBurn/Photos`, `~/Desktop/MetaBurn/Videos`, and bypassed files to `~/Desktop/MetaBurn/Skippable`. Originals are never overwritten.
 
 ### RazorCore contracts (v1.1)
 
@@ -70,8 +70,9 @@ On launch and before each job, ensure:
 
 - `~/Desktop/MetaBurn/Photos`
 - `~/Desktop/MetaBurn/Videos`
+- `~/Desktop/MetaBurn/Skippable` (unsupported / non-writable drops; includes `skipped-summary.txt`)
 
-Supported files are copied to a hidden work file, cleaned (and optionally muted), then promoted to the final path. Timeouts/failures discard the work file so destinations are never half-written. Originals stay untouched.
+Supported files are copied to a local cache work file, cleaned (and optionally muted), then promoted to the final path. Timeouts/failures discard the work file so destinations are never half-written. Originals stay untouched. GIF and WebM are always unsupported and routed to Skippable.
 
 ## Testing
 

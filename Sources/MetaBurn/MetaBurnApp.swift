@@ -22,6 +22,12 @@ struct MetaBurnApp: App {
         Log.shared.setup()
         Paths.ensureDirectory(Paths.applicationSupportDirectory())
         Paths.ensureLogsDirectory()
+        Paths.ensureCacheDirectory()
+        // Sweep legacy Desktop orphans + abandoned cache work files from prior crashes/cancels.
+        let removed = Paths.cleanupOrphanWorkFiles()
+        if !removed.isEmpty {
+            Log.shared.info("Removed \(removed.count) orphan work file(s) on launch", scope: "app")
+        }
         NSApp?.setActivationPolicy(.regular)
     }
 }

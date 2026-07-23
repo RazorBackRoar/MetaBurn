@@ -1,4 +1,3 @@
-import Darwin
 import Foundation
 import MetaBurnCore
 
@@ -98,11 +97,25 @@ enum MetadataCleaner {
         let workPath = workURL.path
         let fm = FileManager.default
 
+        // Always discard the work copy unless it was successfully promoted to Desktop.
+        var promoted = false
+        defer {
+            if !promoted {
+                try? fm.removeItem(at: workURL)
+            }
+        }
+
         do {
             try fm.copyItem(atPath: filePath, toPath: workPath)
             // Quarantine / MACL xattrs from AirDrop/iCloud sources can stall tools on Desktop-
             // synced paths; clear them on the local cache work copy before ExifTool runs.
-            Self.stripStallingXattrs(atPath: workPath)
+            let stripped = WorkFileSafety.stripStallingXattrs(atPath: workPath)
+            if !stripped.isEmpty {
+                Log.shared.info(
+                    "Stripped stalling xattrs on work file: \(stripped.joined(separator: ", "))",
+                    scope: "cleaner"
+                )
+            }
         } catch {
             return CleanResult(
                 path: filePath,
@@ -161,7 +174,6 @@ enum MetadataCleaner {
             }
 
             if status == .failed {
-                try? fm.removeItem(at: workURL)
                 return CleanResult(
                     path: filePath,
                     status: .failed,
@@ -173,8 +185,8 @@ enum MetadataCleaner {
 
             do {
                 try promoteWorkFile(workURL, to: finalURL)
+                promoted = true
             } catch {
-                try? fm.removeItem(at: workURL)
                 return CleanResult(
                     path: filePath,
                     status: .failed,
@@ -192,7 +204,6 @@ enum MetadataCleaner {
                 metadataAfter: metadataAfter
             )
         } catch ProcessRunnerError.timeout {
-            try? fm.removeItem(at: workURL)
             return CleanResult(
                 path: filePath,
                 status: .failed,
@@ -201,7 +212,6 @@ enum MetadataCleaner {
                 metadataAfter: []
             )
         } catch {
-            try? fm.removeItem(at: workURL)
             return CleanResult(
                 path: filePath,
                 status: .failed,
@@ -218,18 +228,6 @@ enum MetadataCleaner {
             try fm.removeItem(at: finalURL)
         }
         try fm.moveItem(at: workURL, to: finalURL)
-    }
-
-    /// Drop xattrs that commonly stall ExifTool / file coordination on iCloud Desktop.
-    private static func stripStallingXattrs(atPath path: String) {
-        let names = ["com.apple.quarantine", "com.apple.macl", "com.apple.FinderInfo"]
-        for name in names {
-            _ = path.withCString { pathPtr in
-                name.withCString { namePtr in
-                    removexattr(pathPtr, namePtr, 0)
-                }
-            }
-        }
     }
 
     static func installExiftool() async -> (success: Bool, message: String?) {

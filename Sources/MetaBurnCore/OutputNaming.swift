@@ -5,6 +5,8 @@ public enum OutputNaming: Sendable {
     public static let desktopFolderName = "MetaBurn"
     public static let photosFolderName = "Photos"
     public static let videosFolderName = "Videos"
+    public static let skippableFolderName = "Skippable"
+    public static let skippedSummaryFileName = "skipped-summary.txt"
     public static let workFileMarker = "metaburn.tmp"
 
     /// Unique path under `directory` for `sourcePath`'s filename (`name.ext`, `name-1.ext`, …).

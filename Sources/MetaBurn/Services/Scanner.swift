@@ -1,4 +1,5 @@
 import Foundation
+import MetaBurnCore
 
 struct ScanResult {
     let files: [String]
@@ -23,10 +24,10 @@ enum Scanner {
                     continue
                 }
                 if values.isDirectory == true {
-                    let dirSkipped = try walkDirectory(url: url, files: &files)
+                    let dirSkipped = try walkDirectory(url: url, files: &files, skipped: &skipped)
                     skipped.append(contentsOf: dirSkipped)
                 } else if values.isRegularFile == true {
-                    files.append(url.path)
+                    classifyAndBucket(url.path, files: &files, skipped: &skipped)
                 } else {
                     skipped.append((dropped, "not a regular file or folder"))
                 }
@@ -40,7 +41,23 @@ enum Scanner {
         return ScanResult(files: deduped, skipped: skipped, totalBytes: totalBytes)
     }
 
-    private static func walkDirectory(url: URL, files: inout [String]) throws -> [(path: String, reason: String)] {
+    private static func classifyAndBucket(
+        _ path: String,
+        files: inout [String],
+        skipped: inout [(path: String, reason: String)]
+    ) {
+        if let reason = SupportedTypes.skipReason(filePath: path) {
+            skipped.append((path, reason))
+        } else {
+            files.append(path)
+        }
+    }
+
+    private static func walkDirectory(
+        url: URL,
+        files: inout [String],
+        skipped: inout [(path: String, reason: String)]
+    ) throws -> [(path: String, reason: String)] {
         var walkSkipped: [(path: String, reason: String)] = []
         let enumerator = FileManager.default.enumerator(
             at: url,
@@ -60,7 +77,7 @@ enum Scanner {
                     continue
                 }
                 if values.isRegularFile == true {
-                    files.append(item.path)
+                    classifyAndBucket(item.path, files: &files, skipped: &skipped)
                 }
             } catch {
                 walkSkipped.append((item.path, "could not stat: \(error.localizedDescription)"))
