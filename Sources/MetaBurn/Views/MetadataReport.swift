@@ -64,6 +64,7 @@ struct MetadataReport: View {
                     }
                     .padding(.bottom, 8)
                 }
+                .scrollIndicators(.hidden)
             }
         }
         .background(MetaBurnTheme.background)
@@ -202,7 +203,7 @@ struct MetadataReport: View {
 
     private var outcomeLabel: String {
         switch entry.status {
-        case .cleaned: "Saved to Desktop/metaburn"
+        case .cleaned: "Saved to Desktop/MetaBurn"
         case .partial: "Partially cleaned"
         case .skipped: "Rejected / skipped"
         case .failed: "Error"

@@ -22,7 +22,6 @@ struct MetaBurnApp: App {
         Log.shared.setup()
         Paths.ensureDirectory(Paths.applicationSupportDirectory())
         Paths.ensureLogsDirectory()
-        Paths.ensureDesktopOutputDirectories()
         NSApp?.setActivationPolicy(.regular)
     }
 }

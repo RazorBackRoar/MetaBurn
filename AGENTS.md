@@ -22,7 +22,7 @@ Local photo/video metadata stripper (ExifTool). Swift + SwiftUI.
 - Services: `Sources/MetaBurn/Services/`
 - Utilities: `Sources/MetaBurn/Utilities/`
 
-Cleaned copies are written to `~/Desktop/metaburn/Photos` and `~/Desktop/metaburn/Videos`. Originals are never overwritten.
+Cleaned copies are written to `~/Desktop/MetaBurn/Photos` and `~/Desktop/MetaBurn/Videos`. Originals are never overwritten.
 
 ### RazorCore contracts (v1.1)
 
@@ -30,7 +30,7 @@ Cleaned copies are written to `~/Desktop/metaburn/Photos` and `~/Desktop/metabur
 |--------|------|
 | `MetaBurnCore` | Pure rules: SupportedTypes, OutputNaming, MetadataRules (unit-tested) |
 | `Utilities/Brand.swift` | Display vs machine-safe IDs |
-| `Utilities/Paths.swift` | Application Support / cache / logs under **MetaBurn**; Desktop output under `metaburn/` |
+| `Utilities/Paths.swift` | Application Support / cache / logs under **MetaBurn**; Desktop output under `MetaBurn/` |
 | `Utilities/Logging.swift` | Console + file logs under Application Support |
 | `Utilities/AppInfo.swift` | Metadata + startup banner |
 | `Utilities/Updates.swift` | GitHub Releases check (`RazorBackRoar/MetaBurn`) |
@@ -61,15 +61,15 @@ Output is `build/Release/MetaBurn.dmg` only (the `.app` is consumed during packa
 - While processing, show category count bubbles (Photos, Videos, etc.) with counts beside the title so progress is visible by media type.
 - Theme setting (Auto / Light / Dark) must apply to the main window — do not force dark mode.
 - Mute video audio defaults on and is shown only when the job includes videos.
-- Cleaned files land under Desktop/metaburn. Remind users that visible picture/video content is not altered (only hidden metadata / optional audio).
+- Cleaned files land under Desktop/MetaBurn. Remind users that visible picture/video content is not altered (only hidden metadata / optional audio).
 - Packaging stays **ad-hoc signed** until a paid Apple Developer ID is available; do not require notarization.
 
 ## Output folders
 
 On launch and before each job, ensure:
 
-- `~/Desktop/metaburn/Photos`
-- `~/Desktop/metaburn/Videos`
+- `~/Desktop/MetaBurn/Photos`
+- `~/Desktop/MetaBurn/Videos`
 
 Supported files are copied to a hidden work file, cleaned (and optionally muted), then promoted to the final path. Timeouts/failures discard the work file so destinations are never half-written. Originals stay untouched.
 
@@ -77,7 +77,7 @@ Supported files are copied to a hidden work file, cleaned (and optionally muted)
 
 Image/video testing uses **only** `/Users/home/Desktop/MetaBurn & L!bra Test` (`photos/` for images, `videos/` for videos). Never pull or process test media from Desktop/Downloads/Pictures/Movies/Workspace/elsewhere; generated outputs stay under that directory. Before any test, verify the source path starts with that prefix or stop.
 
-App runtime output for real cleans is `~/Desktop/metaburn/` (separate from the agent test-media tree).
+App runtime output for real cleans is `~/Desktop/MetaBurn/` (separate from the agent test-media tree).
 
 Unit tests live in `Tests/MetaBurnTests` against `MetaBurnCore` (`swift test`).
 

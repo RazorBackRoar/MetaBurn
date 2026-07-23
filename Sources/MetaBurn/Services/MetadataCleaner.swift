@@ -73,7 +73,7 @@ enum MetadataCleaner {
     }
 
     /// Copies to a hidden work file, cleans/mutes there, then atomically promotes to the final
-    /// Desktop/metaburn path. Failures/timeouts delete the work file and never leave a half-written
+    /// Desktop/MetaBurn path. Failures/timeouts delete the work file and never leave a half-written
     /// destination (important for HEIC where ExifTool may hang mid-`-overwrite_original`).
     static func cleanFile(filePath: String, muteAudio: Bool, ffmpegPath: String?) async -> CleanResult {
         let info = SupportedTypes.classify(filePath: filePath)

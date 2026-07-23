@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var isDragging = false
     @State private var dropNotice: String? = nil
     @State private var selectedEntry: LogEntry? = nil
+    @AppStorage("lastBrowseDirectory") private var lastBrowseDirectory: String = ""
 
     private var processing: Bool {
         runner.state == .scanning || runner.state == .cleaning
@@ -24,9 +25,9 @@ struct ContentView: View {
         !runner.log.isEmpty
     }
 
-    /// Mute/ffmpeg UI is video-only — never shown for photo-only batches.
+    /// Mute/ffmpeg UI is always shown so the user can opt out before the first drop.
     private var showsVideoMuteControls: Bool {
-        runner.typeCounts.videos > 0
+        true
     }
 
     private var preferredScheme: ColorScheme? {
@@ -240,7 +241,7 @@ struct ContentView: View {
                 noticeBanner(notice)
             }
 
-            Text("Cleaned copies go to Desktop/metaburn — Photos and Videos. Originals are left untouched.")
+            Text("Cleaned copies go to Desktop/MetaBurn — Photos and Videos. Originals are left untouched.")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -252,6 +253,7 @@ struct ContentView: View {
                 .multilineTextAlignment(.center)
         }
         .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var resultsLayout: some View {
@@ -349,7 +351,7 @@ struct ContentView: View {
                 }
                 Text(processing ? "Processing…" : "Drop photos, videos, or folders")
                     .font(.system(size: 16, weight: .semibold))
-                Text(processing ? "Saving cleaned copies to Desktop/metaburn…" : "Click to browse · cleaned copies → Desktop/metaburn")
+                Text(processing ? "Saving cleaned copies to Desktop/MetaBurn…" : "Click to browse · cleaned copies → Desktop/MetaBurn")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
@@ -461,6 +463,7 @@ struct ContentView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            .scrollIndicators(.hidden)
             .background(MetaBurnTheme.background)
         }
         .background(MetaBurnTheme.background)
@@ -501,7 +504,7 @@ struct ContentView: View {
 
             Spacer(minLength: 8)
 
-            Text("Desktop/metaburn")
+            Text("Desktop/MetaBurn")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }
@@ -578,7 +581,7 @@ struct ContentView: View {
     private var outcomeSubtitle: String {
         var parts: [String] = []
         if runner.counters.cleaned > 0 {
-            parts.append("\(runner.counters.cleaned) saved to Desktop/metaburn")
+            parts.append("\(runner.counters.cleaned) saved to Desktop/MetaBurn")
         }
         if runner.counters.skipped > 0 {
             parts.append("\(runner.counters.skipped) skipped / rejected")
@@ -649,7 +652,15 @@ struct ContentView: View {
         panel.canChooseFiles = true
         panel.canChooseDirectories = true
         panel.allowedContentTypes = [.image, .movie, .data]
+        if !lastBrowseDirectory.isEmpty {
+            panel.directoryURL = URL(fileURLWithPath: lastBrowseDirectory)
+        } else {
+            panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop")
+        }
         if panel.runModal() == .OK {
+            if let firstURL = panel.urls.first {
+                lastBrowseDirectory = firstURL.deletingLastPathComponent().path
+            }
             dropNotice = nil
             startJob(paths: panel.urls.map(\.path))
         }

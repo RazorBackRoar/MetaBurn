@@ -2,7 +2,7 @@ import Foundation
 
 /// Deterministic output naming for cleaned copies (no filesystem side effects beyond existence checks).
 public enum OutputNaming: Sendable {
-    public static let desktopFolderName = "metaburn"
+    public static let desktopFolderName = "MetaBurn"
     public static let photosFolderName = "Photos"
     public static let videosFolderName = "Videos"
 

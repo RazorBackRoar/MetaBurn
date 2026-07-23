@@ -5,7 +5,7 @@ import MetaBurnCore
 enum Paths {
     static var appName: String { Brand.displayName }
 
-    /// User-facing cleaned output root: `~/Desktop/metaburn`.
+    /// User-facing cleaned output root: `~/Desktop/MetaBurn`.
     static var desktopOutputFolderName: String { OutputNaming.desktopFolderName }
 
     static func applicationSupportDirectory() -> URL {
@@ -51,7 +51,7 @@ enum Paths {
         ensureDirectory(cacheDirectory())
     }
 
-    /// Creates `~/Desktop/metaburn/{Photos,Videos}` for cleaned output.
+    /// Creates `~/Desktop/MetaBurn/{Photos,Videos}` for cleaned output.
     static func ensureDesktopOutputDirectories() {
         ensureDirectory(photosOutputDirectory())
         ensureDirectory(videosOutputDirectory())
