@@ -106,12 +106,24 @@ enum MetadataCleaner {
                 metadataBefore: metadataBefore
             )
         }
+        if Task.isCancelled {
+            return CleanResult(path: filePath, status: .failed, reason: "cancelled", metadataBefore: metadataBefore)
+        }
         Log.shared.info(
             "Native ImageIO strip OK: \(URL(fileURLWithPath: filePath).lastPathComponent)",
             scope: "cleaner"
         )
 
         let metadataAfter = await readMetadata(filePath: workPath, kind: .photo)
+        if Task.isCancelled {
+            return CleanResult(
+                path: filePath,
+                status: .failed,
+                reason: "cancelled",
+                metadataBefore: metadataBefore,
+                metadataAfter: metadataAfter
+            )
+        }
         let verified = MetadataRules.verify(
             interpreted: MetadataRules.InterpretResult(outcome: .cleaned),
             kind: .photo,
@@ -132,6 +144,16 @@ enum MetadataCleaner {
                 path: filePath,
                 status: .failed,
                 reason: reason,
+                metadataBefore: metadataBefore,
+                metadataAfter: metadataAfter
+            )
+        }
+
+        if Task.isCancelled {
+            return CleanResult(
+                path: filePath,
+                status: .failed,
+                reason: "cancelled",
                 metadataBefore: metadataBefore,
                 metadataAfter: metadataAfter
             )
@@ -186,6 +208,15 @@ enum MetadataCleaner {
         }
 
         let metadataAfter = await readMetadata(filePath: workPath, kind: .video)
+        if Task.isCancelled {
+            return CleanResult(
+                path: filePath,
+                status: .failed,
+                reason: "cancelled",
+                metadataBefore: metadataBefore,
+                metadataAfter: metadataAfter
+            )
+        }
         let verified = MetadataRules.verify(
             interpreted: MetadataRules.InterpretResult(outcome: .cleaned),
             kind: .video,
@@ -228,6 +259,16 @@ enum MetadataCleaner {
                 path: filePath,
                 status: .failed,
                 reason: reason,
+                metadataBefore: metadataBefore,
+                metadataAfter: metadataAfter
+            )
+        }
+
+        if Task.isCancelled {
+            return CleanResult(
+                path: filePath,
+                status: .failed,
+                reason: "cancelled",
                 metadataBefore: metadataBefore,
                 metadataAfter: metadataAfter
             )
