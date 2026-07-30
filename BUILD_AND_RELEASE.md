@@ -8,7 +8,7 @@ Organization-standard build and release guide for
 MetaBurn is a native macOS app built with **Swift** / **SwiftUI**
 (swift-tools **6.3**, macOS 14+), packaged as an ad-hoc or Developer ID–signed `.dmg`.
 
-No Homebrew runtime dependencies. Photos use ImageIO; videos use AVFoundation (strip + optional mute).
+No Homebrew runtime dependencies. Photos use ImageIO at max practical JPEG quality (`kCGImageDestinationLossyCompressionQuality = 1.0`) while stripping metadata; HEIC/HEIF convert to cleaned `.jpg` in one pass. Videos use AVFoundation (strip + optional mute). iCloud Drive drops are supported but secondary (downloads can be slow).
 
 ## Platform Requirements
 
@@ -84,8 +84,10 @@ submits via `notarytool`, and staples the ticket when credentials are present.
 ## Privacy notes
 
 MetaBurn strips removable metadata (and optional video audio) on copies under
-`~/Desktop/metaburn`. It does **not** alter pixels — faces, rooms, text, and other
-in-frame content remain. Share only the cleaned copies you intend to publish.
+`~/Desktop/MetaBurn` (or next to originals when chosen in Settings). Photo cleans
+re-encode at Image I/O quality **1.0**. It does **not** change what’s visible in
+the frame — faces, rooms, text, and other in-frame content remain. Share only the
+cleaned copies you intend to publish.
 
 ## Versioning Expectations
 

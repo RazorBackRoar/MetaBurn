@@ -8,7 +8,9 @@
 
 **Strip EXIF, GPS, and device metadata from photos and videos — locally on macOS.**
 
-Drag files in. MetaBurn writes cleaned copies to `~/Desktop/metaburn` (Photos / Videos). Originals stay untouched. Optional mute removes video audio. What’s visible in the frame is not altered.
+Drag files in. MetaBurn writes cleaned copies to `~/Desktop/MetaBurn` (Photos / Videos). Originals stay untouched. Optional mute removes video audio. What’s visible in the frame is not altered.
+
+Photo cleans use Image I/O at **maximum practical JPEG quality** (`kCGImageDestinationLossyCompressionQuality = 1.0`) while stripping privacy metadata. HEIC/HEIF become cleaned `.jpg`. Videos prefer remux (no visual re-encode).
 
 <p align="center">
   <a href="https://github.com/RazorBackRoar/MetaBurn/releases/latest/download/MetaBurn.dmg"><strong>↓ Download MetaBurn.dmg</strong></a>
@@ -21,13 +23,14 @@ Drag files in. MetaBurn writes cleaned copies to `~/Desktop/metaburn` (Photos / 
 ## Features
 
 - **Local-first privacy** — metadata stays on your Mac; nothing is uploaded
-- **Drag-and-drop** — drop photos/videos onto the window
+- **Drag-and-drop** — drop photos and videos together onto the window
 - **Safe by default** — writes cleaned copies; originals never overwritten
-- **HEIC / HEIF → JPEG** — single-pass max-quality JPEG conversion with metadata stripped (cleaned output is `.jpg`; originals untouched)
-- **iCloud Drive** — drop files from iCloud; online-only items download automatically
-- **Output location** — Desktop/MetaBurn by default, or next to originals (Settings)
+- **Max-quality photo strip** — JPEG quality **1.0** for HEIC conversion and for stripping existing JPG/JPEG/other stills
+- **HEIC / HEIF → `.jpg`** — single-pass convert + strip (creator-friendly `.jpg` extension)
 - **EXIF / GPS / device tags** — stripped natively (ImageIO for photos, AVFoundation for videos)
 - **Optional video mute** — omit audio tracks from cleaned video copies (no quality re-encode when passthrough works)
+- **Output location** — `Desktop/MetaBurn` by default, or next to originals (Settings)
+- **iCloud Drive (optional)** — drops from iCloud work; online-only files download first (can be slow)
 - **Apple Silicon native** — Swift / SwiftUI · no Homebrew tools required
 
 ## Install
@@ -41,8 +44,8 @@ Requires macOS on Apple Silicon.
 ## Usage
 
 1. Open **MetaBurn**
-2. Drop photos and/or videos onto the window
-3. Find cleaned copies in `~/Desktop/metaburn/Photos` and `~/Desktop/metaburn/Videos`
+2. Drop photos and/or videos onto the window (mixed batches are fine)
+3. Find cleaned copies in `~/Desktop/MetaBurn/Photos` and `~/Desktop/MetaBurn/Videos` (or next to originals if chosen in Settings)
 4. Enable mute when you also want audio removed from video copies
 
 ## Development
@@ -53,16 +56,18 @@ swift run
 swift test   # requires full Xcode.app
 ```
 
-Package a macOS `.app` + DMG (ad-hoc signed):
+Package a macOS `.app` + DMG (ad-hoc signed) **inside this repo**:
 
 ```bash
 ./scripts/build-mac.sh
 # → build/Release/MetaBurn.dmg
+# → build/Release/MetaBurn.app (used while packaging; DMG is the ship artifact)
 ```
 
 ## Docs
 
 - [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md)
+- [docs/HEIC-ICLOUD-IMPLEMENTATION-PLAN.md](docs/HEIC-ICLOUD-IMPLEMENTATION-PLAN.md)
 - [CONTRIBUTING.md](CONTRIBUTING.md)
 - [SECURITY.md](SECURITY.md)
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)

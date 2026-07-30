@@ -30,8 +30,11 @@ enum NativeImageIO {
 
         // HEIC/JPEG: AddImageFromSource with empty props often keeps maker data.
         // Decode → re-encode keeps pixels/orientation and drops metadata dictionaries.
+        // Quality 1.0 matches HEIC→JPEG convertAndStrip (highest practical Image I/O JPEG quality).
         if let image = CGImageSourceCreateImageAtIndex(source, 0, options as CFDictionary) {
-            var writeProps: [CFString: Any] = [:]
+            var writeProps: [CFString: Any] = [
+                kCGImageDestinationLossyCompressionQuality: 1.0
+            ]
             if let sourceProps = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any],
                let orientation = sourceProps[kCGImagePropertyOrientation as String] {
                 writeProps[kCGImagePropertyOrientation] = orientation
@@ -85,6 +88,7 @@ enum NativeImageIO {
         // XMP key varies by SDK; clear common string forms when present.
         props["{XMP}"] = kCFNull
         props[kCGImagePropertyExifAuxDictionary as String] = kCFNull
+        props[kCGImageDestinationLossyCompressionQuality as String] = 1.0
         CGImageDestinationAddImageFromSource(destination, source, 0, props as CFDictionary)
         return true
     }
