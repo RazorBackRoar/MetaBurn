@@ -10,15 +10,24 @@ public enum OutputNaming: Sendable {
     public static let workFileMarker = "metaburn.tmp"
 
     /// Unique path under `directory` (`name.ext`, then `name-001.ext`, `name-002.ext`, …).
+    /// Pass `replacingExtension` (e.g. `"jpg"`) to rewrite the extension — used when HEIC/HEIF
+    /// is converted to JPEG before cleaning.
     public static func uniqueURL(
         forSourcePath sourcePath: String,
         in directory: URL,
+        replacingExtension: String? = nil,
         fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
     ) -> URL {
         let sourceURL = URL(fileURLWithPath: sourcePath)
         let baseName = sourceURL.deletingPathExtension().lastPathComponent
-        let ext = sourceURL.pathExtension
-        var candidate = directory.appendingPathComponent(sourceURL.lastPathComponent)
+        let ext: String
+        if let replacingExtension {
+            ext = replacingExtension.trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        } else {
+            ext = sourceURL.pathExtension
+        }
+        let firstName = ext.isEmpty ? baseName : "\(baseName).\(ext)"
+        var candidate = directory.appendingPathComponent(firstName)
         var index = 1
         while fileExists(candidate.path) {
             let padded = String(format: "%03d", index)

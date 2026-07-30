@@ -23,6 +23,9 @@ Drag files in. MetaBurn writes cleaned copies to `~/Desktop/metaburn` (Photos / 
 - **Local-first privacy** — metadata stays on your Mac; nothing is uploaded
 - **Drag-and-drop** — drop photos/videos onto the window
 - **Safe by default** — writes cleaned copies; originals never overwritten
+- **HEIC / HEIF → JPEG** — single-pass max-quality JPEG conversion with metadata stripped (cleaned output is `.jpg`; originals untouched)
+- **iCloud Drive** — drop files from iCloud; online-only items download automatically
+- **Output location** — Desktop/MetaBurn by default, or next to originals (Settings)
 - **EXIF / GPS / device tags** — stripped natively (ImageIO for photos, AVFoundation for videos)
 - **Optional video mute** — omit audio tracks from cleaned video copies (no quality re-encode when passthrough works)
 - **Apple Silicon native** — Swift / SwiftUI · no Homebrew tools required

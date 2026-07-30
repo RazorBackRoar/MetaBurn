@@ -33,8 +33,15 @@ final class TaskRunner: ObservableObject {
         currentFileNumber = 0
 
         let jobId = UUID().uuidString
+        let outputDestination = OutputPreference.stored
         activeJob = Task { [weak self] in
-            await self?.run(jobId: jobId, token: token, droppedPaths: droppedPaths, muteAudio: muteAudio)
+            await self?.run(
+                jobId: jobId,
+                token: token,
+                droppedPaths: droppedPaths,
+                muteAudio: muteAudio,
+                outputDestination: outputDestination
+            )
         }
     }
 
@@ -43,7 +50,7 @@ final class TaskRunner: ObservableObject {
         isCancelled = true
         activeJob?.cancel()
         // Reflect Cancel immediately in the UI even if a file is mid-clean.
-        if state == .scanning || state == .cleaning {
+        if state == .scanning || state == .downloading || state == .cleaning {
             state = .cancelled
             message = "Cancelled — in-flight export was stopped."
             currentFile = nil
@@ -67,7 +74,13 @@ final class TaskRunner: ObservableObject {
         currentFileNumber = 0
     }
 
-    private func run(jobId: String, token: UUID, droppedPaths: [String], muteAudio: Bool) async {
+    private func run(
+        jobId: String,
+        token: UUID,
+        droppedPaths: [String],
+        muteAudio: Bool,
+        outputDestination: OutputDestination
+    ) async {
         guard !isStale(token) else {
             finish(token: token)
             return
@@ -87,7 +100,7 @@ final class TaskRunner: ObservableObject {
             }
 
             // Park bypassed files in Skippable only when there are skips (creates that folder on demand).
-            _ = try? SkipExporter.export(skipped: scan.skipped)
+            _ = try? SkipExporter.export(skipped: scan.skipped, outputDestination: outputDestination)
 
             var kinds = TypeCounts()
             for file in scan.files {
@@ -111,7 +124,7 @@ final class TaskRunner: ObservableObject {
                 let skipNote: String
                 if scan.skipped.count > 0 {
                     skipNote =
-                        "\(scan.skipped.count) skipped file(s) saved to Desktop/MetaBurn/\(OutputNaming.skippableFolderName) (see \(OutputNaming.skippedSummaryFileName))."
+                        "\(scan.skipped.count) skipped file(s) saved to \(OutputPreference.label(for: outputDestination))/\(OutputNaming.skippableFolderName) (see \(OutputNaming.skippedSummaryFileName))."
                 } else if scan.skipped.isEmpty {
                     skipNote = "Drop photos, videos, or a folder that contains them."
                 } else {
@@ -129,7 +142,7 @@ final class TaskRunner: ObservableObject {
             let muteVideos = muteAudio && kinds.videos > 0
 
             Log.shared.info(
-                "Job \(jobId): \(kinds.images) photo(s), \(kinds.videos) video(s), muteVideos=\(muteVideos), skipped=\(scan.skipped.count)",
+                "Job \(jobId): \(kinds.images) photo(s), \(kinds.videos) video(s), muteVideos=\(muteVideos), skipped=\(scan.skipped.count), output=\(outputDestination.rawValue)",
                 scope: "taskRunner"
             )
 
@@ -145,12 +158,24 @@ final class TaskRunner: ObservableObject {
                 }
                 currentFile = file
                 currentFileNumber = index + 1
+
+                if UbiquityGate.needsDownload(atPath: file) {
+                    await setState(.downloading)
+                    Log.shared.info("[icloud-download] \(index + 1)/\(scan.files.count): \(file)", scope: "taskRunner")
+                } else if state == .downloading {
+                    await setState(.cleaning)
+                }
+
                 Log.shared.info("[file-start] \(index + 1)/\(scan.files.count): \(file)", scope: "taskRunner")
                 let isVideo = SupportedTypes.isVideo(filePath: file)
                 let result = await MetadataCleaner.cleanFile(
                     filePath: file,
-                    muteAudio: muteVideos && isVideo
+                    muteAudio: muteVideos && isVideo,
+                    outputDestination: outputDestination
                 )
+                if state != .cleaning && state != .cancelled && state != .failed {
+                    await setState(.cleaning)
+                }
                 if isStale(token) {
                     // Don't count a cancelled mid-file as a normal failure in the log.
                     if result.reason != "cancelled" {
@@ -177,7 +202,7 @@ final class TaskRunner: ObservableObject {
             if scan.skipped.count > 0 {
                 await setState(
                     .done,
-                    message: "\(scan.skipped.count) skipped file(s) saved to Desktop/MetaBurn/\(OutputNaming.skippableFolderName)."
+                    message: "\(scan.skipped.count) skipped file(s) saved to \(OutputPreference.label(for: outputDestination))/\(OutputNaming.skippableFolderName)."
                 )
             } else {
                 await setState(.done)
@@ -200,7 +225,7 @@ final class TaskRunner: ObservableObject {
     /// Avoid clobbering Waiting/Reset UI when a dying job notices cancel late.
     private func markCancelledIfStillRunning(message: String) async {
         await MainActor.run {
-            if state == .scanning || state == .cleaning {
+            if state == .scanning || state == .downloading || state == .cleaning {
                 state = .cancelled
                 self.message = message
                 currentFile = nil

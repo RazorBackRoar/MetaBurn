@@ -5,9 +5,13 @@ import MetaBurnCore
 enum MetadataCleaner {
     enum CleanStatus: String, Equatable { case cleaned, skipped, failed, partial }
 
-    /// Copies to a local cache work file, cleans (and optionally mutes) natively, then promotes to Desktop.
-    /// Photos: ImageIO. Videos: AVFoundation remux with metadata stripped (optional audio omit).
-    static func cleanFile(filePath: String, muteAudio: Bool) async -> CleanResult {
+    /// Materializes source (iCloud-safe), cleans natively into a local cache work file, then promotes.
+    /// Photos: ImageIO (HEIC/HEIF → stripped max-quality JPEG in one pass). Videos: AVFoundation remux.
+    static func cleanFile(
+        filePath: String,
+        muteAudio: Bool,
+        outputDestination: OutputDestination = OutputPreference.stored
+    ) async -> CleanResult {
         if Task.isCancelled {
             return CleanResult(path: filePath, status: .failed, reason: "cancelled")
         }
@@ -21,15 +25,44 @@ enum MetadataCleaner {
             return CleanResult(path: filePath, status: .skipped, reason: "container not safely writable")
         }
 
-        let outputDir: URL
-        if info.kind == .photo {
-            Paths.ensurePhotosOutputDirectory()
-            outputDir = Paths.photosOutputDirectory()
-        } else {
-            Paths.ensureVideosOutputDirectory()
-            outputDir = Paths.videosOutputDirectory()
+        let convertHeic = info.kind == .photo && HeicJpegConverter.shouldConvert(filePath: filePath)
+
+        do {
+            if UbiquityGate.needsDownload(atPath: filePath) {
+                try await UbiquityGate.ensureDownloaded(atPath: filePath)
+            }
+        } catch is CancellationError {
+            return CleanResult(path: filePath, status: .failed, reason: "cancelled")
+        } catch let gate as UbiquityGate.GateError {
+            return CleanResult(path: filePath, status: .failed, reason: gate.userMessage)
+        } catch {
+            return CleanResult(
+                path: filePath,
+                status: .failed,
+                reason: "iCloud download failed: \(error.localizedDescription)"
+            )
         }
-        let finalURL = Paths.uniqueOutputURL(forSourcePath: filePath, in: outputDir)
+
+        if info.kind == .photo {
+            OutputRootResolver.ensurePhotosDirectory(forSourcePath: filePath, destination: outputDestination)
+        } else {
+            OutputRootResolver.ensureVideosDirectory(forSourcePath: filePath, destination: outputDestination)
+        }
+
+        let outputDir = info.kind == .photo
+            ? OutputRootResolver.photosDirectory(forSourcePath: filePath, destination: outputDestination)
+            : OutputRootResolver.videosDirectory(forSourcePath: filePath, destination: outputDestination)
+
+        let finalURL: URL
+        if convertHeic {
+            finalURL = OutputNaming.uniqueURL(
+                forSourcePath: filePath,
+                in: outputDir,
+                replacingExtension: HeicRules.jpegExtension
+            )
+        } else {
+            finalURL = Paths.uniqueOutputURL(forSourcePath: filePath, in: outputDir)
+        }
         let workURL = Paths.workURL(forFinal: finalURL)
         let workPath = workURL.path
         let fm = FileManager.default
@@ -45,7 +78,59 @@ enum MetadataCleaner {
 
         do {
             try Task.checkCancellation()
-            try fm.copyItem(atPath: filePath, toPath: workPath)
+
+            if convertHeic {
+                // Phase D: single-pass JPEG+strip. Materialize iCloud HEIC to cache first.
+                var heicStage: URL?
+                defer {
+                    if let heicStage {
+                        try? fm.removeItem(at: heicStage)
+                    }
+                }
+
+                let convertSource: String
+                if UbiquityGate.isUbiquitous(atPath: filePath) || UbiquityGate.needsDownload(atPath: filePath) {
+                    let stage = Paths.workURL(
+                        forFinal: URL(fileURLWithPath: filePath)
+                            .deletingPathExtension()
+                            .appendingPathExtension("heic")
+                    )
+                    heicStage = stage
+                    try await stageSource(filePath: filePath, to: stage)
+                    _ = WorkFileSafety.stripStallingXattrs(atPath: stage.path)
+                    convertSource = stage.path
+                } else {
+                    convertSource = filePath
+                }
+
+                switch HeicJpegConverter.convertAndStrip(from: convertSource, to: workURL) {
+                case .success:
+                    Log.shared.info(
+                        "HEIC→JPEG strip OK: \(URL(fileURLWithPath: filePath).lastPathComponent) → \(workURL.lastPathComponent)",
+                        scope: "cleaner"
+                    )
+                case .failure(let error):
+                    return CleanResult(
+                        path: filePath,
+                        status: .failed,
+                        reason: heicFailureReason(error),
+                        metadataBefore: metadataBefore
+                    )
+                }
+                _ = WorkFileSafety.stripStallingXattrs(atPath: workPath)
+
+                return await finishPhoto(
+                    filePath: filePath,
+                    workURL: workURL,
+                    workPath: workPath,
+                    finalURL: finalURL,
+                    metadataBefore: metadataBefore,
+                    alreadyStripped: true,
+                    promoted: &promoted
+                )
+            }
+
+            try await stageSource(filePath: filePath, to: workURL)
             let stripped = WorkFileSafety.stripStallingXattrs(atPath: workPath)
             if !stripped.isEmpty {
                 Log.shared.info(
@@ -55,22 +140,30 @@ enum MetadataCleaner {
             }
         } catch is CancellationError {
             return CleanResult(path: filePath, status: .failed, reason: "cancelled", metadataBefore: metadataBefore)
+        } catch let gate as UbiquityGate.GateError {
+            return CleanResult(
+                path: filePath,
+                status: .failed,
+                reason: gate.userMessage,
+                metadataBefore: metadataBefore
+            )
         } catch {
             return CleanResult(
                 path: filePath,
                 status: .failed,
-                reason: "could not copy to Desktop/\(Paths.desktopOutputFolderName): \(error.localizedDescription)",
+                reason: "could not stage work file: \(error.localizedDescription)",
                 metadataBefore: metadataBefore
             )
         }
 
         if info.kind == .photo {
-            return await cleanPhoto(
+            return await finishPhoto(
                 filePath: filePath,
                 workURL: workURL,
                 workPath: workPath,
                 finalURL: finalURL,
                 metadataBefore: metadataBefore,
+                alreadyStripped: false,
                 promoted: &promoted
             )
         }
@@ -86,30 +179,59 @@ enum MetadataCleaner {
         )
     }
 
-    private static func cleanPhoto(
+    /// Coordinated iCloud-safe copy into a local cache URL (or plain copy for local files).
+    private static func stageSource(filePath: String, to destinationURL: URL) async throws {
+        if UbiquityGate.isUbiquitous(atPath: filePath) || UbiquityGate.needsDownload(atPath: filePath) {
+            try await UbiquityGate.materialize(fromPath: filePath, to: destinationURL)
+        } else {
+            let fm = FileManager.default
+            if fm.fileExists(atPath: destinationURL.path) {
+                try fm.removeItem(at: destinationURL)
+            }
+            try fm.copyItem(atPath: filePath, toPath: destinationURL.path)
+        }
+    }
+
+    private static func heicFailureReason(_ error: HeicJpegConverter.ConversionError) -> String {
+        switch error {
+        case .unreadable:
+            return "could not read HEIC/HEIF for JPEG conversion"
+        case .notHeif:
+            return "file is not a HEIC/HEIF image"
+        case .destinationFailed:
+            return "could not create JPEG destination for HEIC conversion"
+        case .finalizeFailed:
+            return "HEIC→JPEG conversion failed (Image I/O)"
+        }
+    }
+
+    private static func finishPhoto(
         filePath: String,
         workURL: URL,
         workPath: String,
         finalURL: URL,
         metadataBefore: [MetadataEntry],
+        alreadyStripped: Bool,
         promoted: inout Bool
     ) async -> CleanResult {
         if Task.isCancelled {
             return CleanResult(path: filePath, status: .failed, reason: "cancelled", metadataBefore: metadataBefore)
         }
 
-        guard NativeImageIO.canHandle(filePath: filePath), NativeImageIO.stripMetadata(atPath: workPath) else {
-            return CleanResult(
-                path: filePath,
-                status: .failed,
-                reason: "could not strip photo metadata (ImageIO)",
-                metadataBefore: metadataBefore
+        if !alreadyStripped {
+            guard NativeImageIO.canHandle(filePath: filePath), NativeImageIO.stripMetadata(atPath: workPath) else {
+                return CleanResult(
+                    path: filePath,
+                    status: .failed,
+                    reason: "could not strip photo metadata (ImageIO)",
+                    metadataBefore: metadataBefore
+                )
+            }
+            Log.shared.info(
+                "Native ImageIO strip OK: \(URL(fileURLWithPath: filePath).lastPathComponent)",
+                scope: "cleaner"
             )
         }
-        Log.shared.info(
-            "Native ImageIO strip OK: \(URL(fileURLWithPath: filePath).lastPathComponent)",
-            scope: "cleaner"
-        )
 
         let metadataAfter = await readMetadata(filePath: workPath, kind: .photo)
         let verified = MetadataRules.verify(
@@ -200,8 +322,6 @@ enum MetadataCleaner {
         } else if status == .partial {
             reason = "some removable metadata remains after cleaning"
         } else if status == .failed {
-            // Remux succeeded; leftover container dates are expected — treat as cleaned when
-            // identifying tags (GPS / make / model / lens) are gone.
             let afterRemovable = MetadataRules.removableTags(
                 metadataAfter.map { MetadataRules.Tag(group: $0.group, tag: $0.tag, value: $0.value) },
                 kind: .video
@@ -256,7 +376,37 @@ enum MetadataCleaner {
     }
 
     private static func promoteWorkFile(_ workURL: URL, to finalURL: URL) throws {
+        Paths.ensureDirectory(finalURL.deletingLastPathComponent())
         let fm = FileManager.default
+
+        let destIsICloud = UbiquityGate.isUbiquitous(atPath: finalURL.path)
+            || OutputRootResolver.pathLooksLikeICloud(finalURL)
+
+        if destIsICloud {
+            var coordinatorError: NSError?
+            var writeError: Error?
+            let coordinator = NSFileCoordinator()
+            coordinator.coordinate(
+                writingItemAt: finalURL,
+                options: .forReplacing,
+                error: &coordinatorError
+            ) { writeURL in
+                do {
+                    if fm.fileExists(atPath: writeURL.path) {
+                        try fm.removeItem(at: writeURL)
+                    }
+                    // Copy then remove work — move can fail across volumes / iCloud.
+                    try fm.copyItem(at: workURL, to: writeURL)
+                    try? fm.removeItem(at: workURL)
+                } catch {
+                    writeError = error
+                }
+            }
+            if let coordinatorError { throw coordinatorError }
+            if let writeError { throw writeError }
+            return
+        }
+
         if fm.fileExists(atPath: finalURL.path) {
             try fm.removeItem(at: finalURL)
         }

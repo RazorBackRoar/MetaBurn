@@ -21,6 +21,12 @@ Local photo/video metadata stripper. Swift + SwiftUI.
 
 Fully native: photos use **ImageIO**; videos use **AVFoundation** remux (metadata stripped; optional mute omits audio). No ExifTool, ffmpeg, or Homebrew runtime deps. Cancel interrupts in-flight AVFoundation exports.
 
+**HEIC / HEIF:** On import, MetaBurn converts HEIC/HEIF stills to max-quality JPEG and strips privacy metadata in a **single Image I/O pass** (`convertAndStrip`). Cleaned output is `.jpg`. Original HEIC/HEIF files are never modified.
+
+**iCloud Drive:** Drop files/folders from iCloud Drive. Online-only items are downloaded automatically (`startDownloadingUbiquitousItem` + `NSFileCoordinator`). Work files stay in local cache; originals are never overwritten.
+
+**Output destination (Settings):** Default `Desktop/MetaBurn`. Optional **Next to originals** writes `MetaBurn/{Photos,Videos,Skippable}` beside each source file (good for iCloud Drive drops).
+
 - App entry: `Sources/MetaBurn/MetaBurnApp.swift`
 - UI views: `Sources/MetaBurn/Views/`
 - Services: `Sources/MetaBurn/Services/`
@@ -32,7 +38,7 @@ Cleaned copies are written under `~/Desktop/MetaBurn/` only when needed: `Photos
 
 | Module | Role |
 |--------|------|
-| `MetaBurnCore` | Pure rules: SupportedTypes, OutputNaming, MetadataRules (unit-tested) |
+| `MetaBurnCore` | Pure rules: SupportedTypes, OutputNaming, MetadataRules, HeicRules, OutputDestination / AdjacentOutput (unit-tested) |
 | `Utilities/Brand.swift` | Display vs machine-safe IDs |
 | `Utilities/Paths.swift` | Application Support / cache / logs under **MetaBurn**; Desktop output under `MetaBurn/` |
 | `Utilities/Logging.swift` | Console + file logs under Application Support |
@@ -85,7 +91,7 @@ Supported files are copied to a local cache work file, cleaned (and optionally m
 
 Image/video testing uses **only** `/Users/home/Desktop/MetaBurn & L!bra Test` (`photos/` for images, `videos/` for videos). Never pull or process test media from Desktop/Downloads/Pictures/Movies/Workspace/elsewhere; generated outputs stay under that directory. Before any test, verify the source path starts with that prefix or stop.
 
-App runtime output for real cleans is `~/Desktop/MetaBurn/` (separate from the agent test-media tree).
+App runtime output for real cleans defaults to `~/Desktop/MetaBurn/` (or next to originals when Settings → Output is adjacent).
 
 Unit tests live in `Tests/MetaBurnTests` against `MetaBurnCore` (`swift test`).
 
@@ -98,6 +104,8 @@ Unit tests live in `Tests/MetaBurnTests` against `MetaBurnCore` (`swift test`).
 
 - Drag-and-drop only forever — never add browse/file-picker UI, and never auto-open Finder or Open panels to Desktop, Downloads, or output folders.
 - Mute video audio toggle lives in the bottom-right footer (no top mute banner; no Desktop/MetaBurn path label there); mute means permanently omit audio tracks so they cannot be recovered from the cleaned file.
+- Output destination is Settings-controlled (`desktop` default or `adjacent` next to originals); originals are never overwritten.
+- Current product line is MetaBurn **2.0.0**; native ImageIO + AVFoundation only (no ExifTool/ffmpeg/Homebrew runtime deps). HEIC/HEIF → stripped JPEG is a single Image I/O pass. iCloud Drive drops use UbiquityGate (download + coordinated read).
 - Metadata table primary order: Created, Lens, GPS, Size, Modified, Resolution, Type; never show Software; pin fields untouched by the burn to the bottom of the list.
 - Duplicate cleaned filenames use zero-padded sequential suffixes (`001`, `002`, `003`) — never `-1`/`-2` or trailing `X`/`XX`.
 - Privacy is the product priority, but never at the cost of visible quality loss or destroying the photo/video; prefer remux/strip over re-encode.
@@ -107,5 +115,5 @@ Unit tests live in `Tests/MetaBurnTests` against `MetaBurnCore` (`swift test`).
 ## Learned Workspace Facts
 
 - Re-dropping the same folder must always finish every file; half-written destinations and leftover `.metaburn.tmp` work files are bugs — discard the work file on timeout/failure and never promote it.
-- Current product line is MetaBurn **2.0.0**; native ImageIO + AVFoundation only (no ExifTool/ffmpeg/Homebrew runtime deps).
+- Current product line is MetaBurn **2.0.0**; native ImageIO + AVFoundation only (no ExifTool/ffmpeg/Homebrew runtime deps). HEIC/HEIF uses single-pass `convertAndStrip`; iCloud uses `UbiquityGate`.
 - Cancel must interrupt in-flight AVFoundation exports; batch jobs must not stall mid-count.

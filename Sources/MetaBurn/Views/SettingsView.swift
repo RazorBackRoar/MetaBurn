@@ -1,7 +1,9 @@
 import SwiftUI
+import MetaBurnCore
 
 struct SettingsView: View {
     @AppStorage(ThemePreference.storageKey) private var themeSource: String = "system"
+    @AppStorage(OutputPreference.storageKey) private var outputDestinationRaw: String = OutputDestination.desktop.rawValue
 
     var body: some View {
         Form {
@@ -15,11 +17,39 @@ struct SettingsView: View {
                 .onChange(of: themeSource) { _, newValue in
                     ThemePreference.applyAppAppearance(for: newValue)
                 }
+            } header: {
+                Text("Appearance")
+            }
+
+            Section {
+                Picker("Save cleaned copies", selection: $outputDestinationRaw) {
+                    Text("Desktop/MetaBurn").tag(OutputDestination.desktop.rawValue)
+                    Text("Next to originals").tag(OutputDestination.adjacent.rawValue)
+                }
+                .pickerStyle(.radioGroup)
+
+                Text(outputHelpText)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } header: {
+                Text("Output")
+            } footer: {
+                Text("Originals are never overwritten. Drag and drop remains the only way to import files (including from iCloud Drive).")
+                    .font(.system(size: 11))
             }
         }
         .formStyle(.grouped)
-        .scrollDisabled(true)
-        .frame(width: 420, height: 180)
+        .frame(width: 440, height: 320)
         .onAppear { ThemePreference.applyAppAppearance(for: themeSource) }
+    }
+
+    private var outputHelpText: String {
+        switch OutputDestination(rawValue: outputDestinationRaw) ?? .desktop {
+        case .desktop:
+            return "Cleaned Photos, Videos, and Skippable folders are created under Desktop/MetaBurn only when needed."
+        case .adjacent:
+            return "For each source file, cleaned copies go to a MetaBurn folder beside that file (MetaBurn/Photos, Videos, Skippable). Ideal when dropping from iCloud Drive."
+        }
     }
 }

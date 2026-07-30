@@ -6,7 +6,7 @@ typealias FileClassification = SupportedTypes.FileClassification
 typealias CleanStatus = MetadataCleaner.CleanStatus
 
 enum RunState: String, Equatable {
-    case waiting, scanning, cleaning, done, failed, cancelled
+    case waiting, scanning, downloading, cleaning, done, failed, cancelled
 }
 
 struct Counters: Equatable {

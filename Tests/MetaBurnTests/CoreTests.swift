@@ -48,6 +48,45 @@ struct SupportedTypesTests {
     }
 }
 
+@Suite("HeicRules")
+struct HeicRulesTests {
+    @Test("detects heic and heif extensions case-insensitively")
+    func needsConversion() {
+        #expect(HeicRules.needsJpegConversion(filePath: "/in/photo.heic"))
+        #expect(HeicRules.needsJpegConversion(filePath: "/in/photo.HEIC"))
+        #expect(HeicRules.needsJpegConversion(filePath: "/in/photo.heif"))
+        #expect(HeicRules.needsJpegConversion(filePath: "/in/photo.HEIF"))
+        #expect(!HeicRules.needsJpegConversion(filePath: "/in/photo.jpg"))
+        #expect(!HeicRules.needsJpegConversion(filePath: "/in/photo.png"))
+        #expect(!HeicRules.needsJpegConversion(filePath: "/in/clip.mov"))
+    }
+
+    @Test("jpeg output name rewrites extension to jpg")
+    func jpegFileName() {
+        #expect(HeicRules.jpegOutputFileName(forSourcePath: "/in/IMG_001.HEIC") == "IMG_001.jpg")
+        #expect(HeicRules.jpegOutputFileName(forSourcePath: "/in/shot.heif") == "shot.jpg")
+    }
+}
+
+@Suite("AdjacentOutput")
+struct AdjacentOutputTests {
+    @Test("places MetaBurn folders beside the source file")
+    func layoutBesideSource() {
+        let source = "/Users/home/Library/Mobile Documents/com~apple~CloudDocs/Trip/IMG_001.HEIC"
+        let root = AdjacentOutput.root(forSourcePath: source)
+        #expect(root.path.hasSuffix("/Trip/MetaBurn"))
+        #expect(AdjacentOutput.photosDirectory(forSourcePath: source).lastPathComponent == "Photos")
+        #expect(AdjacentOutput.videosDirectory(forSourcePath: source).lastPathComponent == "Videos")
+        #expect(AdjacentOutput.skippableDirectory(forSourcePath: source).lastPathComponent == "Skippable")
+    }
+
+    @Test("output destination raw values are stable")
+    func destinationCases() {
+        #expect(OutputDestination.desktop.rawValue == "desktop")
+        #expect(OutputDestination.adjacent.rawValue == "adjacent")
+    }
+}
+
 @Suite("OutputNaming")
 struct OutputNamingTests {
     @Test("uniqueURL increments when destination exists")
@@ -63,6 +102,19 @@ struct OutputNamingTests {
             fileExists: { existing.contains($0) }
         )
         #expect(url.lastPathComponent == "shot-002.jpg")
+    }
+
+    @Test("uniqueURL can rewrite HEIC to jpg for converted stills")
+    func uniqueRewritesHeicExtension() {
+        let dir = URL(fileURLWithPath: "/tmp/metaburn-test", isDirectory: true)
+        let existing: Set<String> = ["/tmp/metaburn-test/vacation.jpg"]
+        let url = OutputNaming.uniqueURL(
+            forSourcePath: "/in/vacation.HEIC",
+            in: dir,
+            replacingExtension: HeicRules.jpegExtension,
+            fileExists: { existing.contains($0) }
+        )
+        #expect(url.lastPathComponent == "vacation-001.jpg")
     }
 
     @Test("workURL stays in an explicit work directory")

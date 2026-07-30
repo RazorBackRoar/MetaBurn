@@ -6,13 +6,22 @@ import MetaBurnCore
 struct ContentView: View {
     @StateObject private var runner = TaskRunner()
     @AppStorage(ThemePreference.storageKey) private var themeSource: String = "system"
+    @AppStorage(OutputPreference.storageKey) private var outputDestinationRaw: String = OutputDestination.desktop.rawValue
     @State private var muteAudio = true
     @State private var isDragging = false
     @State private var dropNotice: String? = nil
     @State private var selectedEntry: LogEntry? = nil
 
+    private var outputDestination: OutputDestination {
+        OutputDestination(rawValue: outputDestinationRaw) ?? .desktop
+    }
+
+    private var outputLabel: String {
+        OutputPreference.label(for: outputDestination)
+    }
+
     private var processing: Bool {
-        runner.state == .scanning || runner.state == .cleaning
+        runner.state == .scanning || runner.state == .downloading || runner.state == .cleaning
     }
 
     private var hasResults: Bool {
@@ -205,7 +214,7 @@ struct ContentView: View {
             }
             .padding(.top, 4)
 
-            Text("Cleaned copies go to Desktop/MetaBurn only when needed (Photos, Videos, or Skippable). Originals stay untouched.")
+            Text("Cleaned copies go to \(outputLabel) only when needed (Photos, Videos, or Skippable). Originals stay untouched.")
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -268,7 +277,9 @@ struct ContentView: View {
                 HStack(spacing: 6) {
                     ProgressView()
                         .controlSize(.small)
-                    Text("Cleaning \(runner.currentFileNumber) of \(runner.counters.supported):")
+                    Text(runner.state == .downloading
+                         ? "Downloading \(runner.currentFileNumber) of \(runner.counters.supported):"
+                         : "Cleaning \(runner.currentFileNumber) of \(runner.counters.supported):")
                         .font(.system(size: 12, weight: .semibold))
                     Text(URL(fileURLWithPath: currentFile).lastPathComponent)
                         .font(.system(size: 12))
@@ -313,9 +324,9 @@ struct ContentView: View {
                     .font(.system(size: 29, weight: .medium))
                     .foregroundStyle(isDragging ? MetaBurnTheme.accent : .secondary)
             }
-            Text(processing ? "Processing…" : "Drop photos, videos, or folders")
+            Text(processing ? processingPrimaryLabel : "Drop photos, videos, or folders")
                 .font(.system(size: 17, weight: .semibold))
-            Text(processing ? "Saving cleaned copies…" : "Drag and drop only · cleaned copies → Desktop/MetaBurn when needed")
+            Text(processing ? processingSecondaryLabel : "Drag and drop only · cleaned copies → \(outputLabel) when needed")
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
         }
@@ -445,7 +456,7 @@ struct ContentView: View {
     private var statusColor: Color {
         switch runner.state {
         case .waiting, .cancelled: .secondary
-        case .scanning, .cleaning: .blue
+        case .scanning, .downloading, .cleaning: .blue
         case .done: .green
         case .failed: .red
         }
@@ -455,10 +466,27 @@ struct ContentView: View {
         switch runner.state {
         case .waiting: "Waiting"
         case .scanning: "Scanning"
+        case .downloading: "iCloud"
         case .cleaning: "Cleaning"
         case .done: "Done"
         case .failed: "Failed"
         case .cancelled: "Cancelled"
+        }
+    }
+
+    private var processingPrimaryLabel: String {
+        switch runner.state {
+        case .downloading: return "Downloading from iCloud…"
+        case .scanning: return "Scanning…"
+        default: return "Processing…"
+        }
+    }
+
+    private var processingSecondaryLabel: String {
+        switch runner.state {
+        case .downloading: return "Waiting for iCloud Drive to finish downloading"
+        case .scanning: return "Looking for photos and videos…"
+        default: return "Saving cleaned copies → \(outputLabel)"
         }
     }
 
@@ -503,11 +531,11 @@ struct ContentView: View {
         }
         var parts: [String] = []
         if runner.counters.cleaned > 0 {
-            parts.append("\(runner.counters.cleaned) saved to Desktop/MetaBurn")
+            parts.append("\(runner.counters.cleaned) saved to \(outputLabel)")
         }
         if runner.counters.skipped > 0 {
             parts.append(
-                "\(runner.counters.skipped) skipped → Desktop/MetaBurn/\(OutputNaming.skippableFolderName)"
+                "\(runner.counters.skipped) skipped → \(outputLabel)/\(OutputNaming.skippableFolderName)"
             )
         }
         if runner.counters.partial > 0 {
