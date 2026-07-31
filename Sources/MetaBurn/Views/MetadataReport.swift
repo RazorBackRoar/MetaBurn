@@ -51,23 +51,29 @@ struct MetadataReport: View {
             if visibleRows.isEmpty {
                 emptyMetadata
             } else {
-                tableHeader
-                Divider().overlay(MetaBurnTheme.divider)
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(Array(visibleRows.enumerated()), id: \.element.id) { index, row in
-                            compactRow(row)
-                            if index < visibleRows.count - 1 {
-                                Divider().overlay(MetaBurnTheme.divider.opacity(0.55))
-                            }
-                        }
-                    }
-                    .padding(.bottom, 8)
-                }
-                .scrollIndicators(.hidden)
+                metadataTable
             }
         }
         .background(MetaBurnTheme.background)
+    }
+
+    private var metadataTable: some View {
+        VStack(spacing: 0) {
+            tableHeader
+            Divider().overlay(MetaBurnTheme.divider)
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(visibleRows.enumerated()), id: \.element.id) { index, row in
+                        compactRow(row)
+                        if index < visibleRows.count - 1 {
+                            Divider().overlay(MetaBurnTheme.divider.opacity(0.55))
+                        }
+                    }
+                }
+                .padding(.bottom, 8)
+            }
+            .scrollIndicators(.hidden)
+        }
     }
 
     private var header: some View {
