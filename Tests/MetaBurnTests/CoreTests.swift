@@ -28,6 +28,15 @@ struct SupportedTypesTests {
         #expect(SupportedTypes.isProcessable(filePath: "clip.mov"))
     }
 
+    @Test("isVideo correctly identifies video files")
+    func isVideo() {
+        #expect(SupportedTypes.isVideo(filePath: "clip.mov"))
+        #expect(SupportedTypes.isVideo(filePath: "clip.mp4"))
+        #expect(SupportedTypes.isVideo(filePath: "clip.mkv")) // non-writable but still video
+        #expect(!SupportedTypes.isVideo(filePath: "photo.jpg"))
+        #expect(!SupportedTypes.isVideo(filePath: "anim.gif")) // unsupported
+    }
+
     @Test("gif and webm are unsupported and not processable")
     func gifAndWebmUnsupported() {
         #expect(SupportedTypes.classify(filePath: "anim.gif").kind == .unsupported)
