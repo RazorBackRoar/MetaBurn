@@ -9,7 +9,7 @@ struct ScanResult {
 
 enum Scanner {
     static func buildFileList(droppedPaths: [String]) async throws -> ScanResult {
-        var files: [String] = []
+        var fileSizes: [String: Int64] = [:]
         var skipped: [(path: String, reason: String)] = []
 
         for dropped in droppedPaths {
@@ -18,16 +18,17 @@ enum Scanner {
             let url = URL(fileURLWithPath: dropped)
             if url.lastPathComponent.hasPrefix(".") { continue }
             do {
-                let values = try url.resourceValues(forKeys: [.isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey])
+                let values = try url.resourceValues(forKeys: [.isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey, .fileSizeKey])
                 if values.isSymbolicLink == true {
                     skipped.append((dropped, "symlink skipped for safety"))
                     continue
                 }
                 if values.isDirectory == true {
-                    let dirSkipped = try walkDirectory(url: url, files: &files, skipped: &skipped)
+                    let dirSkipped = try walkDirectory(url: url, fileSizes: &fileSizes, skipped: &skipped)
                     skipped.append(contentsOf: dirSkipped)
                 } else if values.isRegularFile == true {
-                    classifyAndBucket(url.path, files: &files, skipped: &skipped)
+                    let size = Int64(values.fileSize ?? 0)
+                    classifyAndBucket(url.path, size: size, fileSizes: &fileSizes, skipped: &skipped)
                 } else {
                     skipped.append((dropped, "not a regular file or folder"))
                 }
@@ -36,32 +37,33 @@ enum Scanner {
             }
         }
 
-        let deduped = Array(Set(files)).sorted()
-        let totalBytes = await sumSizes(deduped)
+        let deduped = fileSizes.keys.sorted()
+        let totalBytes = fileSizes.values.reduce(0, +)
         return ScanResult(files: deduped, skipped: skipped, totalBytes: totalBytes)
     }
 
     private static func classifyAndBucket(
         _ path: String,
-        files: inout [String],
+        size: Int64,
+        fileSizes: inout [String: Int64],
         skipped: inout [(path: String, reason: String)]
     ) {
         if let reason = SupportedTypes.skipReason(filePath: path) {
             skipped.append((path, reason))
         } else {
-            files.append(path)
+            fileSizes[path] = size
         }
     }
 
     private static func walkDirectory(
         url: URL,
-        files: inout [String],
+        fileSizes: inout [String: Int64],
         skipped: inout [(path: String, reason: String)]
     ) throws -> [(path: String, reason: String)] {
         var walkSkipped: [(path: String, reason: String)] = []
         let enumerator = FileManager.default.enumerator(
             at: url,
-            includingPropertiesForKeys: [.isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey],
+            includingPropertiesForKeys: [.isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey, .fileSizeKey],
             options: [.skipsHiddenFiles],
             errorHandler: { url, error in
                 walkSkipped.append((url.path, "could not read: \(error.localizedDescription)"))
@@ -71,31 +73,19 @@ enum Scanner {
 
         while let item = enumerator?.nextObject() as? URL {
             do {
-                let values = try item.resourceValues(forKeys: [.isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey])
+                let values = try item.resourceValues(forKeys: [.isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey, .fileSizeKey])
                 if values.isSymbolicLink == true {
                     walkSkipped.append((item.path, "symlink skipped for safety"))
                     continue
                 }
                 if values.isRegularFile == true {
-                    classifyAndBucket(item.path, files: &files, skipped: &skipped)
+                    let size = Int64(values.fileSize ?? 0)
+                    classifyAndBucket(item.path, size: size, fileSizes: &fileSizes, skipped: &skipped)
                 }
             } catch {
                 walkSkipped.append((item.path, "could not stat: \(error.localizedDescription)"))
             }
         }
         return walkSkipped
-    }
-
-    private static func sumSizes(_ paths: [String]) async -> Int64 {
-        await withTaskGroup(of: Int64.self) { group in
-            for path in paths {
-                group.addTask { (try? FileManager.default.attributesOfItem(atPath: path)[.size] as? Int64) ?? 0 }
-            }
-            var total: Int64 = 0
-            for await size in group {
-                total += size
-            }
-            return total
-        }
     }
 }
