@@ -118,3 +118,10 @@ Unit tests live in `Tests/MetaBurnTests` against `MetaBurnCore` (`swift test`).
 - Current product line is MetaBurn **2.1.0**; native ImageIO + AVFoundation only. Photo strip / HEIC convertAndStrip use `kCGImageDestinationLossyCompressionQuality = 1.0`. iCloud is optional/secondary via `UbiquityGate`.
 - Cancel must interrupt in-flight AVFoundation exports; batch jobs must not stall mid-count.
 - In-repo package output is always `Apps/MetaBurn/build/Release/MetaBurn.dmg` (from `./scripts/build-mac.sh`).
+
+
+## Automated Agent & Jules Integration Guidelines
+- **Jules PR Auto-Merge**: Automated PRs created on branches starting with `sentinel-`, `bolt-`, or `palette-` are handled by GitHub Actions (`.github/workflows/jules-automerge.yml`).
+- **No Duplicate Issue/PR Reopening**: Jules subagents must verify existing closed and open PRs before proposing repetitive fixes or contact info updates.
+- **Branch Cleanup**: Head branches are deleted automatically upon squash-merge.
+
