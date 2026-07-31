@@ -70,7 +70,7 @@ enum MetadataCleaner {
         var promoted = false
         defer {
             if !promoted {
-                try? fm.removeItem(at: workURL)
+                cleanupTemporaryFile(at: workURL)
             }
         }
 
@@ -84,7 +84,7 @@ enum MetadataCleaner {
                 var heicStage: URL?
                 defer {
                     if let heicStage {
-                        try? fm.removeItem(at: heicStage)
+                        cleanupTemporaryFile(at: heicStage)
                     }
                 }
 
@@ -185,9 +185,7 @@ enum MetadataCleaner {
             try await UbiquityGate.materialize(fromPath: filePath, to: destinationURL)
         } else {
             let fm = FileManager.default
-            if fm.fileExists(atPath: destinationURL.path) {
-                try fm.removeItem(at: destinationURL)
-            }
+            safeRemove(at: destinationURL)
             try fm.copyItem(atPath: filePath, toPath: destinationURL.path)
         }
     }
@@ -383,34 +381,62 @@ enum MetadataCleaner {
             || OutputRootResolver.pathLooksLikeICloud(finalURL)
 
         if destIsICloud {
-            var coordinatorError: NSError?
-            var writeError: Error?
-            let coordinator = NSFileCoordinator()
-            coordinator.coordinate(
-                writingItemAt: finalURL,
-                options: .forReplacing,
-                error: &coordinatorError
-            ) { writeURL in
-                do {
-                    if fm.fileExists(atPath: writeURL.path) {
-                        try fm.removeItem(at: writeURL)
-                    }
-                    // Copy then remove work — move can fail across volumes / iCloud.
-                    try fm.copyItem(at: workURL, to: writeURL)
-                    try? fm.removeItem(at: workURL)
-                } catch {
-                    writeError = error
-                }
-            }
-            if let coordinatorError { throw coordinatorError }
-            if let writeError { throw writeError }
+            try promoteICloudWorkFile(workURL, to: finalURL)
             return
         }
 
-        if fm.fileExists(atPath: finalURL.path) {
-            try fm.removeItem(at: finalURL)
-        }
+        safeRemove(at: finalURL)
         try fm.moveItem(at: workURL, to: finalURL)
+    }
+
+    private static func promoteICloudWorkFile(_ workURL: URL, to finalURL: URL) throws {
+        let fm = FileManager.default
+        var coordinatorError: NSError?
+        var writeError: Error?
+        let coordinator = NSFileCoordinator()
+        coordinator.coordinate(
+            writingItemAt: finalURL,
+            options: .forReplacing,
+            error: &coordinatorError
+        ) { writeURL in
+            do {
+                safeRemove(at: writeURL)
+                // Copy then remove work — move can fail across volumes / iCloud.
+                try fm.copyItem(at: workURL, to: writeURL)
+                cleanupTemporaryFile(at: workURL)
+            } catch {
+                writeError = error
+            }
+        }
+        if let coordinatorError { throw coordinatorError }
+        if let writeError { throw writeError }
+    }
+
+    private static func cleanupTemporaryFile(at url: URL) {
+        do {
+            try FileManager.default.removeItem(at: url)
+            Log.shared.debug("Deleted temporary file: \(url.path)", scope: "cleaner")
+        } catch {
+            let nsError = error as NSError
+            if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileNoSuchFileError {
+                // Ignore if file doesn't exist anymore
+            } else {
+                Log.shared.error("Failed to delete temporary file: \(error.localizedDescription)", scope: "cleaner")
+            }
+        }
+    }
+
+    private static func safeRemove(at url: URL) {
+        do {
+            try FileManager.default.removeItem(at: url)
+        } catch {
+            let nsError = error as NSError
+            if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileNoSuchFileError {
+                // Ignore if file doesn't exist
+            } else {
+                Log.shared.warn("Could not safely remove file at \(url.path): \(error.localizedDescription)", scope: "cleaner")
+            }
+        }
     }
 
     private static func readMetadata(
