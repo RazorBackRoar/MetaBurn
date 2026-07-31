@@ -166,13 +166,13 @@ enum NativeImageIO {
 
     private static func fileSystemEntries(atPath path: String) -> [MetadataEntry] {
         var entries: [MetadataEntry] = []
-        if let attrs = try? FileManager.default.attributesOfItem(atPath: path),
-           let size = attrs[.size] as? NSNumber {
-            entries.append(MetadataEntry(group: "File", tag: "FileSize", value: byteString(size.int64Value)))
-        }
-        if let attrs = try? FileManager.default.attributesOfItem(atPath: path),
-           let date = attrs[.modificationDate] as? Date {
-            entries.append(MetadataEntry(group: "File", tag: "FileModifyDate", value: dateFormatter.string(from: date)))
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: path) {
+            if let size = attrs[.size] as? NSNumber {
+                entries.append(MetadataEntry(group: "File", tag: "FileSize", value: byteString(size.int64Value)))
+            }
+            if let date = attrs[.modificationDate] as? Date {
+                entries.append(MetadataEntry(group: "File", tag: "FileModifyDate", value: dateFormatter.string(from: date)))
+            }
         }
         return entries
     }

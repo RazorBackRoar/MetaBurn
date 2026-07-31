@@ -265,19 +265,18 @@ enum NativeVideoClean {
 
     private static func fileSystemEntries(atPath path: String) -> [MetadataEntry] {
         var entries: [MetadataEntry] = []
-        if let attrs = try? FileManager.default.attributesOfItem(atPath: path),
-           let size = attrs[.size] as? NSNumber {
-            entries.append(MetadataEntry(group: "File", tag: "FileSize", value: byteCountFormatter.string(fromByteCount: size.int64Value)))
-        }
-        if let attrs = try? FileManager.default.attributesOfItem(atPath: path),
-           let date = attrs[.modificationDate] as? Date {
-            entries.append(MetadataEntry(group: "File", tag: "FileModifyDate", value: dateFormatter.string(from: date)))
-        }
-        if let attrs = try? FileManager.default.attributesOfItem(atPath: path),
-           let date = attrs[.creationDate] as? Date {
-            let formattedDate = dateFormatter.string(from: date)
-            entries.append(MetadataEntry(group: "File", tag: "CreateDate", value: formattedDate))
-            entries.append(MetadataEntry(group: "QuickTime", tag: "CreationDate", value: formattedDate))
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: path) {
+            if let size = attrs[.size] as? NSNumber {
+                entries.append(MetadataEntry(group: "File", tag: "FileSize", value: byteCountFormatter.string(fromByteCount: size.int64Value)))
+            }
+            if let date = attrs[.modificationDate] as? Date {
+                entries.append(MetadataEntry(group: "File", tag: "FileModifyDate", value: dateFormatter.string(from: date)))
+            }
+            if let date = attrs[.creationDate] as? Date {
+                let formattedDate = dateFormatter.string(from: date)
+                entries.append(MetadataEntry(group: "File", tag: "CreateDate", value: formattedDate))
+                entries.append(MetadataEntry(group: "QuickTime", tag: "CreationDate", value: formattedDate))
+            }
         }
         return entries
     }
