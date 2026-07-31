@@ -158,6 +158,19 @@ enum NativeImageIO {
         SupportedTypes.isPhoto(filePath: filePath)
     }
 
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
+        return formatter
+    }()
+
+    private static let byteCountFormatter: ByteCountFormatter = {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        formatter.allowedUnits = [.useKB, .useMB, .useGB]
+        return formatter
+    }()
+
     private static func fileSystemEntries(atPath path: String) -> [MetadataEntry] {
         var entries: [MetadataEntry] = []
         if let attrs = try? FileManager.default.attributesOfItem(atPath: path),
@@ -166,9 +179,7 @@ enum NativeImageIO {
         }
         if let attrs = try? FileManager.default.attributesOfItem(atPath: path),
            let date = attrs[.modificationDate] as? Date {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
-            entries.append(MetadataEntry(group: "File", tag: "FileModifyDate", value: formatter.string(from: date)))
+            entries.append(MetadataEntry(group: "File", tag: "FileModifyDate", value: dateFormatter.string(from: date)))
         }
         return entries
     }
@@ -188,9 +199,6 @@ enum NativeImageIO {
     }
 
     private static func byteString(_ bytes: Int64) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        formatter.allowedUnits = [.useKB, .useMB, .useGB]
-        return formatter.string(fromByteCount: bytes)
+        return byteCountFormatter.string(fromByteCount: bytes)
     }
 }
