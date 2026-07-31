@@ -91,6 +91,11 @@ enum NativeVideoClean {
         }
     }
 
+    private struct GroupTag: Hashable {
+        let group: String
+        let tag: String
+    }
+
     /// Read display metadata without ExifTool (AVFoundation + filesystem).
     static func readEntries(atPath path: String) async -> [MetadataEntry] {
         var entries: [MetadataEntry] = fileSystemEntries(atPath: path)
@@ -118,6 +123,8 @@ enum NativeVideoClean {
                 entries.append(MetadataEntry(group: "Video", tag: "Duration", value: formatDuration(duration.seconds)))
             }
 
+            var seen = Set(entries.map { GroupTag(group: $0.group, tag: $0.tag) })
+
             let metadata = try await asset.load(.metadata)
             for item in metadata {
                 guard let value = try? await item.load(.stringValue),
@@ -125,7 +132,7 @@ enum NativeVideoClean {
                 let key = (item.commonKey?.rawValue ?? item.identifier?.rawValue ?? "Meta").trimmingCharacters(in: .whitespaces)
                 let tag = friendlyTag(for: key)
                 let group = groupFor(key: key)
-                if !entries.contains(where: { $0.group == group && $0.tag == tag }) {
+                if seen.insert(GroupTag(group: group, tag: tag)).inserted {
                     entries.append(MetadataEntry(group: group, tag: tag, value: value))
                 }
             }
@@ -140,7 +147,7 @@ enum NativeVideoClean {
                     let key = (item.commonKey?.rawValue ?? item.identifier?.rawValue ?? "Meta")
                     let tag = friendlyTag(for: key)
                     let group = groupFor(key: key)
-                    if !entries.contains(where: { $0.group == group && $0.tag == tag }) {
+                    if seen.insert(GroupTag(group: group, tag: tag)).inserted {
                         entries.append(MetadataEntry(group: group, tag: tag, value: value))
                     }
                 }
