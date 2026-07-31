@@ -32,7 +32,7 @@ let package = Package(
         ),
         .testTarget(
             name: "MetaBurnTests",
-            dependencies: ["MetaBurnCore"],
+            dependencies: ["MetaBurnCore", "MetaBurn"],
             path: "Tests/MetaBurnTests",
             swiftSettings: [.swiftLanguageMode(.v5)]
         )
