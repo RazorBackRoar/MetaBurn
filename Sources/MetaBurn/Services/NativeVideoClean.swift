@@ -228,25 +228,24 @@ enum NativeVideoClean {
 
     private static func fileSystemEntries(atPath path: String) -> [MetadataEntry] {
         var entries: [MetadataEntry] = []
-        if let attrs = try? FileManager.default.attributesOfItem(atPath: path),
-           let size = attrs[.size] as? NSNumber {
-            let formatter = ByteCountFormatter()
-            formatter.countStyle = .file
-            formatter.allowedUnits = [.useKB, .useMB, .useGB]
-            entries.append(MetadataEntry(group: "File", tag: "FileSize", value: formatter.string(fromByteCount: size.int64Value)))
-        }
-        if let attrs = try? FileManager.default.attributesOfItem(atPath: path),
-           let date = attrs[.modificationDate] as? Date {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
-            entries.append(MetadataEntry(group: "File", tag: "FileModifyDate", value: formatter.string(from: date)))
-        }
-        if let attrs = try? FileManager.default.attributesOfItem(atPath: path),
-           let date = attrs[.creationDate] as? Date {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
-            entries.append(MetadataEntry(group: "File", tag: "CreateDate", value: formatter.string(from: date)))
-            entries.append(MetadataEntry(group: "QuickTime", tag: "CreationDate", value: formatter.string(from: date)))
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: path) {
+            if let size = attrs[.size] as? NSNumber {
+                let formatter = ByteCountFormatter()
+                formatter.countStyle = .file
+                formatter.allowedUnits = [.useKB, .useMB, .useGB]
+                entries.append(MetadataEntry(group: "File", tag: "FileSize", value: formatter.string(fromByteCount: size.int64Value)))
+            }
+            if let date = attrs[.modificationDate] as? Date {
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
+                entries.append(MetadataEntry(group: "File", tag: "FileModifyDate", value: formatter.string(from: date)))
+            }
+            if let date = attrs[.creationDate] as? Date {
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
+                entries.append(MetadataEntry(group: "File", tag: "CreateDate", value: formatter.string(from: date)))
+                entries.append(MetadataEntry(group: "QuickTime", tag: "CreationDate", value: formatter.string(from: date)))
+            }
         }
         return entries
     }
