@@ -29,8 +29,12 @@ final class Updates {
         request.setValue(Brand.githubRepo + "-update-checker/1.0", forHTTPHeaderField: "User-Agent")
         request.setValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
 
+        let sessionDelegate = GithubPinningDelegate()
+        let session = URLSession(configuration: .default, delegate: sessionDelegate, delegateQueue: nil)
+        defer { session.finishTasksAndInvalidate() }
+
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse, http.statusCode < 400 else {
                 return UpdateResult(
                     currentVersion: currentVersion,
