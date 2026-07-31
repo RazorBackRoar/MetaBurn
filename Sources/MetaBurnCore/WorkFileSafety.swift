@@ -22,12 +22,10 @@ public enum WorkFileSafety: Sendable {
     @discardableResult
     public static func stripStallingXattrs(atPath path: String) -> [String] {
         guard !path.isEmpty else { return [] }
-        let url = URL(fileURLWithPath: path)
         var removed: [String] = []
         for name in stallingXattrNames {
-            let result = url.withUnsafeFileSystemRepresentation { pathPtr in
-                guard let pathPtr else { return -1 }
-                return name.withCString { namePtr in
+            let result = path.withCString { pathPtr in
+                name.withCString { namePtr in
                     removexattr(pathPtr, namePtr, 0)
                 }
             }
