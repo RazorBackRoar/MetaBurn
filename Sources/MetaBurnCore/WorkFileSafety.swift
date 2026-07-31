@@ -21,10 +21,13 @@ public enum WorkFileSafety: Sendable {
     /// Remove quarantine / MACL / FinderInfo from a work copy before ExifTool touches it.
     @discardableResult
     public static func stripStallingXattrs(atPath path: String) -> [String] {
+        guard !path.isEmpty else { return [] }
+        let url = URL(fileURLWithPath: path)
         var removed: [String] = []
         for name in stallingXattrNames {
-            let result = path.withCString { pathPtr in
-                name.withCString { namePtr in
+            let result = url.withUnsafeFileSystemRepresentation { pathPtr in
+                guard let pathPtr else { return -1 }
+                return name.withCString { namePtr in
                     removexattr(pathPtr, namePtr, 0)
                 }
             }
@@ -37,8 +40,11 @@ public enum WorkFileSafety: Sendable {
 
     /// Whether the named xattr is currently present on `path`.
     public static func hasXattr(atPath path: String, name: String) -> Bool {
-        path.withCString { pathPtr in
-            name.withCString { namePtr in
+        guard !path.isEmpty else { return false }
+        let url = URL(fileURLWithPath: path)
+        return url.withUnsafeFileSystemRepresentation { pathPtr in
+            guard let pathPtr else { return false }
+            return name.withCString { namePtr in
                 getxattr(pathPtr, namePtr, nil, 0, 0, 0) >= 0
             }
         }
@@ -47,9 +53,12 @@ public enum WorkFileSafety: Sendable {
     /// Set a string xattr (tests / diagnostics). Returns false on failure.
     @discardableResult
     public static func setXattr(atPath path: String, name: String, value: String) -> Bool {
-        value.withCString { valuePtr in
-            path.withCString { pathPtr in
-                name.withCString { namePtr in
+        guard !path.isEmpty else { return false }
+        let url = URL(fileURLWithPath: path)
+        return value.withCString { valuePtr in
+            url.withUnsafeFileSystemRepresentation { pathPtr in
+                guard let pathPtr else { return false }
+                return name.withCString { namePtr in
                     setxattr(pathPtr, namePtr, valuePtr, strlen(valuePtr), 0, 0) == 0
                 }
             }
