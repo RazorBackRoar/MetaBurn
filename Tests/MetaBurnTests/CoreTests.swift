@@ -46,6 +46,31 @@ struct SupportedTypesTests {
             #expect(SupportedTypes.skipReason(filePath: path) != nil)
         }
     }
+
+    @Test("isSupported returns true for processable types and false for unsupported types")
+    func isSupportedCheck() {
+        #expect(SupportedTypes.isSupported(filePath: "photo.jpg"))
+        #expect(SupportedTypes.isSupported(filePath: "clip.mp4"))
+        #expect(SupportedTypes.isSupported(filePath: "clip.mkv")) // Supported as video, though non-writable
+        #expect(!SupportedTypes.isSupported(filePath: "anim.gif"))
+        #expect(!SupportedTypes.isSupported(filePath: "doc.txt"))
+    }
+
+    @Test("isVideo returns true for video types")
+    func isVideoCheck() {
+        #expect(SupportedTypes.isVideo(filePath: "clip.mov"))
+        #expect(SupportedTypes.isVideo(filePath: "clip.mkv")) // It is a video, just non-writable
+        #expect(!SupportedTypes.isVideo(filePath: "photo.jpg"))
+        #expect(!SupportedTypes.isVideo(filePath: "doc.txt"))
+    }
+
+    @Test("isPhoto returns true for photo types")
+    func isPhotoCheck() {
+        #expect(SupportedTypes.isPhoto(filePath: "photo.jpg"))
+        #expect(SupportedTypes.isPhoto(filePath: "photo.HEIC"))
+        #expect(!SupportedTypes.isPhoto(filePath: "clip.mov"))
+        #expect(!SupportedTypes.isPhoto(filePath: "doc.txt"))
+    }
 }
 
 @Suite("HeicRules")
