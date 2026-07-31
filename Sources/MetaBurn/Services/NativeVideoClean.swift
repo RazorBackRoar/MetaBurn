@@ -165,6 +165,24 @@ enum NativeVideoClean {
         }
     }
 
+    private static func makeExportSession(
+        asset: AVAsset,
+        presetName: String,
+        outputURL: URL,
+        fileType: AVFileType
+    ) -> AVAssetExportSession? {
+        guard let session = AVAssetExportSession(asset: asset, presetName: presetName) else {
+            return nil
+        }
+        session.outputURL = outputURL
+        session.outputFileType = fileType
+        session.shouldOptimizeForNetworkUse = false
+        // Drop identifying / location / creation metadata from the remuxed file.
+        session.metadata = []
+        session.metadataItemFilter = .forSharing()
+        return session
+    }
+
     private static func exportStripped(
         composition: AVMutableComposition,
         to outputURL: URL,
@@ -173,18 +191,17 @@ enum NativeVideoClean {
         let presets = [AVAssetExportPresetPassthrough, AVAssetExportPresetHighestQuality]
         var lastError = "export failed"
         for preset in presets {
-            guard let session = AVAssetExportSession(asset: composition, presetName: preset) else {
-                continue
-            }
             if FileManager.default.fileExists(atPath: outputURL.path) {
                 try? FileManager.default.removeItem(at: outputURL)
             }
-            session.outputURL = outputURL
-            session.outputFileType = fileType
-            session.shouldOptimizeForNetworkUse = false
-            // Drop identifying / location / creation metadata from the remuxed file.
-            session.metadata = []
-            session.metadataItemFilter = .forSharing()
+            guard let session = makeExportSession(
+                asset: composition,
+                presetName: preset,
+                outputURL: outputURL,
+                fileType: fileType
+            ) else {
+                continue
+            }
 
             do {
                 let canceller = ExportCanceller(session)
