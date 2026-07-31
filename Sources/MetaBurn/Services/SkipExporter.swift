@@ -65,25 +65,33 @@ enum SkipExporter {
                 }
             }
 
-            let summaryURL = folder.appendingPathComponent(OutputNaming.skippedSummaryFileName)
             // Per-folder summary lists only that folder's entries; also write a combined note if multiple.
-            let body = SkipSummary.document(entries: entries)
-            try body.write(to: summaryURL, atomically: true, encoding: .utf8)
+            let summaryURL = try writeSummary(entries: entries, in: folder)
             if primarySummary == nil { primarySummary = summaryURL }
         }
 
         // When multiple adjacent folders exist, also write a combined summary under the first folder.
         if groups.count > 1, let primaryFolder {
-            let combined = primaryFolder.appendingPathComponent(OutputNaming.skippedSummaryFileName)
-            let body = SkipSummary.document(entries: skipped)
-            try body.write(to: combined, atomically: true, encoding: .utf8)
-            primarySummary = combined
+            primarySummary = try writeSummary(entries: skipped, in: primaryFolder)
         }
 
         let folderURL = primaryFolder ?? lastFolder ?? Paths.skippableOutputDirectory()
         let summaryURL = primarySummary
             ?? folderURL.appendingPathComponent(OutputNaming.skippedSummaryFileName)
         return Result(copiedCount: copied, summaryURL: summaryURL, folderURL: folderURL)
+    }
+
+    private static func writeSummary(entries: [(path: String, reason: String)], in folder: URL) throws -> URL {
+        let summaryURL = folder.appendingPathComponent(OutputNaming.skippedSummaryFileName)
+        let body = SkipSummary.document(entries: entries)
+        do {
+            try body.write(to: summaryURL, atomically: true, encoding: .utf8)
+            Log.shared.info("Wrote skip summary to: \(summaryURL.path)", scope: "skipExporter")
+        } catch {
+            Log.shared.error("Failed to write skip summary: \(error.localizedDescription)", scope: "skipExporter")
+            throw error
+        }
+        return summaryURL
     }
 
     /// SkipExporter is sync-throwing; bridge materialize with a short coordinated copy.
