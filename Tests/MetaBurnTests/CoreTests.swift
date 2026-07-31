@@ -46,6 +46,19 @@ struct SupportedTypesTests {
             #expect(SupportedTypes.skipReason(filePath: path) != nil)
         }
     }
+
+    @Test("isSupported returns true for supported formats, false otherwise")
+    func isSupported() {
+        #expect(SupportedTypes.isSupported(filePath: "photo.jpg"))
+        #expect(SupportedTypes.isSupported(filePath: "photo.png"))
+        #expect(SupportedTypes.isSupported(filePath: "clip.mov"))
+        #expect(SupportedTypes.isSupported(filePath: "clip.mp4"))
+
+        #expect(!SupportedTypes.isSupported(filePath: "anim.gif"))
+        #expect(!SupportedTypes.isSupported(filePath: "clip.webm"))
+        #expect(!SupportedTypes.isSupported(filePath: "notes.txt"))
+        #expect(!SupportedTypes.isSupported(filePath: "noextension"))
+    }
 }
 
 @Suite("HeicRules")
