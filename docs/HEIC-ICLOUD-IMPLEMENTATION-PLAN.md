@@ -1,8 +1,8 @@
 # MetaBurn Development Plan — HEIC→JPEG + iCloud Drive
 
-**Status:** Research complete · ready for phased implementation  
-**App version baseline:** 2.0.0 (`Sources/MetaBurn/Resources/version.json`)  
-**Source of truth for current behavior:** `AGENTS.md`, `MetadataCleaner`, `NativeImageIO`, `Paths`, `Scanner`  
+**Status:** Implemented in MetaBurn 2.1.0 — kept as architecture reference  
+**App version baseline:** 2.1.0 (`Sources/MetaBurn/Resources/version.json`)  
+**Current developer map:** [docs/ARCHITECTURE.md](ARCHITECTURE.md), `AGENTS.md`  
 **Date:** 2026-07-30
 
 ---

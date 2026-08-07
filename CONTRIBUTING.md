@@ -33,6 +33,17 @@ workspace, `razor-autosync` may commit locally; publishing uses
 See [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) for prerequisites, build,
 packaging, and release steps for this repository.
 
+Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Testing
+
+```bash
+swift test   # requires full Xcode.app (Swift Testing)
+```
+
+Tests live in `Tests/MetaBurnTests/` — primarily `MetaBurnCore` rules plus app
+layer tests such as `PathsTests`.
+
 ## Pull Requests
 
 - Describe **why** the change is needed.
