@@ -65,7 +65,6 @@ enum MetadataCleaner {
         }
         let workURL = Paths.workURL(forFinal: finalURL)
         let workPath = workURL.path
-        let fm = FileManager.default
 
         var promoted = false
         defer {

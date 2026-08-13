@@ -106,6 +106,7 @@ cleaned copies you intend to publish.
 
 ## Related Docs
 
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - [README.md](README.md)
 - [CONTRIBUTING.md](CONTRIBUTING.md)
 - [SECURITY.md](SECURITY.md)

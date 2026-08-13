@@ -87,7 +87,9 @@ final class TaskRunner: ObservableObject {
         }
 
         Log.shared.info("Starting job \(jobId) for \(droppedPaths.count) dropped path(s)", scope: "taskRunner")
-        Paths.cleanupOrphanWorkFiles()
+        await Task.detached {
+            Paths.cleanupOrphanWorkFiles()
+        }.value
 
         do {
             await setState(.scanning)
