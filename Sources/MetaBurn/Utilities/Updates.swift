@@ -11,10 +11,10 @@ struct UpdateResult {
 }
 
 final class Updates {
-    private static let cacheDuration: TimeInterval = 3600
-    private static let userAgent = "metaburn-update-checker/1.0"
+    static let cacheDuration: TimeInterval = 3600
+    static let userAgent = "metaburn-update-checker/1.0"
 
-    private static func cacheURL() -> URL {
+    static func cacheURL() -> URL {
         Paths.ensureCacheDirectory()
         return Paths.cacheDirectory().appendingPathComponent("update_check.json")
     }
@@ -76,7 +76,7 @@ final class Updates {
         }
     }
 
-    private static func readCache(currentVersion: String) -> UpdateResult? {
+    static func readCache(currentVersion: String) -> UpdateResult? {
         let url = cacheURL()
         guard let data = try? Data(contentsOf: url),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -84,18 +84,22 @@ final class Updates {
               Date().timeIntervalSince1970 - timestamp < cacheDuration,
               let latest = json["latest_version"] as? String else { return nil }
 
+        let downloadURL = (json["download_url"] is NSNull) ? nil : (json["download_url"] as? String)
+        let releaseNotes = (json["release_notes"] is NSNull) ? nil : (json["release_notes"] as? String)
+        let releaseDate = (json["release_date"] is NSNull) ? nil : (json["release_date"] as? String)
+
         return UpdateResult(
             currentVersion: currentVersion,
             latestVersion: latest,
             updateAvailable: compareVersions(currentVersion, latest) < 0,
-            downloadURL: json["download_url"] as? String,
-            releaseNotes: json["release_notes"] as? String,
-            releaseDate: json["release_date"] as? String,
+            downloadURL: downloadURL,
+            releaseNotes: releaseNotes,
+            releaseDate: releaseDate,
             error: nil
         )
     }
 
-    private static func writeCache(latestVersion: String, downloadURL: String?, releaseNotes: String?, releaseDate: String?) {
+    static func writeCache(latestVersion: String, downloadURL: String?, releaseNotes: String?, releaseDate: String?) {
         let payload: [String: Any] = [
             "timestamp": Date().timeIntervalSince1970,
             "latest_version": latestVersion,
