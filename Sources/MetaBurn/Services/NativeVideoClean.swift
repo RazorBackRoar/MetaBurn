@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import MetaBurnCore
 
 /// Native AVFoundation video clean: strip container metadata and optionally omit all audio.
 /// Replaces the file at `path`. Passthrough remux when possible (no quality loss).
@@ -18,7 +19,7 @@ enum NativeVideoClean {
         }
 
         let tempURL = sourceURL.deletingLastPathComponent()
-            .appendingPathComponent(".\(UUID().uuidString).metaburn.video.tmp.\(ext)")
+            .appendingPathComponent(".\(SecureRandom.hexString()).metaburn.video.tmp.\(ext)")
         let fm = FileManager.default
         var replaced = false
         defer {
