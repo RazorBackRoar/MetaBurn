@@ -30,7 +30,7 @@ final class Updates {
         request.setValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
 
         let sessionDelegate = GithubPinningDelegate()
-        let session = URLSession(configuration: .default, delegate: sessionDelegate, delegateQueue: nil)
+        let session = URLSession(configuration: .ephemeral, delegate: sessionDelegate, delegateQueue: nil)
         defer { session.finishTasksAndInvalidate() }
 
         do {
