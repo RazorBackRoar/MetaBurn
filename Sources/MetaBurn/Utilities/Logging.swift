@@ -6,6 +6,8 @@ import os.log
 final class Log {
     static let shared = Log()
 
+    private static let dateFormatter = ISO8601DateFormatter()
+
     private let fileURL: URL
     private let osLog = Logger(subsystem: Brand.appId, category: "app")
     private var hasSetup = false
@@ -20,7 +22,7 @@ final class Log {
     }
 
     private func write(level: String, message: String, scope: String) {
-        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let timestamp = Log.dateFormatter.string(from: Date())
         let line = "[\(timestamp)] [\(level.uppercased())] [\(scope)] \(message)"
         osLog.log(level: level, "\(line)")
 
