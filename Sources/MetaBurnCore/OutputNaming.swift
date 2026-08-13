@@ -39,13 +39,13 @@ public enum OutputNaming: Sendable {
     }
 
     /// Work-file name for a final destination (kept out of the Desktop output folder by Paths).
-    public static func workFileName(forFinal finalURL: URL, uuid: String = UUID().uuidString) -> String {
+    public static func workFileName(forFinal finalURL: URL, uuid: String = SecureRandom.hexString()) -> String {
         let ext = finalURL.pathExtension
         return ext.isEmpty ? "\(uuid).\(workFileMarker)" : "\(uuid).\(workFileMarker).\(ext)"
     }
 
     /// Hidden sibling work file next to the final path (legacy layout; prefer cache-based Paths.workURL).
-    public static func workURL(forFinal finalURL: URL, uuid: String = UUID().uuidString) -> URL {
+    public static func workURL(forFinal finalURL: URL, uuid: String = SecureRandom.hexString()) -> URL {
         let name = workFileName(forFinal: finalURL, uuid: uuid)
         return finalURL.deletingLastPathComponent().appendingPathComponent(".\(name)")
     }
@@ -54,7 +54,7 @@ public enum OutputNaming: Sendable {
     public static func workURL(
         in directory: URL,
         forFinal finalURL: URL,
-        uuid: String = UUID().uuidString
+        uuid: String = SecureRandom.hexString()
     ) -> URL {
         directory.appendingPathComponent(workFileName(forFinal: finalURL, uuid: uuid))
     }
