@@ -191,10 +191,14 @@ enum NativeImageIO {
         return nil
     }
 
-    private static func byteString(_ bytes: Int64) -> String {
+    @preconcurrency private static let byteCountFormatter: ByteCountFormatter = {
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
         formatter.allowedUnits = [.useKB, .useMB, .useGB]
-        return formatter.string(fromByteCount: bytes)
+        return formatter
+    }()
+
+    private static func byteString(_ bytes: Int64) -> String {
+        return byteCountFormatter.string(fromByteCount: bytes)
     }
 }
