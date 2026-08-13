@@ -128,12 +128,12 @@ Jules reads this repository-root `AGENTS.md` when it clones the repository. Pare
 - The repository's GitHub macOS `quality` workflow is authoritative for merge readiness.
 - Daily audits must inspect existing open and recently closed PRs before proposing work, avoid duplicates, and open at most one focused PR per task.
 - `sentinel-*` security, `bolt-*` performance, and `palette-*` design branches always require human review.
-- `routine-*` is reserved for the narrow low-risk test/documentation/template allowlist enforced by CI.
+- Jules PRs are merged by the owner. There is no auto-merge workflow.
 - PR descriptions must list changed files, risk, verification commands and results, benchmark evidence when relevant, and unverified paths.
 - Never auto-merge runtime, dependency, lockfile, workflow, packaging, release, privacy, file-operation, or user-data changes.
 
 ## Automated Agent & Jules Integration Guidelines
-- **Jules PR Review**: `sentinel-`, `bolt-`, and `palette-` PRs require human review; only `routine-` PRs inside the workflow allowlist may auto-merge after `quality` passes.
+- **Jules PR Review**: all Jules PRs require the owner to merge; there is no auto-merge workflow.
 - **No Duplicate Issue/PR Reopening**: Jules subagents must verify existing closed and open PRs before proposing repetitive fixes or contact info updates.
 - **Branch Cleanup**: Head branches are deleted automatically upon squash-merge.
 
