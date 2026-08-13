@@ -1,19 +1,51 @@
 import Foundation
 import os.log
 
+/// Handles asynchronous file writing for logs to avoid blocking the main thread.
+private actor AsyncFileLogger {
+    private let fileURL: URL
+    private var fileHandle: FileHandle?
+
+    init(fileURL: URL) {
+        self.fileURL = fileURL
+    }
+
+    func write(_ data: Data) {
+        if fileHandle == nil {
+            Paths.ensureLogsDirectory()
+            if !FileManager.default.fileExists(atPath: fileURL.path) {
+                FileManager.default.createFile(atPath: fileURL.path, contents: nil, attributes: nil)
+            }
+            do {
+                fileHandle = try FileHandle(forWritingTo: fileURL)
+                fileHandle?.seekToEndOfFile()
+            } catch {
+                return
+            }
+        }
+
+        fileHandle?.write(data)
+    }
+
+    deinit {
+        try? fileHandle?.close()
+    }
+}
+
 /// Unified console + file logger.
 @MainActor
 final class Log {
     static let shared = Log()
 
-    private let fileURL: URL
     private let osLog = Logger(subsystem: Brand.appId, category: "app")
+    private let fileLogger: AsyncFileLogger
     private var hasSetup = false
     @preconcurrency private static let dateFormatter = ISO8601DateFormatter()
 
     private init() {
         Paths.ensureLogsDirectory()
-        fileURL = Paths.logsDirectory().appendingPathComponent("metaburn.log")
+        let logURL = Paths.logsDirectory().appendingPathComponent("metaburn.log")
+        self.fileLogger = AsyncFileLogger(fileURL: logURL)
     }
 
     func setup() {
@@ -26,16 +58,9 @@ final class Log {
         osLog.log(level: level, "\(line)")
 
         guard hasSetup else { return }
-        Paths.ensureLogsDirectory()
         if let data = (line + "\n").data(using: .utf8) {
-            if FileManager.default.fileExists(atPath: fileURL.path) {
-                if let handle = try? FileHandle(forWritingTo: fileURL) {
-                    handle.seekToEndOfFile()
-                    handle.write(data)
-                    try? handle.close()
-                }
-            } else {
-                try? data.write(to: fileURL, options: .atomic)
+            Task.detached { [fileLogger] in
+                await fileLogger.write(data)
             }
         }
     }
