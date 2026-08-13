@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import MetaBurn
 
-@Suite("Updates")
+@Suite("Updates", .serialized)
 struct UpdatesTests {
 
     @Test("compareVersions correctly compares equal versions")
@@ -52,13 +52,15 @@ struct UpdatesTests {
         let result = Updates.readCache(currentVersion: currentVersion)
 
         #expect(result != nil)
-        #expect(result?.currentVersion == currentVersion)
-        #expect(result?.latestVersion == latestVersion)
-        #expect(result?.updateAvailable == true)
-        #expect(result?.downloadURL == downloadURL)
-        #expect(result?.releaseNotes == releaseNotes)
-        #expect(result?.releaseDate == releaseDate)
-        #expect(result?.error == nil)
+        if let res = result {
+            #expect(res.currentVersion == currentVersion)
+            #expect(res.latestVersion == latestVersion)
+            #expect(res.updateAvailable == true)
+            #expect(res.downloadURL == downloadURL)
+            #expect(res.releaseNotes == releaseNotes)
+            #expect(res.releaseDate == releaseDate)
+            #expect(res.error == nil)
+        }
 
         // Clean up
         try? FileManager.default.removeItem(at: url)

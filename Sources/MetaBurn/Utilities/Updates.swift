@@ -84,13 +84,17 @@ final class Updates {
               Date().timeIntervalSince1970 - timestamp < cacheDuration,
               let latest = json["latest_version"] as? String else { return nil }
 
+        let downloadURL = (json["download_url"] is NSNull) ? nil : (json["download_url"] as? String)
+        let releaseNotes = (json["release_notes"] is NSNull) ? nil : (json["release_notes"] as? String)
+        let releaseDate = (json["release_date"] is NSNull) ? nil : (json["release_date"] as? String)
+
         return UpdateResult(
             currentVersion: currentVersion,
             latestVersion: latest,
             updateAvailable: compareVersions(currentVersion, latest) < 0,
-            downloadURL: json["download_url"] as? String,
-            releaseNotes: json["release_notes"] as? String,
-            releaseDate: json["release_date"] as? String,
+            downloadURL: downloadURL,
+            releaseNotes: releaseNotes,
+            releaseDate: releaseDate,
             error: nil
         )
     }
