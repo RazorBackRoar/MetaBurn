@@ -1,6 +1,37 @@
 import Foundation
 import os.log
 
+/// Handles asynchronous file writing for logs to avoid blocking the main thread.
+private actor AsyncFileLogger {
+    private let fileURL: URL
+    private var fileHandle: FileHandle?
+
+    init(fileURL: URL) {
+        self.fileURL = fileURL
+    }
+
+    func write(_ data: Data) {
+        if fileHandle == nil {
+            if !FileManager.default.fileExists(atPath: fileURL.path) {
+                FileManager.default.createFile(atPath: fileURL.path, contents: nil, attributes: nil)
+            }
+            do {
+                fileHandle = try FileHandle(forWritingTo: fileURL)
+                fileHandle?.seekToEndOfFile()
+            } catch {
+                // If we can't open the file handle, just return.
+                return
+            }
+        }
+
+        fileHandle?.write(data)
+    }
+
+    deinit {
+        try? fileHandle?.close()
+    }
+}
+
 /// Unified console + file logger.
 @MainActor
 final class Log {
@@ -8,11 +39,16 @@ final class Log {
 
     private let fileURL: URL
     private let osLog = Logger(subsystem: Brand.appId, category: "app")
+    private let dateFormatter: ISO8601DateFormatter
+    private let fileLogger: AsyncFileLogger
     private var hasSetup = false
 
     private init() {
         Paths.ensureLogsDirectory()
-        fileURL = Paths.logsDirectory().appendingPathComponent("metaburn.log")
+        let logURL = Paths.logsDirectory().appendingPathComponent("metaburn.log")
+        self.fileURL = logURL
+        self.dateFormatter = ISO8601DateFormatter()
+        self.fileLogger = AsyncFileLogger(fileURL: logURL)
     }
 
     func setup() {
@@ -20,21 +56,15 @@ final class Log {
     }
 
     private func write(level: String, message: String, scope: String) {
-        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let timestamp = dateFormatter.string(from: Date())
         let line = "[\(timestamp)] [\(level.uppercased())] [\(scope)] \(message)"
         osLog.log(level: level, "\(line)")
 
         guard hasSetup else { return }
-        Paths.ensureLogsDirectory()
+
         if let data = (line + "\n").data(using: .utf8) {
-            if FileManager.default.fileExists(atPath: fileURL.path) {
-                if let handle = try? FileHandle(forWritingTo: fileURL) {
-                    handle.seekToEndOfFile()
-                    handle.write(data)
-                    try? handle.close()
-                }
-            } else {
-                try? data.write(to: fileURL, options: .atomic)
+            Task.detached { [fileLogger] in
+                await fileLogger.write(data)
             }
         }
     }
