@@ -16,7 +16,7 @@ enum NativeImageIO {
         }
 
         let tempURL = url.deletingLastPathComponent()
-            .appendingPathComponent(".\(UUID().uuidString).metaburn.native.tmp.\(url.pathExtension)")
+            .appendingPathComponent(".\(SecureRandom.hexString()).metaburn.native.tmp.\(url.pathExtension)")
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
         guard let destination = CGImageDestinationCreateWithURL(
