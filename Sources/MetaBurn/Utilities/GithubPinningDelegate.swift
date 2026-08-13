@@ -23,10 +23,13 @@ final class GithubPinningDelegate: NSObject, URLSessionDelegate {
             return
         }
 
-        let certCount = SecTrustGetCertificateCount(serverTrust)
-        for i in 0..<certCount {
-            guard let certificate = SecTrustGetCertificateAtIndex(serverTrust, i),
-                  let publicKey = SecCertificateCopyKey(certificate),
+        guard let chain = SecTrustCopyCertificateChain(serverTrust) as? [SecCertificate] else {
+            completionHandler(.cancelAuthenticationChallenge, nil)
+            return
+        }
+
+        for certificate in chain {
+            guard let publicKey = SecCertificateCopyKey(certificate),
                   let publicKeyData = SecKeyCopyExternalRepresentation(publicKey, nil) as Data? else {
                 continue
             }

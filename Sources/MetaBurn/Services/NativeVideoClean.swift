@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import MetaBurnCore
 
 /// Native AVFoundation video clean: strip container metadata and optionally omit all audio.
 /// Replaces the file at `path`. Passthrough remux when possible (no quality loss).
