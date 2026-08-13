@@ -45,8 +45,23 @@ Requires macOS on Apple Silicon.
 
 1. Open **MetaBurn**
 2. Drop photos and/or videos onto the window (mixed batches are fine)
-3. Find cleaned copies in `~/Desktop/MetaBurn/Photos` and `~/Desktop/MetaBurn/Videos` (or next to originals if chosen in Settings)
+3. Find cleaned copies in `~/Desktop/MetaBurn/Photos`, `Videos`, and `Skippable`
+   (or `<source>/MetaBurn/{Photos,Videos,Skippable}` when Settings → Output is
+   adjacent)
 4. Enable mute when you also want audio removed from video copies
+
+Unsupported files (GIF, WebM, AVI, MKV, etc.) land in `Skippable/` with a
+`skipped-summary.txt` when applicable.
+
+## Supported formats
+
+| Category | Extensions |
+|----------|------------|
+| Photos | jpg, jpeg, png, heic, heif, webp, tiff, bmp, jp2 |
+| Videos | mov, mp4, m4v |
+| Skippable | gif, webm, avi, mkv, and other unsupported types |
+
+Duplicate output names use zero-padded suffixes (`photo-001.jpg`, not `-1`).
 
 ## Development
 
@@ -66,6 +81,7 @@ Package a macOS `.app` + DMG (ad-hoc signed) **inside this repo**:
 
 ## Docs
 
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — MetaBurnCore vs app layers, services
 - [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md)
 - [docs/HEIC-ICLOUD-IMPLEMENTATION-PLAN.md](docs/HEIC-ICLOUD-IMPLEMENTATION-PLAN.md)
 - [CONTRIBUTING.md](CONTRIBUTING.md)
