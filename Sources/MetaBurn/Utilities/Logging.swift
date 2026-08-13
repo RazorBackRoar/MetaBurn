@@ -12,6 +12,7 @@ private actor AsyncFileLogger {
 
     func write(_ data: Data) {
         if fileHandle == nil {
+            Paths.ensureLogsDirectory()
             if !FileManager.default.fileExists(atPath: fileURL.path) {
                 FileManager.default.createFile(atPath: fileURL.path, contents: nil, attributes: nil)
             }
@@ -19,7 +20,6 @@ private actor AsyncFileLogger {
                 fileHandle = try FileHandle(forWritingTo: fileURL)
                 fileHandle?.seekToEndOfFile()
             } catch {
-                // If we can't open the file handle, just return.
                 return
             }
         }
@@ -37,17 +37,14 @@ private actor AsyncFileLogger {
 final class Log {
     static let shared = Log()
 
-    private let fileURL: URL
     private let osLog = Logger(subsystem: Brand.appId, category: "app")
-    private let dateFormatter: ISO8601DateFormatter
     private let fileLogger: AsyncFileLogger
     private var hasSetup = false
+    @preconcurrency private static let dateFormatter = ISO8601DateFormatter()
 
     private init() {
         Paths.ensureLogsDirectory()
         let logURL = Paths.logsDirectory().appendingPathComponent("metaburn.log")
-        self.fileURL = logURL
-        self.dateFormatter = ISO8601DateFormatter()
         self.fileLogger = AsyncFileLogger(fileURL: logURL)
     }
 
@@ -56,12 +53,11 @@ final class Log {
     }
 
     private func write(level: String, message: String, scope: String) {
-        let timestamp = dateFormatter.string(from: Date())
+        let timestamp = Self.dateFormatter.string(from: Date())
         let line = "[\(timestamp)] [\(level.uppercased())] [\(scope)] \(message)"
         osLog.log(level: level, "\(line)")
 
         guard hasSetup else { return }
-
         if let data = (line + "\n").data(using: .utf8) {
             Task.detached { [fileLogger] in
                 await fileLogger.write(data)

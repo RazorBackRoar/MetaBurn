@@ -7,13 +7,15 @@ public enum SkipSummary: Sendable {
         return "\(index). \(name) - \(reason)"
     }
 
+    @preconcurrency private static let dateFormatter = ISO8601DateFormatter()
+
     public static func document(entries: [(path: String, reason: String)]) -> String {
         guard !entries.isEmpty else {
             return "No files were skipped.\n"
         }
         var lines: [String] = [
             "MetaBurn skipped-file summary",
-            "Generated: \(ISO8601DateFormatter().string(from: Date()))",
+            "Generated: \(dateFormatter.string(from: Date()))",
             "Count: \(entries.count)",
             ""
         ]
