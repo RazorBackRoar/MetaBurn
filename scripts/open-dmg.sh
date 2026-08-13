@@ -2,7 +2,7 @@
 # Optional: open MetaBurn.dmg exactly once with the locked Finder layout.
 # Default rebuild policy (Apps/AGENTS.md): copy DMG to Desktop and STOP — do NOT call
 # this unless the user explicitly asks to open/mount the DMG.
-# Avoids the double-window bug from `open foo.dmg` + AppleScript `open disk`.
+# Prevents opening two windows (which happens with `open foo.dmg` + AppleScript `open disk`).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
