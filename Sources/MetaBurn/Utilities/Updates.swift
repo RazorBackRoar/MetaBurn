@@ -11,10 +11,10 @@ struct UpdateResult {
 }
 
 final class Updates {
-    private static let cacheDuration: TimeInterval = 3600
-    private static let userAgent = "metaburn-update-checker/1.0"
+    static let cacheDuration: TimeInterval = 3600
+    static let userAgent = "metaburn-update-checker/1.0"
 
-    private static func cacheURL() -> URL {
+    static func cacheURL() -> URL {
         Paths.ensureCacheDirectory()
         return Paths.cacheDirectory().appendingPathComponent("update_check.json")
     }
@@ -76,7 +76,7 @@ final class Updates {
         }
     }
 
-    private static func readCache(currentVersion: String) -> UpdateResult? {
+    static func readCache(currentVersion: String) -> UpdateResult? {
         let url = cacheURL()
         guard let data = try? Data(contentsOf: url),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -95,7 +95,7 @@ final class Updates {
         )
     }
 
-    private static func writeCache(latestVersion: String, downloadURL: String?, releaseNotes: String?, releaseDate: String?) {
+    static func writeCache(latestVersion: String, downloadURL: String?, releaseNotes: String?, releaseDate: String?) {
         let payload: [String: Any] = [
             "timestamp": Date().timeIntervalSince1970,
             "latest_version": latestVersion,
