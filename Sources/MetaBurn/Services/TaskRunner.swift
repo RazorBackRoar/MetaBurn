@@ -87,9 +87,15 @@ final class TaskRunner: ObservableObject {
         }
 
         Log.shared.info("Starting job \(jobId) for \(droppedPaths.count) dropped path(s)", scope: "taskRunner")
-        await Task.detached {
+        let removedOrphans = await Task.detached {
             Paths.cleanupOrphanWorkFiles()
         }.value
+        if !removedOrphans.isEmpty {
+            Log.shared.info(
+                "Removed \(removedOrphans.count) leftover work file(s)",
+                scope: "taskRunner"
+            )
+        }
 
         do {
             await setState(.scanning)
@@ -124,13 +130,11 @@ final class TaskRunner: ObservableObject {
             // Zero-file guard — no phantom cleaning job when the drop had nothing we can burn.
             if scan.files.isEmpty {
                 let skipNote: String
-                if scan.skipped.count > 0 {
-                    skipNote =
-                        "\(scan.skipped.count) skipped file(s) saved to \(OutputPreference.label(for: outputDestination))/\(OutputNaming.skippableFolderName) (see \(OutputNaming.skippedSummaryFileName))."
-                } else if scan.skipped.isEmpty {
+                if scan.skipped.isEmpty {
                     skipNote = "Drop photos, videos, or a folder that contains them."
                 } else {
-                    skipNote = "\(scan.skipped.count) file(s) were skipped."
+                    skipNote =
+                        "\(scan.skipped.count) skipped file(s) saved to \(OutputPreference.label(for: outputDestination))/\(OutputNaming.skippableFolderName) (see \(OutputNaming.skippedSummaryFileName))."
                 }
                 await setState(
                     .done,
