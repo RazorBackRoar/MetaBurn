@@ -83,6 +83,13 @@ struct CleanResult: Equatable, Identifiable {
 struct LogEntry: Identifiable {
     let id = UUID()
     let result: CleanResult
+    let finishedAt: Date
+
+    init(result: CleanResult, finishedAt: Date = Date()) {
+        self.result = result
+        self.finishedAt = finishedAt
+    }
+
     var path: String { result.path }
     var status: CleanStatus { result.status }
     var reason: String? { result.reason }

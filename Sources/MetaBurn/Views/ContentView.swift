@@ -6,19 +6,11 @@ import MetaBurnCore
 struct ContentView: View {
     @StateObject private var runner = TaskRunner()
     @AppStorage(ThemePreference.storageKey) private var themeSource: String = "system"
-    @AppStorage(OutputPreference.storageKey) private var outputDestinationRaw: String = OutputDestination.desktop.rawValue
     @State private var muteAudio = true
     @State private var isDragging = false
+    @State private var dropPulse = false
     @State private var dropNotice: String? = nil
     @State private var selectedEntry: LogEntry? = nil
-
-    private var outputDestination: OutputDestination {
-        OutputDestination(rawValue: outputDestinationRaw) ?? .desktop
-    }
-
-    private var outputLabel: String {
-        OutputPreference.label(for: outputDestination)
-    }
 
     private var processing: Bool {
         runner.state == .scanning || runner.state == .downloading || runner.state == .cleaning
@@ -43,163 +35,37 @@ struct ContentView: View {
         ThemePreference.colorScheme(for: themeSource)
     }
 
+    private var dropHighlighted: Bool {
+        isDragging || dropPulse
+    }
+
     var body: some View {
         mainView
             .preferredColorScheme(preferredScheme)
+            .navigationTitle("MetaBurn")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    SettingsLink {
+                        Image(systemName: "gearshape")
+                    }
+                    .help("Settings")
+                }
+            }
             .onAppear {
                 ThemePreference.applyAppAppearance(for: themeSource)
             }
             .onChange(of: themeSource) { _, newValue in
                 ThemePreference.applyAppAppearance(for: newValue)
             }
+            .sheet(item: $selectedEntry) { entry in
+                MetadataReport(entry: entry)
+                    .frame(minWidth: 640, minHeight: 480)
+            }
     }
-
-    // MARK: - Main
 
     private var mainView: some View {
-        VStack(spacing: 0) {
-            headerBar
-            Divider().overlay(MetaBurnTheme.divider)
-            if hasResults {
-                resultsLayout
-            } else {
-                emptyLayout
-            }
-        }
-        .background(MetaBurnTheme.background)
-        .frame(minWidth: 720, minHeight: 640)
-        .onDrop(of: [.fileURL], isTargeted: $isDragging) { providers in
-            handleDrop(providers: providers)
-        }
-        .onChange(of: runner.log.count) { _, _ in
-            if selectedEntry == nil {
-                selectedEntry = sortedLog.first
-            }
-        }
-    }
-
-    private var headerBar: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "flame.fill")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(MetaBurnTheme.accent)
-            Text("MetaBurn")
-                .font(.system(size: 16, weight: .semibold))
-                .onTapGesture(count: 2) { showAbout() }
-                .contextMenu {
-                    Button("Check for Updates…") { checkForUpdates() }
-                    Button("About MetaBurn") { showAbout() }
-                }
-
-            if runner.typeCounts.hasAny {
-                typeCountBubbles
-            }
-
-            Spacer(minLength: 8)
-
-            statusCapsule
-
-            if processing {
-                Button("Cancel") { runner.cancel() }
-                    .buttonStyle(MetaBurnSecondaryButtonStyle())
-            } else if hasResults {
-                Button("Clear") { clearLog() }
-                    .buttonStyle(MetaBurnSecondaryButtonStyle())
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-    }
-
-    private var typeCountBubbles: some View {
-        HStack(spacing: 6) {
-            if runner.typeCounts.images > 0 {
-                typeBubble(
-                    label: "Photos",
-                    done: runner.typeCounts.imagesDone,
-                    total: runner.typeCounts.images
-                )
-            }
-            if runner.typeCounts.videos > 0 {
-                typeBubble(
-                    label: "Videos",
-                    done: runner.typeCounts.videosDone,
-                    total: runner.typeCounts.videos
-                )
-            }
-            if runner.typeCounts.other > 0 {
-                typeBubble(
-                    label: "Other",
-                    done: runner.typeCounts.otherDone,
-                    total: runner.typeCounts.other
-                )
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(typeCountsAccessibilityLabel)
-    }
-
-    private func typeBubble(label: String, done: Int, total: Int) -> some View {
-        HStack(spacing: 4) {
-            Text(label)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-            Text(typeCountText(done: done, total: total))
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
-                .monospacedDigit()
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(MetaBurnTheme.surface)
-        .clipShape(Capsule())
-        .overlay(
-            Capsule()
-                .strokeBorder(MetaBurnTheme.divider, lineWidth: 1)
-        )
-    }
-
-    private func typeCountText(done: Int, total: Int) -> String {
-        if processing || done < total {
-            return "\(done)/\(total)"
-        }
-        return "\(total)"
-    }
-
-    private var typeCountsAccessibilityLabel: String {
-        var parts: [String] = []
-        let counts = runner.typeCounts
-        if counts.images > 0 {
-            parts.append("Photos \(typeCountText(done: counts.imagesDone, total: counts.images))")
-        }
-        if counts.videos > 0 {
-            parts.append("Videos \(typeCountText(done: counts.videosDone, total: counts.videos))")
-        }
-        if counts.other > 0 {
-            parts.append("Other \(typeCountText(done: counts.otherDone, total: counts.other))")
-        }
-        return parts.joined(separator: ", ")
-    }
-
-    private var statusCapsule: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 7, height: 7)
-            Text(stateLabel)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(MetaBurnTheme.surface)
-        .clipShape(Capsule())
-    }
-
-    private var emptyLayout: some View {
-        VStack(spacing: 12) {
-            dropZone
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        VStack(spacing: 28) {
+            HeaderView(typeCounts: runner.typeCounts, processing: processing)
 
             if let notice = dropNotice {
                 noticeBanner(notice)
@@ -208,270 +74,57 @@ struct ContentView: View {
                 noticeBanner(message)
             }
 
-            HStack {
-                Spacer(minLength: 0)
-                muteFooterToggle
-            }
-            .padding(.top, 4)
+            DropZoneView(
+                highlighted: dropHighlighted,
+                processing: processing,
+                primary: dropPrimaryLabel,
+                secondary: dropSecondaryLabel
+            )
+            .frame(maxWidth: .infinity, minHeight: hasResults ? 168 : 280)
 
-            Text("Cleaned copies go to \(outputLabel) only when needed (Photos, Videos, or Skippable). Originals stay untouched.")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.top, 2)
-
-            Text("We strip hidden metadata (and can mute video sound). We don’t change what’s visible in the picture or video.")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var resultsLayout: some View {
-        VStack(spacing: 0) {
-            if let notice = dropNotice {
-                noticeBanner(notice)
-                    .padding(.horizontal, 14)
-                    .padding(.top, 10)
-            }
-
-            summaryStrip
-                .padding(.horizontal, 14)
-                .padding(.top, 10)
-                .padding(.bottom, 10)
-
-            Divider().overlay(MetaBurnTheme.divider)
-
-            HStack(spacing: 0) {
-                fileSidebar
-                    .frame(minWidth: 200, idealWidth: 220, maxWidth: 260)
-                Divider().overlay(MetaBurnTheme.divider)
-                detailPane
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            Divider().overlay(MetaBurnTheme.divider)
-            footerBar
-        }
-    }
-
-    /// Counters + outcome in one compact strip (avoids stacked banner gap).
-    private var summaryStrip: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                counterPill("Found", runner.counters.supported, .secondary)
-                counterPill("Cleaned", runner.counters.cleaned, .green)
-                counterPill("Skipped", runner.counters.skipped, .secondary)
-                counterPill("Leftovers", runner.counters.partial, .orange)
-                counterPill("Failed", runner.counters.failed, .red)
-                Spacer(minLength: 0)
-                if processing {
-                    ProgressView()
-                        .controlSize(.small)
-                }
-            }
-
-            if let currentFile = runner.currentFile {
-                HStack(spacing: 6) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text(runner.state == .downloading
-                         ? "Downloading \(runner.currentFileNumber) of \(runner.counters.supported):"
-                         : "Cleaning \(runner.currentFileNumber) of \(runner.counters.supported):")
-                        .font(.system(size: 12, weight: .semibold))
-                    Text(URL(fileURLWithPath: currentFile).lastPathComponent)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                .accessibilityElement(children: .combine)
-            }
-
-            if runner.state == .done || runner.state == .failed || runner.state == .cancelled {
-                HStack(spacing: 6) {
-                    Image(systemName: outcomeIcon)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(bannerColor)
-                    Text(outcomeTitle)
-                        .font(.system(size: 13, weight: .semibold))
-                    Text("·")
-                        .foregroundStyle(.secondary)
-                    Text(outcomeSubtitle)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(bannerColor.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            }
-        }
-    }
-
-    private var dropZone: some View {
-        VStack(spacing: 10) {
-            if processing {
-                ProgressView()
-                    .controlSize(.regular)
-                    .padding(.bottom, 2)
-            } else {
-                Image(systemName: isDragging ? "arrow.down.doc.fill" : "square.and.arrow.down")
-                    .font(.system(size: 29, weight: .medium))
-                    .foregroundStyle(isDragging ? MetaBurnTheme.accent : .secondary)
-            }
-            Text(processing ? processingPrimaryLabel : "Drop photos, videos, or folders")
-                .font(.system(size: 17, weight: .semibold))
-            Text(processing ? processingSecondaryLabel : "Drag and drop only · cleaned copies → \(outputLabel) when needed")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(isDragging ? MetaBurnTheme.accent.opacity(0.12) : MetaBurnTheme.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(
-                    isDragging ? MetaBurnTheme.accent : MetaBurnTheme.divider,
-                    style: StrokeStyle(lineWidth: isDragging ? 2 : 1.5, dash: isDragging ? [] : [8, 6])
+            if hasResults {
+                CleanedFilesPanel(
+                    files: sortedLog,
+                    currentFile: runner.currentFile,
+                    canReveal: revealableURLs.isEmpty == false,
+                    onReveal: revealInFinder,
+                    onSelect: { selectedEntry = $0 }
                 )
-        )
-        .animation(.easeInOut(duration: 0.15), value: isDragging)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Drop zone")
-        .accessibilityHint("Drop photos, videos, or folders to clean metadata")
-    }
-
-    private func counterPill(_ label: String, _ value: Int, _ color: Color) -> some View {
-        HStack(spacing: 3) {
-            Text("\(value)")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(color)
-            Text(label)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 7)
-        .padding(.vertical, 4)
-        .background(MetaBurnTheme.surface)
-        .clipShape(Capsule())
-    }
-
-    private var fileSidebar: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("Files")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text(processing ? "\(sortedLog.count)/\(runner.counters.supported)" : "\(sortedLog.count)")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
 
-            Divider().overlay(MetaBurnTheme.divider)
-
-            List(selection: Binding(
-                get: { selectedEntry?.id },
-                set: { id in selectedEntry = sortedLog.first { $0.id == id } }
-            )) {
-                if let currentFile = runner.currentFile {
-                    ProcessingFileRow(path: currentFile)
-                        .listRowInsets(EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6))
-                        .listRowBackground(Color.clear)
-                }
-                ForEach(sortedLog) { entry in
-                    FileRow(entry: entry)
-                        .tag(entry.id)
-                        .listRowInsets(EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6))
-                        .listRowBackground(Color.clear)
-                }
-            }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .scrollIndicators(.hidden)
-            .background(MetaBurnTheme.background)
+            FooterBar(
+                processing: processing,
+                hasResults: hasResults,
+                count: runner.counters.cleaned,
+                currentFile: runner.currentFile,
+                currentFileNumber: runner.currentFileNumber,
+                supported: runner.counters.supported,
+                state: runner.state,
+                muteAudio: $muteAudio,
+                onCancel: { runner.cancel() },
+                onRemoveMore: pulseDropZone
+            )
         }
+        .padding(32)
+        .frame(minWidth: 900, minHeight: 720)
         .background(MetaBurnTheme.background)
-    }
-
-    private var detailPane: some View {
-        Group {
-            if let entry = selectedEntry ?? sortedLog.first {
-                MetadataReport(entry: entry)
-            } else {
-                VStack(spacing: 8) {
-                    Image(systemName: "doc.text.magnifyingglass")
-                        .font(.system(size: 29))
-                        .foregroundStyle(.secondary)
-                    Text("Select a file to inspect before-and-after metadata.")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        .background(MetaBurnTheme.background)
-    }
-
-    private var footerBar: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Text("Drop more files onto this window to clean another batch.")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-
-            Spacer(minLength: 8)
-
-            muteFooterToggle
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-    }
-
-    private var muteFooterToggle: some View {
-        Toggle(isOn: $muteAudio) {
-            HStack(spacing: 8) {
-                Image(systemName: "speaker.slash.fill")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(muteAudio ? MetaBurnTheme.accent : .secondary)
-                Text("Mute video audio")
-                    .font(.system(size: 13))
-            }
-        }
-        .toggleStyle(RedSwitchToggleStyle())
-        .disabled(processing)
-    }
-
-    // MARK: - Status helpers
-
-    private var statusColor: Color {
-        switch runner.state {
-        case .waiting, .cancelled: .secondary
-        case .scanning, .downloading, .cleaning: .blue
-        case .done: .green
-        case .failed: .red
+        .onDrop(of: [.fileURL], isTargeted: $isDragging) { providers in
+            handleDrop(providers: providers)
         }
     }
 
-    private var stateLabel: String {
-        switch runner.state {
-        case .waiting: "Waiting"
-        case .scanning: "Scanning"
-        case .downloading: "iCloud"
-        case .cleaning: "Cleaning"
-        case .done: "Done"
-        case .failed: "Failed"
-        case .cancelled: "Cancelled"
+    private var dropPrimaryLabel: String {
+        if processing {
+            return processingPrimaryLabel
         }
+        return dropHighlighted ? "Drop to clean" : "Drop photos or videos"
+    }
+
+    private var dropSecondaryLabel: String {
+        if processing {
+            return processingSecondaryLabel
+        }
+        return "Files are cleaned locally. Nothing is uploaded."
     }
 
     private var processingPrimaryLabel: String {
@@ -486,68 +139,37 @@ struct ContentView: View {
         switch runner.state {
         case .downloading: return "Waiting for iCloud Drive to finish downloading"
         case .scanning: return "Looking for photos and videos…"
-        default: return "Saving cleaned copies → \(outputLabel)"
-        }
-    }
-
-    private var bannerColor: Color {
-        switch runner.state {
-        case .done: .green
-        case .failed: .red
-        case .cancelled: .secondary
-        default: .secondary
-        }
-    }
-
-    private var outcomeIcon: String {
-        switch runner.state {
-        case .done: "checkmark.circle.fill"
-        case .failed: "xmark.circle.fill"
-        case .cancelled: "slash.circle.fill"
-        default: "info.circle.fill"
-        }
-    }
-
-    private var outcomeTitle: String {
-        switch runner.state {
-        case .done:
-            if runner.counters.supported == 0 {
-                return "No supported media found"
+        default:
+            if let current = runner.currentFile {
+                return "Cleaning \(runner.currentFileNumber) of \(runner.counters.supported): \(URL(fileURLWithPath: current).lastPathComponent)"
             }
-            if runner.counters.failed > 0 || runner.counters.partial > 0 {
-                return "Finished with issues"
-            }
-            return "Metadata removed"
-        case .failed: return runner.message ?? "Processing failed"
-        case .cancelled: return "Cancelled"
-        default: return runner.state.rawValue.capitalized
+            return "Saving cleaned copies locally"
         }
     }
 
-    private var outcomeSubtitle: String {
-        if runner.state == .done, runner.counters.supported == 0 {
-            return runner.message
-                ?? "Drop photos, videos, or a folder that contains them."
+    private var revealableURLs: [URL] {
+        sortedLog.compactMap { entry in
+            guard entry.status == .cleaned || entry.status == .partial else { return nil }
+            let url = URL(fileURLWithPath: entry.path)
+            return FileManager.default.fileExists(atPath: url.path) ? url : nil
         }
-        var parts: [String] = []
-        if runner.counters.cleaned > 0 {
-            parts.append("\(runner.counters.cleaned) saved to \(outputLabel)")
+    }
+
+    private func pulseDropZone() {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            dropPulse = true
         }
-        if runner.counters.skipped > 0 {
-            parts.append(
-                "\(runner.counters.skipped) skipped → \(outputLabel)/\(OutputNaming.skippableFolderName)"
-            )
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                dropPulse = false
+            }
         }
-        if runner.counters.partial > 0 {
-            parts.append("\(runner.counters.partial) with leftovers")
-        }
-        if runner.counters.failed > 0 {
-            parts.append("\(runner.counters.failed) failed")
-        }
-        if parts.isEmpty {
-            return "No supported files were processed."
-        }
-        return parts.joined(separator: " · ")
+    }
+
+    private func revealInFinder() {
+        let urls = revealableURLs
+        guard !urls.isEmpty else { return }
+        NSWorkspace.shared.activateFileViewerSelecting(urls)
     }
 
     private func noticeBanner(_ message: String) -> some View {
@@ -564,8 +186,6 @@ struct ContentView: View {
         .background(Color.orange.opacity(0.12))
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
-
-    // MARK: - Actions
 
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
         guard !processing else { return false }
@@ -592,21 +212,106 @@ struct ContentView: View {
                     : "No files detected. Drop photos, videos, or a folder."
             } else {
                 dropNotice = nil
-                startJob(paths: paths)
+                selectedEntry = nil
+                runner.start(droppedPaths: paths, muteAudio: muteAudio)
             }
         }
         return true
     }
+}
 
-    private func startJob(paths: [String]) {
-        selectedEntry = nil
-        runner.start(droppedPaths: paths, muteAudio: muteAudio)
+// MARK: - Header
+
+private struct HeaderView: View {
+    let typeCounts: TypeCounts
+    let processing: Bool
+
+    var body: some View {
+        VStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(MetaBurnTheme.surface)
+                    .frame(width: 64, height: 64)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.primary.opacity(0.15), lineWidth: 1)
+                    .frame(width: 64, height: 64)
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 26, weight: .semibold))
+                    .foregroundStyle(MetaBurnTheme.accent)
+            }
+            (Text("Meta").foregroundColor(.primary) + Text("Burn").foregroundColor(MetaBurnTheme.accent))
+                .font(.system(size: 42, weight: .bold, design: .rounded))
+                .onTapGesture(count: 2) { showAbout() }
+                .contextMenu {
+                    Button("Check for Updates…") { checkForUpdates() }
+                    Button("About MetaBurn") { showAbout() }
+                }
+
+            Text("Privacy protection for your photos and videos.")
+                .font(.system(size: 14))
+                .foregroundColor(MetaBurnTheme.secondaryText)
+
+            if typeCounts.hasAny {
+                typeCountBubbles
+            }
+        }
     }
 
-    private func clearLog() {
-        selectedEntry = nil
-        dropNotice = nil
-        runner.reset()
+    private var typeCountBubbles: some View {
+        HStack(spacing: 8) {
+            if typeCounts.images > 0 {
+                typeBubble(label: "Photos", done: typeCounts.imagesDone, total: typeCounts.images)
+            }
+            if typeCounts.videos > 0 {
+                typeBubble(label: "Videos", done: typeCounts.videosDone, total: typeCounts.videos)
+            }
+            if typeCounts.other > 0 {
+                typeBubble(label: "Other", done: typeCounts.otherDone, total: typeCounts.other)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(typeCountsAccessibilityLabel)
+        .padding(.top, 4)
+    }
+
+    private func typeBubble(label: String, done: Int, total: Int) -> some View {
+        HStack(spacing: 4) {
+            Text(label)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(MetaBurnTheme.secondaryText)
+            Text(typeCountText(done: done, total: total))
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .monospacedDigit()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(MetaBurnTheme.surface)
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .strokeBorder(MetaBurnTheme.hairline, lineWidth: 1)
+        )
+    }
+
+    private func typeCountText(done: Int, total: Int) -> String {
+        if processing || done < total {
+            return "\(done)/\(total)"
+        }
+        return "\(total)"
+    }
+
+    private var typeCountsAccessibilityLabel: String {
+        var parts: [String] = []
+        if typeCounts.images > 0 {
+            parts.append("Photos \(typeCountText(done: typeCounts.imagesDone, total: typeCounts.images))")
+        }
+        if typeCounts.videos > 0 {
+            parts.append("Videos \(typeCountText(done: typeCounts.videosDone, total: typeCounts.videos))")
+        }
+        if typeCounts.other > 0 {
+            parts.append("Other \(typeCountText(done: typeCounts.otherDone, total: typeCounts.other))")
+        }
+        return parts.joined(separator: ", ")
     }
 
     private func showAbout() {
@@ -647,81 +352,274 @@ struct ContentView: View {
     }
 }
 
-// MARK: - File row
+// MARK: - Drop zone
 
-private struct ProcessingFileRow: View {
-    let path: String
+private struct DropZoneView: View {
+    let highlighted: Bool
+    let processing: Bool
+    let primary: String
+    let secondary: String
 
     var body: some View {
-        HStack(alignment: .center, spacing: 8) {
-            ProgressView()
-                .controlSize(.small)
-                .frame(width: 7, height: 7)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(URL(fileURLWithPath: path).lastPathComponent)
-                    .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Text("Cleaning")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.blue)
+        VStack(spacing: 14) {
+            if processing {
+                ProgressView()
+                    .controlSize(.regular)
+                    .tint(MetaBurnTheme.accent)
+            } else {
+                Image(systemName: highlighted ? "photo.stack.fill" : "photo.stack")
+                    .font(.system(size: 46))
+                    .foregroundStyle(MetaBurnTheme.accent)
             }
-            Spacer(minLength: 0)
+            Text(primary)
+                .font(.system(size: 20, weight: .semibold))
+            Text(secondary)
+                .font(.system(size: 13))
+                .foregroundColor(MetaBurnTheme.secondaryText)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
         }
-        .padding(.vertical, 5)
-        .padding(.horizontal, 4)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(highlighted ? MetaBurnTheme.accent.opacity(0.10) : Color.clear)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(
+                    MetaBurnTheme.accent.opacity(highlighted ? 0.95 : 0.6),
+                    style: StrokeStyle(lineWidth: highlighted ? 2 : 1.5, dash: highlighted ? [] : [6, 5])
+                )
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .animation(.easeInOut(duration: 0.15), value: highlighted)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Drop zone")
+        .accessibilityHint("Drop photos, videos, or folders to clean metadata")
     }
 }
 
-private struct FileRow: View {
-    let entry: LogEntry
+// MARK: - Cleaned files
+
+private struct CleanedFilesPanel: View {
+    let files: [LogEntry]
+    let currentFile: String?
+    let canReveal: Bool
+    let onReveal: () -> Void
+    let onSelect: (LogEntry) -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: 8) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 7, height: 7)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(URL(fileURLWithPath: entry.path).lastPathComponent)
-                    .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Text(entry.status.rawValue.capitalized)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(statusColor)
-                if let reason = entry.reason, entry.status != .cleaned {
-                    Text(reason)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Cleaned Files")
+                    .font(.system(size: 15, weight: .semibold))
+                Spacer()
+                Button("Show in Finder", systemImage: "folder") {
+                    onReveal()
+                }
+                .buttonStyle(GhostButtonStyle())
+                .disabled(!canReveal)
+            }
+            .padding(.bottom, 14)
+
+            ScrollView {
+                Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 0) {
+                    if let currentFile {
+                        GridRow {
+                            fileNameCell(path: currentFile)
+                            Image(systemName: "arrow.right")
+                                .foregroundColor(MetaBurnTheme.secondaryText)
+                            Text("cleaning")
+                                .foregroundColor(.blue)
+                            ProgressView()
+                                .controlSize(.small)
+                                .gridColumnAlignment(.trailing)
+                        }
+                        .padding(.vertical, 14)
+                        Divider().overlay(MetaBurnTheme.hairline)
+                    }
+
+                    ForEach(Array(files.enumerated()), id: \.element.id) { index, file in
+                        GridRow {
+                            fileNameCell(path: file.path)
+                            Image(systemName: "arrow.right")
+                                .foregroundColor(MetaBurnTheme.secondaryText)
+                            Text(statusLabel(file.status))
+                                .foregroundColor(statusColor(file.status))
+                            Text(FileTimestamp.display(file.finishedAt))
+                                .foregroundColor(MetaBurnTheme.secondaryText)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                        .padding(.vertical, 14)
+                        .contentShape(Rectangle())
+                        .onTapGesture { onSelect(file) }
+                        if index < files.count - 1 {
+                            Divider().overlay(MetaBurnTheme.hairline)
+                        }
+                    }
                 }
             }
-            Spacer(minLength: 0)
+            .frame(maxHeight: 280)
         }
-        .padding(.vertical, 5)
-        .padding(.horizontal, 4)
-        .contentShape(Rectangle())
     }
 
-    private var statusColor: Color {
-        switch entry.status {
-        case .cleaned: .green
+    private func fileNameCell(path: String) -> some View {
+        HStack(spacing: 10) {
+            FileTypeIcon(path: path)
+            Text(URL(fileURLWithPath: path).lastPathComponent)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+    }
+
+    private func statusLabel(_ status: CleanStatus) -> String {
+        switch status {
+        case .cleaned: "cleaned"
+        case .partial: "leftovers"
+        case .skipped: "skipped"
+        case .failed: "failed"
+        }
+    }
+
+    private func statusColor(_ status: CleanStatus) -> Color {
+        switch status {
+        case .cleaned: MetaBurnTheme.accent
         case .partial: .orange
-        case .skipped: .secondary
+        case .skipped: MetaBurnTheme.secondaryText
         case .failed: .red
         }
+    }
+}
+
+private struct FileTypeIcon: View {
+    let path: String
+
+    var body: some View {
+        let video = SupportedTypes.isVideo(filePath: path)
+        ZStack {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(MetaBurnTheme.surface)
+                .frame(width: 32, height: 32)
+            Image(systemName: video ? "play.fill" : "photo.fill")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.primary.opacity(0.75))
+        }
+    }
+}
+
+private enum FileTimestamp {
+    static func display(_ date: Date) -> String {
+        let time = date.formatted(date: .omitted, time: .shortened)
+        if Calendar.current.isDateInToday(date) {
+            return "Today, \(time)"
+        }
+        if Calendar.current.isDateInYesterday(date) {
+            return "Yesterday, \(time)"
+        }
+        return date.formatted(date: .abbreviated, time: .shortened)
+    }
+}
+
+// MARK: - Footer
+
+private struct FooterBar: View {
+    let processing: Bool
+    let hasResults: Bool
+    let count: Int
+    let currentFile: String?
+    let currentFileNumber: Int
+    let supported: Int
+    let state: RunState
+    @Binding var muteAudio: Bool
+    let onCancel: () -> Void
+    let onRemoveMore: () -> Void
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: shieldIcon)
+                .font(.system(size: 22))
+                .foregroundStyle(MetaBurnTheme.accent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                Text(subtitle)
+                    .font(.system(size: 12))
+                    .foregroundColor(MetaBurnTheme.secondaryText)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            muteToggle
+            if processing {
+                Button("Cancel") { onCancel() }
+                    .buttonStyle(GhostButtonStyle())
+            } else if hasResults {
+                Button("Remove More Files") { onRemoveMore() }
+                    .buttonStyle(PrimaryButtonStyle())
+            }
+        }
+    }
+
+    private var shieldIcon: String {
+        switch state {
+        case .failed: "xmark.shield.fill"
+        case .cancelled: "slash.circle.fill"
+        default: "checkmark.shield.fill"
+        }
+    }
+
+    private var title: String {
+        if processing {
+            return supported > 0
+                ? "Cleaning \(max(currentFileNumber, 1)) of \(supported)"
+                : "Cleaning files…"
+        }
+        if hasResults {
+            if count == 1 { return "1 file cleaned" }
+            return "\(count) files cleaned"
+        }
+        return "Ready to clean"
+    }
+
+    private var subtitle: String {
+        if processing {
+            if let currentFile {
+                return URL(fileURLWithPath: currentFile).lastPathComponent
+            }
+            return "Metadata is stripped on this Mac only."
+        }
+        if hasResults {
+            return "Metadata removed and files saved locally."
+        }
+        return "Mute permanently omits audio tracks from cleaned videos."
+    }
+
+    private var muteToggle: some View {
+        Toggle(isOn: $muteAudio) {
+            HStack(spacing: 8) {
+                Image(systemName: muteAudio ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(muteAudio ? MetaBurnTheme.accent : MetaBurnTheme.secondaryText)
+                Text("Mute video audio")
+                    .font(.system(size: 13))
+            }
+        }
+        .toggleStyle(RedSwitchToggleStyle())
+        .disabled(processing)
+        .help("When on, cleaned videos have audio tracks omitted so they cannot be recovered.")
     }
 }
 
 // MARK: - Theme / buttons
 
 enum MetaBurnTheme {
-    static let accent = Color(red: 0.90, green: 0.22, blue: 0.22)
+    static let accent = Color(red: 0.90, green: 0.29, blue: 0.24)
+    static let secondaryText = Color.primary.opacity(0.55)
+    static let hairline = Color.primary.opacity(0.10)
 
     static var background: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-                return NSColor(red: 0.07, green: 0.07, blue: 0.08, alpha: 1)
+                return NSColor(red: 0.102, green: 0.102, blue: 0.110, alpha: 1)
             }
             return NSColor(red: 0.96, green: 0.96, blue: 0.97, alpha: 1)
         })
@@ -736,41 +634,49 @@ enum MetaBurnTheme {
         })
     }
 
-    static var divider: Color {
-        Color(nsColor: NSColor(name: nil) { appearance in
-            if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-                return NSColor.white.withAlphaComponent(0.10)
-            }
-            return NSColor.black.withAlphaComponent(0.12)
-        })
+    static var divider: Color { hairline }
+}
+
+struct GhostButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .medium))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.primary.opacity(configuration.isPressed ? 0.12 : 0.06))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color.primary.opacity(0.15), lineWidth: 1)
+            )
+    }
+}
+
+struct PrimaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundColor(.white)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(MetaBurnTheme.accent.opacity(configuration.isPressed ? 0.8 : 1))
+            )
     }
 }
 
 struct MetaBurnPrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 14, weight: .semibold))
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
-            .background(MetaBurnTheme.accent.opacity(configuration.isPressed ? 0.75 : 1))
-            .foregroundStyle(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        PrimaryButtonStyle().makeBody(configuration: configuration)
     }
 }
 
 struct MetaBurnSecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 12, weight: .medium))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(MetaBurnTheme.surface.opacity(configuration.isPressed ? 0.7 : 1))
-            .foregroundStyle(.primary)
-            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .strokeBorder(MetaBurnTheme.divider, lineWidth: 1)
-            )
+        GhostButtonStyle().makeBody(configuration: configuration)
     }
 }
 
