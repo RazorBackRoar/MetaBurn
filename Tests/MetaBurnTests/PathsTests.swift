@@ -9,7 +9,8 @@ struct PathsTests {
     @Test("applicationSupportDirectory appends app name correctly")
     func testApplicationSupportDirectory() {
         let url = Paths.applicationSupportDirectory()
-        let expectedBase = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let expectedBase = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
         let expectedURL = expectedBase.appendingPathComponent(Brand.displayName, isDirectory: true)
 
         #expect(url == expectedURL)
@@ -19,7 +20,8 @@ struct PathsTests {
     @Test("cacheDirectory appends app name correctly")
     func testCacheDirectory() {
         let url = Paths.cacheDirectory()
-        let expectedBase = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        let expectedBase = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
         let expectedURL = expectedBase.appendingPathComponent(Brand.displayName, isDirectory: true)
 
         #expect(url == expectedURL)
