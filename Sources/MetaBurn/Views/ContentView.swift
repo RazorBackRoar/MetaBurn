@@ -3,14 +3,18 @@ import AppKit
 import UniformTypeIdentifiers
 import MetaBurnCore
 
+private enum MetaBurnView {
+    case files
+    case details(LogEntry)
+}
+
 struct ContentView: View {
     @StateObject private var runner = TaskRunner()
     @AppStorage(ThemePreference.storageKey) private var themeSource: String = "system"
     @State private var muteAudio = true
     @State private var isDragging = false
-    @State private var dropPulse = false
     @State private var dropNotice: String? = nil
-    @State private var selectedEntry: LogEntry? = nil
+    @State private var pane: MetaBurnView = .files
 
     private var processing: Bool {
         runner.state == .scanning || runner.state == .downloading || runner.state == .cleaning
@@ -36,7 +40,7 @@ struct ContentView: View {
     }
 
     private var dropHighlighted: Bool {
-        isDragging || dropPulse
+        isDragging
     }
 
     var body: some View {
@@ -57,57 +61,65 @@ struct ContentView: View {
             .onChange(of: themeSource) { _, newValue in
                 ThemePreference.applyAppAppearance(for: newValue)
             }
-            .sheet(item: $selectedEntry) { entry in
-                MetadataReport(entry: entry)
-                    .frame(minWidth: 640, minHeight: 480)
-            }
     }
 
     private var mainView: some View {
-        VStack(spacing: 28) {
-            HeaderView(typeCounts: runner.typeCounts, processing: processing)
+        ZStack {
+            MetaBurnTheme.background
+                .ignoresSafeArea()
 
-            if let notice = dropNotice {
-                noticeBanner(notice)
-            } else if let message = runner.message,
-                      runner.state == .done || runner.state == .failed || runner.state == .cancelled {
-                noticeBanner(message)
-            }
+            VStack(spacing: 24) {
+                HeaderView(typeCounts: runner.typeCounts, processing: processing)
 
-            DropZoneView(
-                highlighted: dropHighlighted,
-                processing: processing,
-                primary: dropPrimaryLabel,
-                secondary: dropSecondaryLabel
-            )
-            .frame(maxWidth: .infinity, minHeight: hasResults ? 168 : 280)
+                if let notice = dropNotice {
+                    noticeBanner(notice)
+                } else if let message = runner.message,
+                          runner.state == .done || runner.state == .failed || runner.state == .cancelled {
+                    noticeBanner(message)
+                }
 
-            if hasResults {
-                CleanedFilesPanel(
-                    files: sortedLog,
+                DropZoneView(
+                    highlighted: dropHighlighted,
+                    processing: processing,
+                    primary: dropPrimaryLabel,
+                    secondary: dropSecondaryLabel
+                )
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: hasResults ? 140 : 240, maxHeight: hasResults ? 200 : .infinity)
+
+                if hasResults {
+                    Group {
+                        switch pane {
+                        case .files:
+                            CleanedFilesPanel(
+                                files: sortedLog,
+                                currentFile: runner.currentFile,
+                                canReveal: revealableURLs.isEmpty == false,
+                                onReveal: revealInFinder,
+                                onSelect: { pane = .details($0) }
+                            )
+                        case .details(let file):
+                            FileDetailsView(file: file, onBack: { pane = .files })
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                }
+
+                FooterBar(
+                    processing: processing,
+                    hasResults: hasResults,
+                    count: runner.counters.cleaned,
                     currentFile: runner.currentFile,
-                    canReveal: revealableURLs.isEmpty == false,
-                    onReveal: revealInFinder,
-                    onSelect: { selectedEntry = $0 }
+                    currentFileNumber: runner.currentFileNumber,
+                    supported: runner.counters.supported,
+                    state: runner.state,
+                    muteAudio: $muteAudio,
+                    onCancel: { runner.cancel() }
                 )
             }
-
-            FooterBar(
-                processing: processing,
-                hasResults: hasResults,
-                count: runner.counters.cleaned,
-                currentFile: runner.currentFile,
-                currentFileNumber: runner.currentFileNumber,
-                supported: runner.counters.supported,
-                state: runner.state,
-                muteAudio: $muteAudio,
-                onCancel: { runner.cancel() },
-                onRemoveMore: pulseDropZone
-            )
+            .padding(32)
         }
-        .padding(32)
         .frame(minWidth: 900, minHeight: 720)
-        .background(MetaBurnTheme.background)
         .onDrop(of: [.fileURL], isTargeted: $isDragging) { providers in
             handleDrop(providers: providers)
         }
@@ -152,17 +164,6 @@ struct ContentView: View {
             guard entry.status == .cleaned || entry.status == .partial else { return nil }
             let url = URL(fileURLWithPath: entry.path)
             return FileManager.default.fileExists(atPath: url.path) ? url : nil
-        }
-    }
-
-    private func pulseDropZone() {
-        withAnimation(.easeInOut(duration: 0.18)) {
-            dropPulse = true
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
-            withAnimation(.easeInOut(duration: 0.18)) {
-                dropPulse = false
-            }
         }
     }
 
@@ -212,7 +213,7 @@ struct ContentView: View {
                     : "No files detected. Drop photos, videos, or a folder."
             } else {
                 dropNotice = nil
-                selectedEntry = nil
+                pane = .files
                 runner.start(droppedPaths: paths, muteAudio: muteAudio)
             }
         }
@@ -227,29 +228,36 @@ private struct HeaderView: View {
     let processing: Bool
 
     var body: some View {
-        VStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(MetaBurnTheme.surface)
-                    .frame(width: 64, height: 64)
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.primary.opacity(0.15), lineWidth: 1)
-                    .frame(width: 64, height: 64)
-                Image(systemName: "flame.fill")
-                    .font(.system(size: 26, weight: .semibold))
-                    .foregroundStyle(MetaBurnTheme.accent)
-            }
-            (Text("Meta").foregroundColor(.primary) + Text("Burn").foregroundColor(MetaBurnTheme.accent))
-                .font(.system(size: 42, weight: .bold, design: .rounded))
-                .onTapGesture(count: 2) { showAbout() }
-                .contextMenu {
-                    Button("Check for Updates…") { checkForUpdates() }
-                    Button("About MetaBurn") { showAbout() }
+        VStack(spacing: 8) {
+            HStack {
+                Spacer(minLength: 0)
+                HStack(spacing: 14) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(MetaBurnTheme.surface)
+                            .frame(width: 52, height: 52)
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(Color.primary.opacity(0.15), lineWidth: 1)
+                            .frame(width: 52, height: 52)
+                        Image(systemName: "flame.fill")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundStyle(MetaBurnTheme.accent)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        (Text("Meta").foregroundColor(.primary) + Text("Burn").foregroundColor(MetaBurnTheme.accent))
+                            .font(.system(size: 34, weight: .bold, design: .rounded))
+                            .onTapGesture(count: 2) { showAbout() }
+                            .contextMenu {
+                                Button("Check for Updates…") { checkForUpdates() }
+                                Button("About MetaBurn") { showAbout() }
+                            }
+                        Text("Privacy protection for your photos and videos.")
+                            .font(.system(size: 14))
+                            .foregroundColor(MetaBurnTheme.secondaryText)
+                    }
                 }
-
-            Text("Privacy protection for your photos and videos.")
-                .font(.system(size: 14))
-                .foregroundColor(MetaBurnTheme.secondaryText)
+                Spacer(minLength: 0)
+            }
 
             if typeCounts.hasAny {
                 typeCountBubbles
@@ -459,8 +467,9 @@ private struct CleanedFilesPanel: View {
                     }
                 }
             }
-            .frame(maxHeight: 280)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private func fileNameCell(path: String) -> some View {
@@ -532,7 +541,6 @@ private struct FooterBar: View {
     let state: RunState
     @Binding var muteAudio: Bool
     let onCancel: () -> Void
-    let onRemoveMore: () -> Void
 
     var body: some View {
         HStack(spacing: 14) {
@@ -552,9 +560,6 @@ private struct FooterBar: View {
             if processing {
                 Button("Cancel") { onCancel() }
                     .buttonStyle(GhostButtonStyle())
-            } else if hasResults {
-                Button("Remove More Files") { onRemoveMore() }
-                    .buttonStyle(PrimaryButtonStyle())
             }
         }
     }
@@ -612,14 +617,14 @@ private struct FooterBar: View {
 // MARK: - Theme / buttons
 
 enum MetaBurnTheme {
-    static let accent = Color(red: 0.90, green: 0.29, blue: 0.24)
+    static let accent = Color(red: 0.90, green: 0.12, blue: 0.10)
     static let secondaryText = Color.primary.opacity(0.55)
     static let hairline = Color.primary.opacity(0.10)
 
     static var background: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-                return NSColor(red: 0.102, green: 0.102, blue: 0.110, alpha: 1)
+                return NSColor(red: 0.055, green: 0.06, blue: 0.065, alpha: 1)
             }
             return NSColor(red: 0.96, green: 0.96, blue: 0.97, alpha: 1)
         })
@@ -628,7 +633,7 @@ enum MetaBurnTheme {
     static var surface: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-                return NSColor.white.withAlphaComponent(0.06)
+                return NSColor(red: 0.075, green: 0.08, blue: 0.085, alpha: 1)
             }
             return NSColor.black.withAlphaComponent(0.05)
         })

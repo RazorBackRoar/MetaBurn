@@ -3,6 +3,9 @@ import Security
 import CryptoKit
 
 final class GithubPinningDelegate: NSObject, URLSessionDelegate {
+    /// Prefer reject over cancel so URLSession will not keep using a failed protection space.
+    static let pinFailureDisposition: URLSession.AuthChallengeDisposition = .rejectProtectionSpace
+
     // Hashes of the public keys in the certificate chain for api.github.com
     private let knownKeyHashes: Set<String> = [
         "rlkAiJEjAwr5USvccZ2NlLzz7elZETOabSnkRvKdow0=", // Leaf cert
@@ -19,12 +22,12 @@ final class GithubPinningDelegate: NSObject, URLSessionDelegate {
 
         var error: CFError?
         guard SecTrustEvaluateWithError(serverTrust, &error) else {
-            completionHandler(.cancelAuthenticationChallenge, nil)
+            completionHandler(Self.pinFailureDisposition, nil)
             return
         }
 
         guard let chain = SecTrustCopyCertificateChain(serverTrust) as? [SecCertificate] else {
-            completionHandler(.cancelAuthenticationChallenge, nil)
+            completionHandler(Self.pinFailureDisposition, nil)
             return
         }
 
@@ -43,6 +46,6 @@ final class GithubPinningDelegate: NSObject, URLSessionDelegate {
             }
         }
 
-        completionHandler(.cancelAuthenticationChallenge, nil)
+        completionHandler(Self.pinFailureDisposition, nil)
     }
 }

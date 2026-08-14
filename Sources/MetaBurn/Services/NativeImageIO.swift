@@ -5,9 +5,17 @@ import MetaBurnCore
 
 /// Native ImageIO metadata read/strip for photos — avoids ExifTool hangs (esp. HEIC) and external deps.
 enum NativeImageIO {
-    /// Strip EXIF/GPS/TIFF/IPTC/XMP/MakerApple by re-encoding pixels without those dictionaries.
+    /// Strip EXIF/GPS/TIFF/IPTC/XMP without re-encoding pixels when the container allows it.
+    /// JPEG uses a lossless marker rewrite; PNG/TIFF/HEIC use `CGImageDestinationCopyImageSource`.
+    /// Orientation is kept so the picture does not appear rotated.
     static func stripMetadata(atPath path: String) -> Bool {
         let url = URL(fileURLWithPath: path)
+        if let data = try? Data(contentsOf: url), JpegLosslessStrip.isJpeg(data) {
+            if let stripped = try? JpegLosslessStrip.strip(data), replaceFile(at: url, with: stripped) {
+                return true
+            }
+        }
+
         let options: [CFString: Any] = [kCGImageSourceShouldCache: false]
         guard let source = CGImageSourceCreateWithURL(url as CFURL, options as CFDictionary),
               CGImageSourceGetCount(source) >= 1,
@@ -15,30 +23,88 @@ enum NativeImageIO {
             return false
         }
 
+        if copyImageSourceStripped(from: source, uti: uti, replacing: url) {
+            return true
+        }
+
+        return decodeAndWriteLossless(source: source, uti: uti, options: options, replacing: url)
+    }
+
+    private static func replaceFile(at url: URL, with data: Data) -> Bool {
+        let tempURL = url.deletingLastPathComponent()
+            .appendingPathComponent(".\(SecureRandom.hexString()).metaburn.native.tmp.\(url.pathExtension)")
+        do {
+            try data.write(to: tempURL, options: .atomic)
+            let fm = FileManager.default
+            if fm.fileExists(atPath: url.path) {
+                try fm.removeItem(at: url)
+            }
+            try fm.moveItem(at: tempURL, to: url)
+            return true
+        } catch {
+            try? FileManager.default.removeItem(at: tempURL)
+            return false
+        }
+    }
+
+    /// Same-container copy of compressed samples with empty metadata (QA1895).
+    private static func copyImageSourceStripped(
+        from source: CGImageSource,
+        uti: CFString,
+        replacing url: URL
+    ) -> Bool {
         let tempURL = url.deletingLastPathComponent()
             .appendingPathComponent(".\(SecureRandom.hexString()).metaburn.native.tmp.\(url.pathExtension)")
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        guard let destination = CGImageDestinationCreateWithURL(
-            tempURL as CFURL,
-            uti,
-            1,
-            nil
-        ) else {
+        guard let destination = CGImageDestinationCreateWithURL(tempURL as CFURL, uti, 1, nil) else {
             return false
         }
 
-        // HEIC/JPEG: AddImageFromSource with empty props often keeps maker data.
-        // Decode → re-encode keeps pixels/orientation and drops metadata dictionaries.
-        // Quality 1.0 matches HEIC→JPEG convertAndStrip (highest practical Image I/O JPEG quality).
+        let metadata = CGImageMetadataCreateMutable()
+        var options: [CFString: Any] = [
+            kCGImageDestinationMetadata: metadata,
+            kCGImageDestinationMergeMetadata: false,
+            kCGImageMetadataShouldExcludeGPS: true
+        ]
+        if let sourceProps = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any],
+           let orientation = sourceProps[kCGImagePropertyOrientation as String] {
+            options[kCGImageDestinationOrientation] = orientation
+        }
+
+        var copyError: Unmanaged<CFError>?
+        let copied = CGImageDestinationCopyImageSource(destination, source, options as CFDictionary, &copyError)
+        if let copyError {
+            _ = copyError.takeRetainedValue()
+        }
+        guard copied, CGImageDestinationFinalize(destination) else {
+            return false
+        }
+        return moveTemp(tempURL, over: url)
+    }
+
+    /// PNG/TIFF stay lossless when Image I/O rewrites the container; used only if CopyImageSource fails.
+    private static func decodeAndWriteLossless(
+        source: CGImageSource,
+        uti: CFString,
+        options: [CFString: Any],
+        replacing url: URL
+    ) -> Bool {
+        let tempURL = url.deletingLastPathComponent()
+            .appendingPathComponent(".\(SecureRandom.hexString()).metaburn.native.tmp.\(url.pathExtension)")
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        guard let destination = CGImageDestinationCreateWithURL(tempURL as CFURL, uti, 1, nil) else {
+            return false
+        }
+
+        var writeProps: [CFString: Any] = [:]
+        if let sourceProps = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any],
+           let orientation = sourceProps[kCGImagePropertyOrientation as String] {
+            writeProps[kCGImagePropertyOrientation] = orientation
+        }
+
         if let image = CGImageSourceCreateImageAtIndex(source, 0, options as CFDictionary) {
-            var writeProps: [CFString: Any] = [
-                kCGImageDestinationLossyCompressionQuality: 1.0
-            ]
-            if let sourceProps = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any],
-               let orientation = sourceProps[kCGImagePropertyOrientation as String] {
-                writeProps[kCGImagePropertyOrientation] = orientation
-            }
             CGImageDestinationAddImage(destination, image, writeProps as CFDictionary)
         } else if !addImageFromSourceStripped(destination: destination, source: source) {
             return false
@@ -47,7 +113,10 @@ enum NativeImageIO {
         guard CGImageDestinationFinalize(destination) else {
             return false
         }
+        return moveTemp(tempURL, over: url)
+    }
 
+    private static func moveTemp(_ tempURL: URL, over url: URL) -> Bool {
         let fm = FileManager.default
         do {
             if fm.fileExists(atPath: url.path) {
@@ -88,7 +157,6 @@ enum NativeImageIO {
         // XMP key varies by SDK; clear common string forms when present.
         props["{XMP}"] = kCFNull
         props[kCGImagePropertyExifAuxDictionary as String] = kCFNull
-        props[kCGImageDestinationLossyCompressionQuality as String] = 1.0
         CGImageDestinationAddImageFromSource(destination, source, 0, props as CFDictionary)
         return true
     }

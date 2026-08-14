@@ -36,44 +36,35 @@ enum NativeVideoClean {
                 return (false, "no video track")
             }
 
-            let duration = try await asset.load(.duration)
-            let composition = AVMutableComposition()
+            let exportAsset: AVAsset
+            if muteAudio {
+                let duration = try await asset.load(.duration)
+                let composition = AVMutableComposition()
 
-            for track in videoTracks {
-                guard let compTrack = composition.addMutableTrack(
-                    withMediaType: .video,
-                    preferredTrackID: kCMPersistentTrackID_Invalid
-                ) else { continue }
-                try compTrack.insertTimeRange(
-                    CMTimeRange(start: .zero, duration: duration),
-                    of: track,
-                    at: .zero
-                )
-                if let transform = try? await track.load(.preferredTransform) {
-                    compTrack.preferredTransform = transform
-                }
-            }
-            guard !composition.tracks(withMediaType: .video).isEmpty else {
-                return (false, "could not build video composition")
-            }
-
-            if !muteAudio {
-                let audioTracks = try await asset.loadTracks(withMediaType: .audio)
-                for track in audioTracks {
+                for track in videoTracks {
                     guard let compTrack = composition.addMutableTrack(
-                        withMediaType: .audio,
+                        withMediaType: .video,
                         preferredTrackID: kCMPersistentTrackID_Invalid
                     ) else { continue }
-                    try? compTrack.insertTimeRange(
+                    try compTrack.insertTimeRange(
                         CMTimeRange(start: .zero, duration: duration),
                         of: track,
                         at: .zero
                     )
+                    if let transform = try? await track.load(.preferredTransform) {
+                        compTrack.preferredTransform = transform
+                    }
                 }
+                guard !composition.tracks(withMediaType: .video).isEmpty else {
+                    return (false, "could not build video composition")
+                }
+                exportAsset = composition
+            } else {
+                exportAsset = asset
             }
 
             try await exportStripped(
-                composition: composition,
+                asset: exportAsset,
                 to: tempURL,
                 fileType: fileType
             )
@@ -192,42 +183,28 @@ enum NativeVideoClean {
     }
 
     private static func exportStripped(
-        composition: AVMutableComposition,
+        asset: AVAsset,
         to outputURL: URL,
         fileType: AVFileType
     ) async throws {
-        let presets = [AVAssetExportPresetPassthrough, AVAssetExportPresetHighestQuality]
-        var lastError = "export failed"
-        for preset in presets {
-            if FileManager.default.fileExists(atPath: outputURL.path) {
-                try? FileManager.default.removeItem(at: outputURL)
-            }
-            guard let session = makeExportSession(
-                asset: composition,
-                presetName: preset,
-                outputURL: outputURL,
-                fileType: fileType
-            ) else {
-                continue
-            }
-
-            do {
-                let canceller = ExportCanceller(session)
-                try await withTaskCancellationHandler {
-                    try await runExport(session)
-                } onCancel: {
-                    canceller.cancel()
-                }
-                return
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch {
-                lastError = error.localizedDescription
-                try? FileManager.default.removeItem(at: outputURL)
-                continue
-            }
+        if FileManager.default.fileExists(atPath: outputURL.path) {
+            try? FileManager.default.removeItem(at: outputURL)
         }
-        throw ExportFailure(message: lastError)
+        guard let session = makeExportSession(
+            asset: asset,
+            presetName: AVAssetExportPresetPassthrough,
+            outputURL: outputURL,
+            fileType: fileType
+        ) else {
+            throw ExportFailure(message: "could not create passthrough export")
+        }
+
+        let canceller = ExportCanceller(session)
+        try await withTaskCancellationHandler {
+            try await runExport(session)
+        } onCancel: {
+            canceller.cancel()
+        }
     }
 
     private static func runExport(_ session: AVAssetExportSession) async throws {

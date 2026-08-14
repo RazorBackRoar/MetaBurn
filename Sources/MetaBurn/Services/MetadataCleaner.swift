@@ -1,7 +1,6 @@
 import Foundation
 import MetaBurnCore
 
-@MainActor
 enum MetadataCleaner {
     enum CleanStatus: String, Equatable { case cleaned, skipped, failed, partial }
 
@@ -104,9 +103,8 @@ enum MetadataCleaner {
 
                 switch HeicJpegConverter.convertAndStrip(from: convertSource, to: workURL) {
                 case .success:
-                    Log.shared.info(
-                        "HEIC→JPEG strip OK: \(URL(fileURLWithPath: filePath).lastPathComponent) → \(workURL.lastPathComponent)",
-                        scope: "cleaner"
+                    logInfo(
+                        "HEIC→JPEG strip OK: \(URL(fileURLWithPath: filePath).lastPathComponent) → \(workURL.lastPathComponent)"
                     )
                 case .failure(let error):
                     return CleanResult(
@@ -132,9 +130,8 @@ enum MetadataCleaner {
             try await stageSource(filePath: filePath, to: workURL)
             let stripped = WorkFileSafety.stripStallingXattrs(atPath: workPath)
             if !stripped.isEmpty {
-                Log.shared.info(
-                    "Stripped stalling xattrs on work file: \(stripped.joined(separator: ", "))",
-                    scope: "cleaner"
+                logInfo(
+                    "Stripped stalling xattrs on work file: \(stripped.joined(separator: ", "))"
                 )
             }
         } catch is CancellationError {
@@ -224,9 +221,8 @@ enum MetadataCleaner {
                     metadataBefore: metadataBefore
                 )
             }
-            Log.shared.info(
-                "Native ImageIO strip OK: \(URL(fileURLWithPath: filePath).lastPathComponent)",
-                scope: "cleaner"
+            logInfo(
+                "Native ImageIO strip OK: \(URL(fileURLWithPath: filePath).lastPathComponent)"
             )
         }
 
@@ -414,13 +410,13 @@ enum MetadataCleaner {
     private static func cleanupTemporaryFile(at url: URL) {
         do {
             try FileManager.default.removeItem(at: url)
-            Log.shared.debug("Deleted temporary file: \(url.path)", scope: "cleaner")
+            logDebug("Deleted temporary file: \(url.path)")
         } catch {
             let nsError = error as NSError
             if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileNoSuchFileError {
                 // Ignore if file doesn't exist anymore
             } else {
-                Log.shared.error("Failed to delete temporary file: \(error.localizedDescription)", scope: "cleaner")
+                logError("Failed to delete temporary file: \(error.localizedDescription)")
             }
         }
     }
@@ -433,7 +429,7 @@ enum MetadataCleaner {
             if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileNoSuchFileError {
                 // Ignore if file doesn't exist
             } else {
-                Log.shared.warn("Could not safely remove file at \(url.path): \(error.localizedDescription)", scope: "cleaner")
+                logWarn("Could not safely remove file at \(url.path): \(error.localizedDescription)")
             }
         }
     }
@@ -446,5 +442,21 @@ enum MetadataCleaner {
             return await NativeVideoClean.readEntries(atPath: filePath)
         }
         return NativeImageIO.readEntries(atPath: filePath)
+    }
+
+    private static func logInfo(_ message: String) {
+        Task { @MainActor in Log.shared.info(message, scope: "cleaner") }
+    }
+
+    private static func logDebug(_ message: String) {
+        Task { @MainActor in Log.shared.debug(message, scope: "cleaner") }
+    }
+
+    private static func logWarn(_ message: String) {
+        Task { @MainActor in Log.shared.warn(message, scope: "cleaner") }
+    }
+
+    private static func logError(_ message: String) {
+        Task { @MainActor in Log.shared.error(message, scope: "cleaner") }
     }
 }

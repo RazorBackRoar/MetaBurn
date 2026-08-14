@@ -153,47 +153,83 @@ final class TaskRunner: ObservableObject {
 
             await setState(.cleaning)
 
-            for (index, file) in scan.files.enumerated() {
-                if isStale(token) {
-                    await markCancelledIfStillRunning(
-                        message: "Cancelled after \(counters.cleaned + counters.partial) file(s)."
-                    )
-                    finish(token: token)
-                    return
-                }
-                currentFile = file
-                currentFileNumber = index + 1
+            let files = scan.files
+            let total = files.count
+            let limit = min(Self.cleanConcurrencyLimit, max(1, total))
+            var nextIndex = 0
+            var inFlight = 0
+            var completed = 0
+            var sawCancel = false
 
-                if UbiquityGate.needsDownload(atPath: file) {
-                    await setState(.downloading)
-                    Log.shared.info("[icloud-download] \(index + 1)/\(scan.files.count): \(file)", scope: "taskRunner")
-                } else if state == .downloading {
-                    await setState(.cleaning)
-                }
-
-                Log.shared.info("[file-start] \(index + 1)/\(scan.files.count): \(file)", scope: "taskRunner")
-                let isVideo = SupportedTypes.isVideo(filePath: file)
-                let result = await MetadataCleaner.cleanFile(
-                    filePath: file,
-                    muteAudio: muteVideos && isVideo,
-                    outputDestination: outputDestination
-                )
-                if state != .cleaning && state != .cancelled && state != .failed {
-                    await setState(.cleaning)
-                }
-                if isStale(token) {
-                    // Don't count a cancelled mid-file as a normal failure in the log.
-                    if result.reason != "cancelled" {
-                        await appendLog(result)
+            await withTaskGroup(of: (index: Int, file: String, result: CleanResult).self) { group in
+                func enqueueIfPossible() async {
+                    guard !sawCancel, !(await isStale(token)) else { return }
+                    while inFlight < limit, nextIndex < total {
+                        let index = nextIndex
+                        let file = files[index]
+                        nextIndex += 1
+                        inFlight += 1
+                        await noteProgress(file: file, number: min(total, completed + inFlight))
+                        let muteThis = muteVideos && SupportedTypes.isVideo(filePath: file)
+                        if UbiquityGate.needsDownload(atPath: file) {
+                            await setState(.downloading)
+                            await logTask(
+                                "[icloud-download] \(index + 1)/\(total): \(file)"
+                            )
+                        }
+                        await logTask("[file-start] \(index + 1)/\(total): \(file)")
+                        group.addTask {
+                            let capturedIndex = index
+                            let capturedFile = file
+                            let capturedMute = muteThis
+                            let capturedDest = outputDestination
+                            // Detach so ImageIO / AVFoundation run off the main actor;
+                            // forward cancel so in-flight exports still stop.
+                            let work = Task.detached(priority: .userInitiated) {
+                                await MetadataCleaner.cleanFile(
+                                    filePath: capturedFile,
+                                    muteAudio: capturedMute,
+                                    outputDestination: capturedDest
+                                )
+                            }
+                            let result = await withTaskCancellationHandler {
+                                await work.value
+                            } onCancel: {
+                                work.cancel()
+                            }
+                            return (capturedIndex, capturedFile, result)
+                        }
                     }
-                    await markCancelledIfStillRunning(
-                        message: "Cancelled after \(counters.cleaned + counters.partial) file(s)."
-                    )
-                    finish(token: token)
-                    return
                 }
-                Log.shared.info("[file-done] \(index + 1)/\(scan.files.count): \(file) -> \(result.status.rawValue)", scope: "taskRunner")
-                await appendLog(result)
+
+                await enqueueIfPossible()
+
+                for await (index, file, result) in group {
+                    inFlight -= 1
+                    completed += 1
+
+                    let stale = isStale(token)
+                    if sawCancel || stale {
+                        sawCancel = true
+                        if result.reason != "cancelled" {
+                            await appendLog(result)
+                        }
+                        group.cancelAll()
+                        continue
+                    }
+
+                    let progressNumber = min(total, max(completed + inFlight, 1))
+                    noteProgress(file: file, number: progressNumber)
+                    if shouldResumeCleaning() {
+                        await setState(.cleaning)
+                    }
+                    logTask(
+                        "[file-done] \(index + 1)/\(total): \(file) -> \(result.status.rawValue)"
+                    )
+                    await appendLog(result)
+                    noteProgress(file: file, number: progressNumber)
+                    await enqueueIfPossible()
+                }
             }
 
             if isStale(token) {
@@ -223,8 +259,30 @@ final class TaskRunner: ObservableObject {
         }
     }
 
+    /// Caps parallel cleans so AVFoundation/ImageIO do not unbounded-contend on the GPU.
+    static func boundedCleanConcurrency(processorCount: Int) -> Int {
+        min(4, max(2, processorCount / 2))
+    }
+
+    private static var cleanConcurrencyLimit: Int {
+        boundedCleanConcurrency(processorCount: ProcessInfo.processInfo.activeProcessorCount)
+    }
+
     private func isStale(_ token: UUID) -> Bool {
         Task.isCancelled || isCancelled || token != runToken
+    }
+
+    private func noteProgress(file: String, number: Int) {
+        currentFile = file
+        currentFileNumber = number
+    }
+
+    private func shouldResumeCleaning() -> Bool {
+        state != .cleaning && state != .cancelled && state != .failed
+    }
+
+    private func logTask(_ message: String) {
+        Log.shared.info(message, scope: "taskRunner")
     }
 
     /// Avoid clobbering Waiting/Reset UI when a dying job notices cancel late.
@@ -250,8 +308,6 @@ final class TaskRunner: ObservableObject {
 
     private func appendLog(_ result: CleanResult) async {
         await MainActor.run {
-            currentFile = nil
-            currentFileNumber = 0
             switch result.status {
             case .cleaned: counters.cleaned += 1
             case .skipped: counters.skipped += 1

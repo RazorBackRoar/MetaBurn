@@ -19,7 +19,7 @@ Local photo/video metadata stripper. Swift + SwiftUI.
 
 Fully native: photos use **ImageIO**; videos use **AVFoundation** remux (metadata stripped; optional mute omits audio). No ExifTool, ffmpeg, or Homebrew runtime deps. Cancel interrupts in-flight AVFoundation exports.
 
-**Photo quality:** All still-image cleans set `kCGImageDestinationLossyCompressionQuality = 1.0` (highest practical Image I/O JPEG quality) — both HEIC→JPG (`convertAndStrip`) and normal JPG/JPEG/PNG strip (`NativeImageIO.stripMetadata`).
+**Photo quality:** JPEG, PNG, and TIFF are stripped without re-encoding pixels (JPEG marker rewrite; `CGImageDestinationCopyImageSource` for PNG/TIFF). Orientation is kept. HEIC/HEIF still convert to cleaned **`.jpg`** at `kCGImageDestinationLossyCompressionQuality = 1.0` because that is a container change, not a JPEG byte-copy.
 
 **HEIC / HEIF:** Single Image I/O pass → cleaned **`.jpg`**. Originals never modified.
 
@@ -72,7 +72,7 @@ Output is `build/Release/MetaBurn.dmg` only (the `.app` is consumed during packa
 - While processing, show category count bubbles (Photos, Videos, etc.) with counts beside the title so progress is visible by media type.
 - Theme setting (Auto / Light / Dark) must apply to the main window — do not force dark mode.
 - Mute video audio defaults on and is shown on the empty start screen (and results footer).
-- Cleaned files land under Desktop/MetaBurn (or adjacent). Remind users that visible picture/video content is not altered (only hidden metadata / optional audio). Photo re-encodes use quality **1.0**.
+- Cleaned files land under Desktop/MetaBurn (or adjacent). Remind users that visible picture/video content is not altered (only hidden metadata / optional audio). JPEG/PNG/TIFF strips are lossless; HEIC→JPG uses quality **1.0**.
 - Packaging stays **ad-hoc signed** until a paid Apple Developer ID is available; do not require notarization.
 
 ## Output folders
@@ -105,7 +105,7 @@ Unit tests live in `Tests/MetaBurnTests` against `MetaBurnCore` (`swift test`).
 - Drag-and-drop only forever — never add browse/file-picker UI, and never auto-open Finder or Open panels to Desktop, Downloads, or output folders.
 - Mute video audio toggle lives in the bottom-right footer (no top mute banner; no Desktop/MetaBurn path label there); mute means permanently omit audio tracks so they cannot be recovered from the cleaned file.
 - Output destination is Settings-controlled (`desktop` default or `adjacent` next to originals); originals are never overwritten.
-- Current product line is MetaBurn **2.2.0**; native ImageIO + AVFoundation only (no ExifTool/ffmpeg/Homebrew runtime deps). Still cleans use JPEG quality **1.0**. HEIC/HEIF → stripped `.jpg` is a single Image I/O pass. iCloud Drive support is secondary (UbiquityGate; downloads can be slow).
+- Current product line is MetaBurn **2.2.0**; native ImageIO + AVFoundation only (no ExifTool/ffmpeg/Homebrew runtime deps). JPEG/PNG/TIFF strips are lossless (orientation kept). HEIC/HEIF → stripped `.jpg` is a single Image I/O pass at quality **1.0**. iCloud Drive support is secondary (UbiquityGate; downloads can be slow).
 - Metadata table primary order: Created, Lens, GPS, Size, Modified, Resolution, Type; never show Software; pin fields untouched by the burn to the bottom of the list.
 - Duplicate cleaned filenames use zero-padded sequential suffixes (`001`, `002`, `003`) — never `-1`/`-2` or trailing `X`/`XX`.
 - Privacy is the product priority, but never at the cost of visible quality loss or destroying the photo/video; prefer remux/strip over re-encode.
@@ -115,7 +115,7 @@ Unit tests live in `Tests/MetaBurnTests` against `MetaBurnCore` (`swift test`).
 ## Learned Workspace Facts
 
 - Re-dropping the same folder must always finish every file; half-written destinations and leftover `.metaburn.tmp` work files are bugs — discard the work file on timeout/failure and never promote it.
-- Current product line is MetaBurn **2.2.0**; native ImageIO + AVFoundation only. Photo strip / HEIC convertAndStrip use `kCGImageDestinationLossyCompressionQuality = 1.0`. iCloud is optional/secondary via `UbiquityGate`.
+- Current product line is MetaBurn **2.2.0**; native ImageIO + AVFoundation only. JPEG/PNG/TIFF strips are lossless. HEIC convertAndStrip uses `kCGImageDestinationLossyCompressionQuality = 1.0`. Videos remux with passthrough only. iCloud is optional/secondary via `UbiquityGate`.
 - Cancel must interrupt in-flight AVFoundation exports; batch jobs must not stall mid-count.
 - In-repo package output is always `Apps/MetaBurn/build/Release/MetaBurn.dmg` (from `./scripts/build-mac.sh`).
 
