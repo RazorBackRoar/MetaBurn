@@ -108,10 +108,31 @@ struct AdjacentOutputTests {
     func layoutBesideSource() {
         let source = "/Users/home/Library/Mobile Documents/com~apple~CloudDocs/Trip/IMG_001.HEIC"
         let root = AdjacentOutput.root(forSourcePath: source)
-        #expect(root.path.hasSuffix("/Trip/MetaBurn"))
-        #expect(AdjacentOutput.photosDirectory(forSourcePath: source).lastPathComponent == "Photos")
-        #expect(AdjacentOutput.videosDirectory(forSourcePath: source).lastPathComponent == "Videos")
-        #expect(AdjacentOutput.skippableDirectory(forSourcePath: source).lastPathComponent == "Skippable")
+        #expect(root.path == "/Users/home/Library/Mobile Documents/com~apple~CloudDocs/Trip/MetaBurn")
+        #expect(root.hasDirectoryPath)
+
+        let photos = AdjacentOutput.photosDirectory(forSourcePath: source)
+        #expect(photos == root.appendingPathComponent("Photos", isDirectory: true))
+        #expect(photos.hasDirectoryPath)
+
+        let videos = AdjacentOutput.videosDirectory(forSourcePath: source)
+        #expect(videos == root.appendingPathComponent("Videos", isDirectory: true))
+        #expect(videos.hasDirectoryPath)
+
+        let skippable = AdjacentOutput.skippableDirectory(forSourcePath: source)
+        #expect(skippable == root.appendingPathComponent("Skippable", isDirectory: true))
+        #expect(skippable.hasDirectoryPath)
+    }
+
+    @Test("handles source files in the root directory")
+    func layoutRootSource() {
+        let source = "/IMG_001.HEIC"
+        let root = AdjacentOutput.root(forSourcePath: source)
+        #expect(root.path == "/MetaBurn")
+        #expect(root.hasDirectoryPath)
+
+        let photos = AdjacentOutput.photosDirectory(forSourcePath: source)
+        #expect(photos == root.appendingPathComponent("Photos", isDirectory: true))
     }
 
     @Test("output destination raw values are stable")
