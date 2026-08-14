@@ -9,7 +9,7 @@ struct MetaBurnApp: App {
         Window("MetaBurn", id: "main") {
             ContentView()
         }
-        .defaultSize(width: 960, height: 760)
+        .defaultSize(width: 980, height: 900)
         .windowResizability(.contentMinSize)
         .windowToolbarStyle(.unified(showsTitle: true))
 
@@ -49,7 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.titleVisibility = .visible
             window.backgroundColor = .windowBackgroundColor
             window.isOpaque = true
-            window.minSize = NSSize(width: 900, height: 720)
+            window.minSize = NSSize(width: 900, height: 840)
         }
     }
 

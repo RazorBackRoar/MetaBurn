@@ -68,7 +68,7 @@ struct ContentView: View {
             MetaBurnTheme.background
                 .ignoresSafeArea()
 
-            VStack(spacing: 24) {
+            VStack(spacing: hasResults ? 14 : 24) {
                 HeaderView(typeCounts: runner.typeCounts, processing: processing)
 
                 if let notice = dropNotice {
@@ -81,15 +81,16 @@ struct ContentView: View {
                 DropZoneView(
                     highlighted: dropHighlighted,
                     processing: processing,
+                    compact: hasResults,
                     primary: dropPrimaryLabel,
                     secondary: dropSecondaryLabel
                 )
                 .frame(maxWidth: .infinity)
-                .frame(minHeight: hasResults ? 140 : 240, maxHeight: hasResults ? 200 : .infinity)
+                .frame(minHeight: hasResults ? 64 : 240, maxHeight: hasResults ? 80 : .infinity)
 
                 if hasResults {
                     resultsSplit
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .frame(maxWidth: .infinity, minHeight: 480, maxHeight: .infinity, alignment: .top)
                 }
 
                 FooterBar(
@@ -104,9 +105,10 @@ struct ContentView: View {
                     onCancel: { runner.cancel() }
                 )
             }
-            .padding(32)
+            .padding(.horizontal, 32)
+            .padding(.vertical, hasResults ? 20 : 32)
         }
-        .frame(minWidth: 900, minHeight: 720)
+        .frame(minWidth: 900, minHeight: 860)
         .onDrop(of: [.fileURL], isTargeted: $isDragging) { providers in
             handleDrop(providers: providers)
         }
@@ -264,23 +266,32 @@ private struct HeaderView: View {
     let processing: Bool
 
     var body: some View {
-        VStack(spacing: 10) {
-            MetaBurnFireImage()
-                .frame(width: 72, height: 72)
-
-            VStack(spacing: 4) {
-                (Text("Meta").foregroundColor(.primary) + Text("Burn").foregroundColor(MetaBurnTheme.accent))
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
-                    .onTapGesture(count: 2) { showAbout() }
-                    .contextMenu {
-                        Button("Check for Updates…") { checkForUpdates() }
-                        Button("About MetaBurn") { showAbout() }
-                    }
-                Text("Privacy protection for your photos and videos.")
-                    .font(.system(size: 14))
-                    .foregroundColor(MetaBurnTheme.secondaryText)
+        VStack(spacing: 8) {
+            HStack(alignment: .center, spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(MetaBurnTheme.surface)
+                        .frame(width: 56, height: 56)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.primary.opacity(0.15), lineWidth: 1)
+                        .frame(width: 56, height: 56)
+                    MetaBurnFireImage()
+                        .frame(width: 40, height: 40)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    (Text("Meta").foregroundColor(.primary) + Text("Burn").foregroundColor(MetaBurnTheme.accent))
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .onTapGesture(count: 2) { showAbout() }
+                        .contextMenu {
+                            Button("Check for Updates…") { checkForUpdates() }
+                            Button("About MetaBurn") { showAbout() }
+                        }
+                    Text("Privacy protection for your photos and videos.")
+                        .font(.system(size: 14))
+                        .foregroundColor(MetaBurnTheme.secondaryText)
+                }
             }
-            .multilineTextAlignment(.center)
 
             if typeCounts.hasAny {
                 typeCountBubbles
@@ -389,45 +400,69 @@ private struct HeaderView: View {
 private struct DropZoneView: View {
     let highlighted: Bool
     let processing: Bool
+    let compact: Bool
     let primary: String
     let secondary: String
 
     var body: some View {
-        VStack(spacing: 14) {
-            if processing {
-                ProgressView()
-                    .controlSize(.regular)
-                    .tint(MetaBurnTheme.accent)
+        Group {
+            if compact {
+                HStack(spacing: 12) {
+                    dropGlyph
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(primary)
+                            .font(.system(size: 15, weight: .semibold))
+                        Text(secondary)
+                            .font(.system(size: 12))
+                            .foregroundColor(MetaBurnTheme.secondaryText)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 16)
             } else {
-                Image(systemName: highlighted ? "photo.stack.fill" : "photo.stack")
-                    .font(.system(size: 46))
-                    .foregroundStyle(MetaBurnTheme.accent)
+                VStack(spacing: 14) {
+                    dropGlyph
+                    Text(primary)
+                        .font(.system(size: 20, weight: .semibold))
+                    Text(secondary)
+                        .font(.system(size: 13))
+                        .foregroundColor(MetaBurnTheme.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                }
             }
-            Text(primary)
-                .font(.system(size: 20, weight: .semibold))
-            Text(secondary)
-                .font(.system(size: 13))
-                .foregroundColor(MetaBurnTheme.secondaryText)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: compact ? 12 : 16, style: .continuous)
                 .fill(highlighted ? MetaBurnTheme.accent.opacity(0.10) : Color.clear)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: compact ? 12 : 16, style: .continuous)
                 .strokeBorder(
                     MetaBurnTheme.accent.opacity(highlighted ? 0.95 : 0.6),
                     style: StrokeStyle(lineWidth: highlighted ? 2 : 1.5, dash: highlighted ? [] : [6, 5])
                 )
         )
-        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: compact ? 12 : 16, style: .continuous))
         .animation(.easeInOut(duration: 0.15), value: highlighted)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Drop zone")
         .accessibilityHint("Drop photos, videos, or folders to clean metadata")
+    }
+
+    @ViewBuilder
+    private var dropGlyph: some View {
+        if processing {
+            ProgressView()
+                .controlSize(compact ? .small : .regular)
+                .tint(MetaBurnTheme.accent)
+        } else {
+            Image(systemName: highlighted ? "photo.stack.fill" : "photo.stack")
+                .font(.system(size: compact ? 22 : 46))
+                .foregroundStyle(MetaBurnTheme.accent)
+        }
     }
 }
 

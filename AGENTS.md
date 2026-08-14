@@ -25,14 +25,14 @@ Fully native: photos use **ImageIO**; videos use **AVFoundation** remux (metadat
 
 **iCloud Drive (secondary):** Drops from iCloud Drive are supported; online-only items download via `UbiquityGate` (can be slow). Core workflow is local files. Work files stay in local cache; originals never overwritten.
 
-**Output destination (Settings):** Default `Pictures/MetaBurn`. Optional **Next to originals** writes `MetaBurn/{Photos,Videos,Skippable}` beside each source file. Files on the Desktop never create `~/Desktop/MetaBurn` — they go to Pictures instead.
+**Output:** Always next to the originals (`<source-dir>/MetaBurn/{Photos,Videos,Skippable}`). Files sitting directly on Desktop or in Pictures are written in that same folder (siblings) so MetaBurn never creates `~/Desktop/MetaBurn` or `~/Pictures/MetaBurn`. Originals are never overwritten.
 
 - App entry: `Sources/MetaBurn/MetaBurnApp.swift`
 - UI views: `Sources/MetaBurn/Views/`
 - Services: `Sources/MetaBurn/Services/` (`MetadataCleaner`, `HeicJpegConverter`, `UbiquityGate`, `NativeImageIO`, …)
 - Utilities: `Sources/MetaBurn/Utilities/`
 
-Cleaned copies default under `~/Pictures/MetaBurn/` when needed: `Photos`, `Videos`, `Skippable`. Subfolders (and the root) are created dynamically — never on launch. **Never** create `~/Desktop/MetaBurn`. Originals are never overwritten.
+Cleaned copies go next to the originals. **Never** create `~/Desktop/MetaBurn` or `~/Pictures/MetaBurn`. Originals are never overwritten.
 
 ### RazorCore contracts (v1.1)
 
@@ -40,7 +40,7 @@ Cleaned copies default under `~/Pictures/MetaBurn/` when needed: `Photos`, `Vide
 |--------|------|
 | `MetaBurnCore` | Pure rules: SupportedTypes, OutputNaming, MetadataRules, HeicRules, OutputDestination / AdjacentOutput (unit-tested) |
 | `Utilities/Brand.swift` | Display vs machine-safe IDs |
-| `Utilities/Paths.swift` | Application Support / cache / logs under **MetaBurn**; collected output under `Pictures/MetaBurn` |
+| `Utilities/Paths.swift` | Application Support / cache / logs under **MetaBurn**; never creates Pictures/MetaBurn or Desktop/MetaBurn |
 | `Utilities/Logging.swift` | Console + file logs under Application Support |
 | `Utilities/AppInfo.swift` | Metadata + startup banner |
 | `Utilities/Updates.swift` | GitHub Releases check (`RazorBackRoar/MetaBurn`) |
@@ -72,12 +72,12 @@ Output is `build/Release/MetaBurn.dmg` only (the `.app` is consumed during packa
 - While processing, show category count bubbles (Photos, Videos, etc.) with counts beside the title so progress is visible by media type.
 - Theme setting (Auto / Light / Dark) must apply to the main window — do not force dark mode.
 - Mute video audio defaults on and is shown on the empty start screen (and results footer).
-- Cleaned files land under Pictures/MetaBurn (or adjacent). Remind users that visible picture/video content is not altered (only hidden metadata / optional audio). JPEG/PNG/TIFF strips are lossless; HEIC→JPG uses quality **1.0**.
+- Cleaned files land next to the originals. Remind users that visible picture/video content is not altered (only hidden metadata / optional audio). JPEG/PNG/TIFF strips are lossless; HEIC→JPG uses quality **1.0**.
 - Packaging stays **ad-hoc signed** until a paid Apple Developer ID is available; do not require notarization.
 
 ## Output folders
 
-Do **not** create `~/Desktop/MetaBurn`. Collected output is `~/Pictures/MetaBurn`. Do not create Photos / Videos / Skippable on launch or at job start.
+Do **not** create `~/Desktop/MetaBurn` or `~/Pictures/MetaBurn`. Cleaned copies go next to the originals. Do not create Photos / Videos / Skippable on launch or at job start.
 
 Create each folder only when first needed:
 
@@ -91,7 +91,7 @@ Supported files are copied to a local cache work file, cleaned (and optionally m
 
 Image/video testing uses **only** `/Users/home/Desktop/MetaBurn & L!bra Test` (`photos/` for images, `videos/` for videos). Never pull or process test media from Desktop/Downloads/Pictures/Movies/Workspace/elsewhere; generated outputs stay under that directory. Before any test, verify the source path starts with that prefix or stop.
 
-App runtime output for real cleans defaults to `~/Pictures/MetaBurn/` (or next to originals when Settings → Output is adjacent). Never write `~/Desktop/MetaBurn`.
+App runtime output writes next to the originals. Never write `~/Desktop/MetaBurn` or `~/Pictures/MetaBurn`.
 
 Unit tests live in `Tests/MetaBurnTests` against `MetaBurnCore` (`swift test`).
 
@@ -104,18 +104,18 @@ Unit tests live in `Tests/MetaBurnTests` against `MetaBurnCore` (`swift test`).
 
 - Drag-and-drop only forever — never add browse/file-picker UI, and never auto-open Finder or Open panels to Desktop, Downloads, or output folders.
 - Mute video audio toggle lives in the bottom-right footer (no top mute banner; no Desktop/MetaBurn path label there); mute means permanently omit audio tracks so they cannot be recovered from the cleaned file.
-- Output destination is Settings-controlled (`Pictures/MetaBurn` default or `adjacent` next to originals); originals are never overwritten. Never create `~/Desktop/MetaBurn`.
-- Current product line is MetaBurn **2.2.4**; native ImageIO + AVFoundation only (no ExifTool/ffmpeg/Homebrew runtime deps). JPEG/PNG/TIFF strips are lossless (orientation kept). HEIC/HEIF → stripped `.jpg` is a single Image I/O pass at quality **1.0**. iCloud Drive support is secondary (UbiquityGate; downloads can be slow).
+- Output is always next to the originals; originals are never overwritten. Never create `~/Desktop/MetaBurn` or `~/Pictures/MetaBurn`.
+- Current product line is MetaBurn **2.2.6**; native ImageIO + AVFoundation only (no ExifTool/ffmpeg/Homebrew runtime deps). JPEG/PNG/TIFF strips are lossless (orientation kept). HEIC/HEIF → stripped `.jpg` is a single Image I/O pass at quality **1.0**. iCloud Drive support is secondary (UbiquityGate; downloads can be slow).
 - Metadata table primary order: Make, Model, Camera, Lens, GPS Location, Date Created, Date Modified, Size, Resolution, Type. Date Created and Date Modified display as `mm/dd/yyyy`. Always show Make/Model/Camera/GPS Location/Date Created/Date Modified (dash if missing). Never show Software.
 - Duplicate cleaned filenames use zero-padded sequential suffixes (`001`, `002`, `003`) — never `-1`/`-2` or trailing `X`/`XX`.
 - Privacy is the product priority, but never at the cost of visible quality loss or destroying the photo/video; prefer remux/strip over re-encode.
-- Prefer a slightly taller/wider default window and one step larger UI font across the app.
+- Prefer a slightly taller/wider default window and one step larger UI font across the app. Results view uses a compact drop strip so the list/detail split is the tall pane.
 - When rebuilding for the user to try: bump `Sources/MetaBurn/Resources/version.json` (patch), build in-repo (`build/Release/MetaBurn.dmg`), copy to `~/Desktop/MetaBurn <version>.dmg` (keep prior versioned DMGs; do not overwrite `MetaBurn.dmg` as the only copy), then **stop** — do not open/mount/launch. The user double-clicks the Desktop DMG, drags to Applications, and ejects manually. Never open a DMG twice. `scripts/open-dmg.sh` only if they explicitly ask to open it. Keep the locked 500×420 DMG layout.
 
 ## Learned Workspace Facts
 
 - Re-dropping the same folder must always finish every file; half-written destinations and leftover `.metaburn.tmp` work files are bugs — discard the work file on timeout/failure and never promote it.
-- Current product line is MetaBurn **2.2.4**; native ImageIO + AVFoundation only. JPEG/PNG/TIFF strips are lossless. HEIC convertAndStrip uses `kCGImageDestinationLossyCompressionQuality = 1.0`. Videos remux with passthrough only. iCloud is optional/secondary via `UbiquityGate`.
+- Current product line is MetaBurn **2.2.6**; native ImageIO + AVFoundation only. JPEG/PNG/TIFF strips are lossless. HEIC convertAndStrip uses `kCGImageDestinationLossyCompressionQuality = 1.0`. Videos remux with passthrough only. iCloud is optional/secondary via `UbiquityGate`.
 - Cancel must interrupt in-flight AVFoundation exports; batch jobs must not stall mid-count.
 - In-repo package output is always `Apps/MetaBurn/build/Release/MetaBurn.dmg` (from `./scripts/build-mac.sh`).
 

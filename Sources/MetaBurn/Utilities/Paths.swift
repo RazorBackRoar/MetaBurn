@@ -5,7 +5,6 @@ import MetaBurnCore
 enum Paths {
     static var appName: String { Brand.displayName }
 
-    /// Collected output root: `~/Pictures/MetaBurn` (never `~/Desktop/MetaBurn`).
     static var desktopOutputFolderName: String { OutputNaming.desktopFolderName }
 
     static func applicationSupportDirectory() -> URL {
@@ -35,7 +34,7 @@ enum Paths {
             .appendingPathComponent("Pictures", isDirectory: true)
     }
 
-    /// Collected cleaned copies: `~/Pictures/MetaBurn`.
+    /// Legacy collected path `~/Pictures/MetaBurn` — never create this folder.
     static func desktopOutputRoot() -> URL {
         picturesDirectory().appendingPathComponent(desktopOutputFolderName, isDirectory: true)
     }
@@ -47,22 +46,17 @@ enum Paths {
 
     /// True for `~/Desktop/MetaBurn` or any path under it. Does not match `MetaBurn & L!bra Test`.
     static func isForbiddenDesktopMetaBurn(_ url: URL) -> Bool {
-        let banned = forbiddenDesktopMetaBurnRoot().standardizedFileURL.path
-        let path = url.standardizedFileURL.path
-        return path == banned || path.hasPrefix(banned + "/")
+        isUnderRoot(url, root: forbiddenDesktopMetaBurnRoot())
     }
 
-    /// If `url` would land in `~/Desktop/MetaBurn`, rewrite it under `~/Pictures/MetaBurn`.
-    static func relocatingOffDesktopMetaBurn(_ url: URL) -> URL {
-        guard isForbiddenDesktopMetaBurn(url) else { return url }
-        let banned = forbiddenDesktopMetaBurnRoot().standardizedFileURL
-        let path = url.standardizedFileURL.path
-        let rest = String(path.dropFirst(banned.path.count))
-            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        if rest.isEmpty {
-            return desktopOutputRoot()
-        }
-        return desktopOutputRoot().appendingPathComponent(rest, isDirectory: url.hasDirectoryPath)
+    /// True for `~/Pictures/MetaBurn` or any path under it.
+    static func isForbiddenPicturesMetaBurn(_ url: URL) -> Bool {
+        isUnderRoot(url, root: desktopOutputRoot())
+    }
+
+    /// Collected dumps that must never be created: `~/Desktop/MetaBurn` and `~/Pictures/MetaBurn`.
+    static func isForbiddenCollectedMetaBurn(_ url: URL) -> Bool {
+        isForbiddenDesktopMetaBurn(url) || isForbiddenPicturesMetaBurn(url)
     }
 
     static func photosOutputDirectory() -> URL {
@@ -78,9 +72,8 @@ enum Paths {
     }
 
     static func ensureDirectory(_ url: URL) {
-        let target = relocatingOffDesktopMetaBurn(url)
-        guard !isForbiddenDesktopMetaBurn(target) else { return }
-        try? FileManager.default.createDirectory(at: target, withIntermediateDirectories: true, attributes: nil)
+        guard !isForbiddenCollectedMetaBurn(url) else { return }
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true, attributes: nil)
     }
 
     static func ensureLogsDirectory() {
@@ -89,21 +82,6 @@ enum Paths {
 
     static func ensureCacheDirectory() {
         ensureDirectory(cacheDirectory())
-    }
-
-    /// Create only the Photos output folder (and `Pictures/MetaBurn` if needed).
-    static func ensurePhotosOutputDirectory() {
-        ensureDirectory(photosOutputDirectory())
-    }
-
-    /// Create only the Videos output folder (and `Pictures/MetaBurn` if needed).
-    static func ensureVideosOutputDirectory() {
-        ensureDirectory(videosOutputDirectory())
-    }
-
-    /// Create only the Skippable output folder (and `Pictures/MetaBurn` if needed).
-    static func ensureSkippableOutputDirectory() {
-        ensureDirectory(skippableOutputDirectory())
     }
 
     /// Unique path under `directory` for `sourcePath`'s filename (`name.ext`, `name-1.ext`, …).
@@ -116,25 +94,39 @@ enum Paths {
         ensureCacheDirectory()
         let url = OutputNaming.workURL(in: cacheDirectory(), forFinal: finalURL)
         assert(
-            !WorkFileSafety.isWorkFileOnDesktopOutput(workURL: url, desktopOutputRoot: desktopOutputRoot()),
-            "MetaBurn work files must not live under Pictures/MetaBurn"
+            !isForbiddenCollectedMetaBurn(url),
+            "MetaBurn work files must not live under Pictures/MetaBurn or Desktop/MetaBurn"
         )
         return url
     }
 
-    /// Remove leftover `*.metaburn.tmp*` from cache and any collected output folders that already exist.
-    /// Never creates `Desktop/MetaBurn` or its children.
+    /// Remove leftover `*.metaburn.tmp*` from cache and any leftover collected folders that already exist.
+    /// Never creates `Desktop/MetaBurn`, `Pictures/MetaBurn`, or their children.
     @discardableResult
     static func cleanupOrphanWorkFiles() -> [URL] {
         ensureCacheDirectory()
         var dirs = [cacheDirectory()]
         let fm = FileManager.default
-        for dir in [photosOutputDirectory(), videosOutputDirectory(), skippableOutputDirectory()] {
+        let leftover = [
+            photosOutputDirectory(),
+            videosOutputDirectory(),
+            skippableOutputDirectory(),
+            forbiddenDesktopMetaBurnRoot().appendingPathComponent(OutputNaming.photosFolderName, isDirectory: true),
+            forbiddenDesktopMetaBurnRoot().appendingPathComponent(OutputNaming.videosFolderName, isDirectory: true),
+            forbiddenDesktopMetaBurnRoot().appendingPathComponent(OutputNaming.skippableFolderName, isDirectory: true)
+        ]
+        for dir in leftover {
             var isDir: ObjCBool = false
             if fm.fileExists(atPath: dir.path, isDirectory: &isDir), isDir.boolValue {
                 dirs.append(dir)
             }
         }
         return WorkFileSafety.cleanupOrphanWorkFiles(in: dirs)
+    }
+
+    private static func isUnderRoot(_ url: URL, root: URL) -> Bool {
+        let banned = root.standardizedFileURL.path
+        let path = url.standardizedFileURL.path
+        return path == banned || path.hasPrefix(banned + "/")
     }
 }

@@ -84,7 +84,7 @@ submits via `notarytool`, and staples the ticket when credentials are present.
 ## Privacy notes
 
 MetaBurn strips removable metadata (and optional video audio) on copies under
-`~/Pictures/MetaBurn` (or next to originals when chosen in Settings). Photo cleans
+next to the originals. Photo cleans
 re-encode at Image I/O quality **1.0**. It does **not** change what’s visible in
 the frame — faces, rooms, text, and other in-frame content remain. Share only the
 cleaned copies you intend to publish.

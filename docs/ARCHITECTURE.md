@@ -62,9 +62,7 @@ Drop → Scanner (SupportedTypes)
 
 ## Output destinations
 
-**Collected (default):** `~/Pictures/MetaBurn/{Photos,Videos,Skippable}` — never `~/Desktop/MetaBurn`
-
-**Adjacent:** `<source-dir>/MetaBurn/{Photos,Videos,Skippable}`
+**Adjacent (only):** `<source-dir>/MetaBurn/{Photos,Videos,Skippable}` — never `~/Desktop/MetaBurn` or `~/Pictures/MetaBurn`. Files sitting directly on Desktop or in Pictures stay in that same folder.
 
 ## Updates security
 

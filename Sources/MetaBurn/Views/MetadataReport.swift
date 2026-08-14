@@ -302,9 +302,6 @@ struct MetadataReport: View {
     private var outcomeLabel: String {
         switch entry.status {
         case .cleaned:
-            if entry.path.hasPrefix(Paths.desktopOutputRoot().path) {
-                return "Saved to Pictures/MetaBurn"
-            }
             return "Saved next to original"
         case .partial:
             return "Some metadata remains"

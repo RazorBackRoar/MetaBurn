@@ -45,13 +45,14 @@ struct PathsTests {
         #expect(url == expectedURL)
     }
 
-    @Test("desktopOutputRoot uses Pictures/MetaBurn, not Desktop")
+    @Test("desktopOutputRoot names the forbidden Pictures/MetaBurn path")
     func testDesktopOutputRoot() {
         let url = Paths.desktopOutputRoot()
         let expectedURL = Paths.picturesDirectory().appendingPathComponent(OutputNaming.desktopFolderName, isDirectory: true)
 
         #expect(url == expectedURL)
         #expect(url.lastPathComponent == OutputNaming.desktopFolderName)
+        #expect(Paths.isForbiddenPicturesMetaBurn(url))
         #expect(!Paths.isForbiddenDesktopMetaBurn(url))
     }
 
@@ -105,17 +106,31 @@ struct PathsTests {
         #expect(!Paths.isForbiddenDesktopMetaBurn(url))
     }
 
-    @Test("Desktop/MetaBurn is rewritten under Pictures/MetaBurn")
-    func relocatesForbiddenDesktopFolder() {
+    @Test("Desktop/MetaBurn and Pictures/MetaBurn are forbidden collected roots")
+    func forbiddenCollectedRoots() {
         let bannedRoot = Paths.forbiddenDesktopMetaBurnRoot()
         let bannedPhotos = bannedRoot.appendingPathComponent("Photos", isDirectory: true)
         #expect(Paths.isForbiddenDesktopMetaBurn(bannedRoot))
         #expect(Paths.isForbiddenDesktopMetaBurn(bannedPhotos))
-        #expect(Paths.relocatingOffDesktopMetaBurn(bannedRoot) == Paths.desktopOutputRoot())
-        #expect(Paths.relocatingOffDesktopMetaBurn(bannedPhotos) == Paths.photosOutputDirectory())
+        #expect(Paths.isForbiddenCollectedMetaBurn(bannedPhotos))
+        #expect(Paths.isForbiddenPicturesMetaBurn(Paths.desktopOutputRoot()))
+        #expect(Paths.isForbiddenPicturesMetaBurn(Paths.photosOutputDirectory()))
+        #expect(Paths.isForbiddenCollectedMetaBurn(Paths.photosOutputDirectory()))
 
         let testMedia = Paths.desktopDirectory().appendingPathComponent("MetaBurn & L!bra Test", isDirectory: true)
         #expect(!Paths.isForbiddenDesktopMetaBurn(testMedia))
-        #expect(Paths.relocatingOffDesktopMetaBurn(testMedia) == testMedia)
+        #expect(!Paths.isForbiddenPicturesMetaBurn(testMedia))
+        #expect(!Paths.isForbiddenCollectedMetaBurn(testMedia))
+    }
+
+    @Test("ensureDirectory never creates Pictures/MetaBurn")
+    func ensureDirectorySkipsPicturesMetaBurn() {
+        let picturesRoot = Paths.desktopOutputRoot()
+        let picturesPhotos = Paths.photosOutputDirectory()
+        #expect(!FileManager.default.fileExists(atPath: picturesRoot.path))
+        Paths.ensureDirectory(picturesRoot)
+        Paths.ensureDirectory(picturesPhotos)
+        #expect(!FileManager.default.fileExists(atPath: picturesRoot.path))
+        #expect(!FileManager.default.fileExists(atPath: picturesPhotos.path))
     }
 }

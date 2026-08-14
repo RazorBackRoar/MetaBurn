@@ -2,8 +2,8 @@ import Foundation
 
 /// Where cleaned copies are written. Originals are never overwritten.
 public enum OutputDestination: String, Sendable, CaseIterable {
-    /// `~/Pictures/MetaBurn/{Photos,Videos,Skippable}` (default collected output).
-    /// Never writes `~/Desktop/MetaBurn`.
+    /// Legacy collected-output tag. Resolves the same as `adjacent` so
+    /// `~/Pictures/MetaBurn` and `~/Desktop/MetaBurn` are never created.
     case desktop
     /// `dirname(source)/MetaBurn/{Photos,Videos,Skippable}` — next to the originals.
     case adjacent
