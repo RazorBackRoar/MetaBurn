@@ -8,7 +8,7 @@
 
 **Strip EXIF, GPS, and device metadata from photos and videos — locally on macOS.**
 
-Drag files in. MetaBurn writes cleaned copies to `~/Desktop/MetaBurn` (Photos / Videos). Originals stay untouched. Optional mute removes video audio. What’s visible in the frame is not altered.
+Drag files in. MetaBurn writes cleaned copies to `~/Pictures/MetaBurn` (Photos / Videos). Originals stay untouched. Optional mute removes video audio. What’s visible in the frame is not altered.
 
 Photo cleans use Image I/O at **maximum practical JPEG quality** (`kCGImageDestinationLossyCompressionQuality = 1.0`) while stripping privacy metadata. HEIC/HEIF become cleaned `.jpg`. Videos prefer remux (no visual re-encode).
 
@@ -29,7 +29,7 @@ Photo cleans use Image I/O at **maximum practical JPEG quality** (`kCGImageDesti
 - **HEIC / HEIF → `.jpg`** — single-pass convert + strip (creator-friendly `.jpg` extension)
 - **EXIF / GPS / device tags** — stripped natively (ImageIO for photos, AVFoundation for videos)
 - **Optional video mute** — omit audio tracks from cleaned video copies (no quality re-encode when passthrough works)
-- **Output location** — `Desktop/MetaBurn` by default, or next to originals (Settings)
+- **Output location** — `Pictures/MetaBurn` by default, or next to originals (Settings)
 - **iCloud Drive (optional)** — drops from iCloud work; online-only files download first (can be slow)
 - **Apple Silicon native** — Swift / SwiftUI · no Homebrew tools required
 
@@ -45,7 +45,7 @@ Requires macOS on Apple Silicon.
 
 1. Open **MetaBurn**
 2. Drop photos and/or videos onto the window (mixed batches are fine)
-3. Find cleaned copies in `~/Desktop/MetaBurn/Photos`, `Videos`, and `Skippable`
+3. Find cleaned copies in `~/Pictures/MetaBurn/Photos`, `Videos`, and `Skippable`
    (or `<source>/MetaBurn/{Photos,Videos,Skippable}` when Settings → Output is
    adjacent)
 4. Enable mute when you also want audio removed from video copies

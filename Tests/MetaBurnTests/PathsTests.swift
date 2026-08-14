@@ -45,13 +45,14 @@ struct PathsTests {
         #expect(url == expectedURL)
     }
 
-    @Test("desktopOutputRoot uses correct folder name")
+    @Test("desktopOutputRoot uses Pictures/MetaBurn, not Desktop")
     func testDesktopOutputRoot() {
         let url = Paths.desktopOutputRoot()
-        let expectedURL = Paths.desktopDirectory().appendingPathComponent(OutputNaming.desktopFolderName, isDirectory: true)
+        let expectedURL = Paths.picturesDirectory().appendingPathComponent(OutputNaming.desktopFolderName, isDirectory: true)
 
         #expect(url == expectedURL)
         #expect(url.lastPathComponent == OutputNaming.desktopFolderName)
+        #expect(!Paths.isForbiddenDesktopMetaBurn(url))
     }
 
     @Test("photosOutputDirectory uses correct folder name")
@@ -101,5 +102,20 @@ struct PathsTests {
 
         // Assert it's not in the desktop output root
         #expect(!url.path.hasPrefix(Paths.desktopOutputRoot().path))
+        #expect(!Paths.isForbiddenDesktopMetaBurn(url))
+    }
+
+    @Test("Desktop/MetaBurn is rewritten under Pictures/MetaBurn")
+    func relocatesForbiddenDesktopFolder() {
+        let bannedRoot = Paths.forbiddenDesktopMetaBurnRoot()
+        let bannedPhotos = bannedRoot.appendingPathComponent("Photos", isDirectory: true)
+        #expect(Paths.isForbiddenDesktopMetaBurn(bannedRoot))
+        #expect(Paths.isForbiddenDesktopMetaBurn(bannedPhotos))
+        #expect(Paths.relocatingOffDesktopMetaBurn(bannedRoot) == Paths.desktopOutputRoot())
+        #expect(Paths.relocatingOffDesktopMetaBurn(bannedPhotos) == Paths.photosOutputDirectory())
+
+        let testMedia = Paths.desktopDirectory().appendingPathComponent("MetaBurn & L!bra Test", isDirectory: true)
+        #expect(!Paths.isForbiddenDesktopMetaBurn(testMedia))
+        #expect(Paths.relocatingOffDesktopMetaBurn(testMedia) == testMedia)
     }
 }

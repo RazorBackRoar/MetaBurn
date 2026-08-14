@@ -88,21 +88,8 @@ struct ContentView: View {
                 .frame(minHeight: hasResults ? 140 : 240, maxHeight: hasResults ? 200 : .infinity)
 
                 if hasResults {
-                    Group {
-                        switch pane {
-                        case .files:
-                            CleanedFilesPanel(
-                                files: sortedLog,
-                                currentFile: runner.currentFile,
-                                canReveal: revealableURLs.isEmpty == false,
-                                onReveal: revealInFinder,
-                                onSelect: { pane = .details($0) }
-                            )
-                        case .details(let file):
-                            FileDetailsView(file: file, onBack: { pane = .files })
-                        }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    resultsSplit
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
 
                 FooterBar(
@@ -123,6 +110,55 @@ struct ContentView: View {
         .onDrop(of: [.fileURL], isTargeted: $isDragging) { providers in
             handleDrop(providers: providers)
         }
+        .onChange(of: runner.log.count) { _, _ in
+            autoSelectFirstResultIfNeeded()
+        }
+    }
+
+    private var selectedFileID: UUID? {
+        if case .details(let file) = pane { return file.id }
+        return nil
+    }
+
+    private var resultsSplit: some View {
+        Group {
+            if case .details(let file) = pane {
+                HSplitView {
+                    cleanedFilesList
+                        .frame(minWidth: 280, idealWidth: 380, maxWidth: .infinity)
+                    FileDetailsView(
+                        file: sortedLog.first(where: { $0.id == file.id }) ?? file,
+                        onBack: { pane = .files },
+                        embedded: true
+                    )
+                    .frame(minWidth: 320, idealWidth: 520, maxWidth: .infinity)
+                }
+            } else {
+                cleanedFilesList
+            }
+        }
+        .background(MetaBurnTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(MetaBurnTheme.hairline, lineWidth: 1)
+        )
+    }
+
+    private var cleanedFilesList: some View {
+        CleanedFilesPanel(
+            files: sortedLog,
+            currentFile: runner.currentFile,
+            selectedID: selectedFileID,
+            canReveal: revealableURLs.isEmpty == false,
+            onReveal: revealInFinder,
+            onSelect: { pane = .details($0) }
+        )
+    }
+
+    private func autoSelectFirstResultIfNeeded() {
+        guard case .files = pane, let first = sortedLog.first else { return }
+        pane = .details(first)
     }
 
     private var dropPrimaryLabel: String {
@@ -228,41 +264,29 @@ private struct HeaderView: View {
     let processing: Bool
 
     var body: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Spacer(minLength: 0)
-                HStack(spacing: 14) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(MetaBurnTheme.surface)
-                            .frame(width: 52, height: 52)
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(Color.primary.opacity(0.15), lineWidth: 1)
-                            .frame(width: 52, height: 52)
-                        Image(systemName: "flame.fill")
-                            .font(.system(size: 22, weight: .semibold))
-                            .foregroundStyle(MetaBurnTheme.accent)
+        VStack(spacing: 10) {
+            MetaBurnFireImage()
+                .frame(width: 72, height: 72)
+
+            VStack(spacing: 4) {
+                (Text("Meta").foregroundColor(.primary) + Text("Burn").foregroundColor(MetaBurnTheme.accent))
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .onTapGesture(count: 2) { showAbout() }
+                    .contextMenu {
+                        Button("Check for Updates…") { checkForUpdates() }
+                        Button("About MetaBurn") { showAbout() }
                     }
-                    VStack(alignment: .leading, spacing: 2) {
-                        (Text("Meta").foregroundColor(.primary) + Text("Burn").foregroundColor(MetaBurnTheme.accent))
-                            .font(.system(size: 34, weight: .bold, design: .rounded))
-                            .onTapGesture(count: 2) { showAbout() }
-                            .contextMenu {
-                                Button("Check for Updates…") { checkForUpdates() }
-                                Button("About MetaBurn") { showAbout() }
-                            }
-                        Text("Privacy protection for your photos and videos.")
-                            .font(.system(size: 14))
-                            .foregroundColor(MetaBurnTheme.secondaryText)
-                    }
-                }
-                Spacer(minLength: 0)
+                Text("Privacy protection for your photos and videos.")
+                    .font(.system(size: 14))
+                    .foregroundColor(MetaBurnTheme.secondaryText)
             }
+            .multilineTextAlignment(.center)
 
             if typeCounts.hasAny {
                 typeCountBubbles
             }
         }
+        .frame(maxWidth: .infinity)
     }
 
     private var typeCountBubbles: some View {
@@ -412,6 +436,7 @@ private struct DropZoneView: View {
 private struct CleanedFilesPanel: View {
     let files: [LogEntry]
     let currentFile: String?
+    let selectedID: UUID?
     let canReveal: Bool
     let onReveal: () -> Void
     let onSelect: (LogEntry) -> Void
@@ -428,37 +453,34 @@ private struct CleanedFilesPanel: View {
                 .buttonStyle(GhostButtonStyle())
                 .disabled(!canReveal)
             }
-            .padding(.bottom, 14)
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 10)
+
+            Divider().overlay(MetaBurnTheme.hairline)
 
             ScrollView {
-                Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 0) {
+                LazyVStack(alignment: .leading, spacing: 0) {
                     if let currentFile {
-                        GridRow {
-                            fileNameCell(path: currentFile)
-                            Image(systemName: "arrow.right")
-                                .foregroundColor(MetaBurnTheme.secondaryText)
-                            Text("cleaning")
-                                .foregroundColor(.blue)
-                            ProgressView()
-                                .controlSize(.small)
-                                .gridColumnAlignment(.trailing)
-                        }
-                        .padding(.vertical, 14)
+                        fileRow(
+                            path: currentFile,
+                            statusText: "cleaning",
+                            statusColor: .blue,
+                            timestamp: nil,
+                            selected: false,
+                            showsProgress: true
+                        )
                         Divider().overlay(MetaBurnTheme.hairline)
                     }
 
                     ForEach(Array(files.enumerated()), id: \.element.id) { index, file in
-                        GridRow {
-                            fileNameCell(path: file.path)
-                            Image(systemName: "arrow.right")
-                                .foregroundColor(MetaBurnTheme.secondaryText)
-                            Text(statusLabel(file.status))
-                                .foregroundColor(statusColor(file.status))
-                            Text(FileTimestamp.display(file.finishedAt))
-                                .foregroundColor(MetaBurnTheme.secondaryText)
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-                        }
-                        .padding(.vertical, 14)
+                        fileRow(
+                            path: file.path,
+                            statusText: statusLabel(file.status),
+                            statusColor: statusColor(file.status),
+                            timestamp: FileTimestamp.display(file.finishedAt),
+                            selected: file.id == selectedID
+                        )
                         .contentShape(Rectangle())
                         .onTapGesture { onSelect(file) }
                         if index < files.count - 1 {
@@ -470,6 +492,35 @@ private struct CleanedFilesPanel: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private func fileRow(
+        path: String,
+        statusText: String,
+        statusColor: Color,
+        timestamp: String?,
+        selected: Bool,
+        showsProgress: Bool = false
+    ) -> some View {
+        HStack(spacing: 14) {
+            fileNameCell(path: path)
+            Image(systemName: "arrow.right")
+                .foregroundColor(MetaBurnTheme.secondaryText)
+            Text(statusText)
+                .foregroundColor(statusColor)
+            Spacer(minLength: 8)
+            if let timestamp {
+                Text(timestamp)
+                    .foregroundColor(MetaBurnTheme.secondaryText)
+            }
+            if showsProgress {
+                ProgressView()
+                    .controlSize(.small)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(selected ? MetaBurnTheme.accent.opacity(0.28) : Color.clear)
     }
 
     private func fileNameCell(path: String) -> some View {

@@ -23,7 +23,7 @@ struct SettingsView: View {
 
             Section {
                 Picker("Save cleaned copies", selection: $outputDestinationRaw) {
-                    Text("Desktop/MetaBurn").tag(OutputDestination.desktop.rawValue)
+                    Text("Pictures/MetaBurn").tag(OutputDestination.desktop.rawValue)
                     Text("Next to originals").tag(OutputDestination.adjacent.rawValue)
                 }
                 .pickerStyle(.radioGroup)
@@ -47,9 +47,9 @@ struct SettingsView: View {
     private var outputHelpText: String {
         switch OutputDestination(rawValue: outputDestinationRaw) ?? .desktop {
         case .desktop:
-            return "Cleaned Photos, Videos, and Skippable folders are created under Desktop/MetaBurn only when needed."
+            return "Cleaned Photos, Videos, and Skippable folders are created under Pictures/MetaBurn only when needed. The Desktop is never used as an output folder."
         case .adjacent:
-            return "For each source file, cleaned copies go to a MetaBurn folder beside that file (MetaBurn/Photos, Videos, Skippable). Ideal when dropping from iCloud Drive."
+            return "For each source file, cleaned copies go to a MetaBurn folder beside that file (MetaBurn/Photos, Videos, Skippable). Files dropped from the Desktop go to Pictures/MetaBurn instead of creating a Desktop folder."
         }
     }
 }

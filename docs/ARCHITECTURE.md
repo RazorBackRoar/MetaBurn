@@ -62,7 +62,7 @@ Drop → Scanner (SupportedTypes)
 
 ## Output destinations
 
-**Desktop (default):** `~/Desktop/MetaBurn/{Photos,Videos,Skippable}`
+**Collected (default):** `~/Pictures/MetaBurn/{Photos,Videos,Skippable}` — never `~/Desktop/MetaBurn`
 
 **Adjacent:** `<source-dir>/MetaBurn/{Photos,Videos,Skippable}`
 

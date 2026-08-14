@@ -11,7 +11,7 @@ enum OutputPreference {
 
     static func label(for destination: OutputDestination) -> String {
         switch destination {
-        case .desktop: return "Desktop/MetaBurn"
+        case .desktop: return "Pictures/MetaBurn"
         case .adjacent: return "next to originals"
         }
     }

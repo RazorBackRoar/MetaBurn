@@ -252,6 +252,7 @@ enum NativeVideoClean {
             }
             if let date = attrs[.creationDate] as? Date {
                 let formattedDate = dateFormatter.string(from: date)
+                entries.append(MetadataEntry(group: "File", tag: "FileCreateDate", value: formattedDate))
                 entries.append(MetadataEntry(group: "File", tag: "CreateDate", value: formattedDate))
                 entries.append(MetadataEntry(group: "QuickTime", tag: "CreationDate", value: formattedDate))
             }
@@ -268,6 +269,7 @@ enum NativeVideoClean {
             return "GPSPosition"
         }
         if lower.contains("make") { return "Make" }
+        if lower.contains("camera") { return "Camera" }
         if lower.contains("model") { return "Model" }
         if lower.contains("software") { return "Software" }
         if lower.contains("description") || lower.contains("comment") { return "Comment" }

@@ -241,6 +241,9 @@ enum NativeImageIO {
             if let date = attrs[.modificationDate] as? Date {
                 entries.append(MetadataEntry(group: "File", tag: "FileModifyDate", value: dateFormatter.string(from: date)))
             }
+            if let date = attrs[.creationDate] as? Date {
+                entries.append(MetadataEntry(group: "File", tag: "FileCreateDate", value: dateFormatter.string(from: date)))
+            }
         }
         return entries
     }

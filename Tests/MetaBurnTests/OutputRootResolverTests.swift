@@ -44,6 +44,17 @@ struct OutputRootResolverTests {
         #expect(result == AdjacentOutput.skippableDirectory(forSourcePath: sampleSourcePath))
     }
 
+    @Test("Desktop sources do not resolve under Desktop/MetaBurn")
+    func desktopSourcesLeaveTheDesktop() {
+        let source = Paths.desktopDirectory().appendingPathComponent("Screenshot.png").path
+        let photos = OutputRootResolver.photosDirectory(forSourcePath: source, destination: .adjacent)
+        let collected = OutputRootResolver.photosDirectory(forSourcePath: source, destination: .desktop)
+        #expect(!Paths.isForbiddenDesktopMetaBurn(photos))
+        #expect(!Paths.isForbiddenDesktopMetaBurn(collected))
+        #expect(photos == Paths.photosOutputDirectory())
+        #expect(collected == Paths.photosOutputDirectory())
+    }
+
     @Test("pathLooksLikeICloud returns true for iCloud Drive paths")
     func testPathLooksLikeICloudTrue() {
         let path1 = URL(fileURLWithPath: "/Users/test/Library/Mobile Documents/com~apple~CloudDocs/photo.jpg")

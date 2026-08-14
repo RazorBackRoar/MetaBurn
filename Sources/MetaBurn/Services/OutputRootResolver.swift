@@ -8,7 +8,7 @@ enum OutputRootResolver {
         case .desktop:
             return Paths.photosOutputDirectory()
         case .adjacent:
-            return AdjacentOutput.photosDirectory(forSourcePath: sourcePath)
+            return Paths.relocatingOffDesktopMetaBurn(AdjacentOutput.photosDirectory(forSourcePath: sourcePath))
         }
     }
 
@@ -17,7 +17,7 @@ enum OutputRootResolver {
         case .desktop:
             return Paths.videosOutputDirectory()
         case .adjacent:
-            return AdjacentOutput.videosDirectory(forSourcePath: sourcePath)
+            return Paths.relocatingOffDesktopMetaBurn(AdjacentOutput.videosDirectory(forSourcePath: sourcePath))
         }
     }
 
@@ -26,7 +26,7 @@ enum OutputRootResolver {
         case .desktop:
             return Paths.skippableOutputDirectory()
         case .adjacent:
-            return AdjacentOutput.skippableDirectory(forSourcePath: sourcePath)
+            return Paths.relocatingOffDesktopMetaBurn(AdjacentOutput.skippableDirectory(forSourcePath: sourcePath))
         }
     }
 

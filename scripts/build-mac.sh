@@ -92,7 +92,7 @@ mkdir -p "$RELEASE_DIR"
 # Versioned volume name so Finder does not reuse a remembered (broken) window size
 # from an older "MetaBurn" mount.
 VOLUME_NAME="$APP_NAME $VERSION"
-"$RAZORCORE_DIR/package-dmg.sh" \
+RAZORCORE_SKIP_DESKTOP_DMG=1 "$RAZORCORE_DIR/package-dmg.sh" \
   --app "$APP_PATH" \
   --dmg "$DMG_PATH" \
   --app-name "$APP_NAME" \
@@ -124,5 +124,11 @@ fi
 
 # Package as a single DMG; do not leave the .app bundle in the app folder.
 rm -rf "$APP_PATH"
+
+if [[ -d "${HOME}/Desktop" && -z "${GITHUB_ACTIONS:-}" && -z "${CI:-}" ]]; then
+  DESKTOP_DMG="${HOME}/Desktop/${APP_NAME} ${VERSION}.dmg"
+  cp -f "$DMG_PATH" "$DESKTOP_DMG"
+  echo "✓ Desktop handoff: $DESKTOP_DMG"
+fi
 
 echo "Build complete: $DMG_PATH"

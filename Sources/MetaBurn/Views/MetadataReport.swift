@@ -4,6 +4,7 @@ import MetaBurnCore
 struct FileDetailsView: View {
     let file: LogEntry
     let onBack: () -> Void
+    var embedded: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -22,12 +23,14 @@ struct FileDetailsView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(MetaBurnTheme.surface)
+        .background(embedded ? Color.clear : MetaBurnTheme.surface)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(MetaBurnTheme.hairline, lineWidth: 1)
-        )
+        .overlay {
+            if !embedded {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(MetaBurnTheme.hairline, lineWidth: 1)
+            }
+        }
     }
 }
 
@@ -59,10 +62,24 @@ struct MetadataReport: View {
         )
     }
 
-    /// Skip empty dash rows so screenshots don't show a tall empty table.
+    /// Skip empty rows except the fields that must always appear in the table.
     private var visibleRows: [FieldRow] {
-        allRows.filter { !$0.before.isEmpty || !$0.after.isEmpty || $0.stripped }
+        allRows.filter { row in
+            Self.requiredLabels.contains(row.label)
+                || !row.before.isEmpty
+                || !row.after.isEmpty
+                || row.stripped
+        }
     }
+
+    private static let requiredLabels: Set<String> = [
+        "Make",
+        "Model",
+        "Camera",
+        "GPS Location",
+        "Date Created",
+        "Date Modified"
+    ]
 
     private var strippedCount: Int {
         allRows.filter(\.stripped).count
@@ -201,11 +218,11 @@ struct MetadataReport: View {
     private var tableHeader: some View {
         HStack(spacing: 0) {
             Text("Field")
-                .frame(width: 110, alignment: .leading)
+                .frame(width: 128, alignment: .leading)
             Text("Before")
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text("After")
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
         }
         .font(.system(size: 11, weight: .semibold))
         .foregroundStyle(.secondary)
@@ -219,7 +236,7 @@ struct MetadataReport: View {
             Text(row.label)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.secondary)
-                .frame(width: 110, alignment: .leading)
+                .frame(width: 128, alignment: .leading)
 
             Text(display(row.before))
                 .font(.system(size: 13, weight: .medium))
@@ -227,16 +244,27 @@ struct MetadataReport: View {
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text(display(row.after))
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(row.stripped ? MetaBurnTheme.accent : .primary)
-                .strikethrough(row.stripped && !row.after.isEmpty, color: MetaBurnTheme.accent.opacity(0.7))
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            afterCell(row)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 7)
         .background(row.stripped ? MetaBurnTheme.accent.opacity(0.05) : Color.clear)
+    }
+
+    @ViewBuilder
+    private func afterCell(_ row: FieldRow) -> some View {
+        if row.stripped && row.after.isEmpty {
+            MetaBurnFireImage()
+                .frame(width: 18, height: 18)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .accessibilityLabel("Burned")
+        } else {
+            Text(display(row.after))
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(row.stripped ? MetaBurnTheme.accent : .primary)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .center)
+        }
     }
 
     private func display(_ value: String) -> String {
@@ -273,10 +301,17 @@ struct MetadataReport: View {
 
     private var outcomeLabel: String {
         switch entry.status {
-        case .cleaned: "Saved to Desktop/MetaBurn"
-        case .partial: "Some metadata remains"
-        case .skipped: "Rejected / skipped"
-        case .failed: "Error"
+        case .cleaned:
+            if entry.path.hasPrefix(Paths.desktopOutputRoot().path) {
+                return "Saved to Pictures/MetaBurn"
+            }
+            return "Saved next to original"
+        case .partial:
+            return "Some metadata remains"
+        case .skipped:
+            return "Rejected / skipped"
+        case .failed:
+            return "Error"
         }
     }
 
@@ -357,22 +392,73 @@ enum MetadataFieldBuilder {
         return get(map, "LocationInformation", "Location", "City", "Sub-location", "Country")
     }
 
+    private static func camera(_ map: Map) -> String {
+        let dedicated = get(map, "Camera", "CameraModel")
+        if !dedicated.isEmpty {
+            return dedicated
+        }
+        let make = get(map, "Make")
+        let model = get(map, "Model")
+        if !make.isEmpty, !model.isEmpty {
+            if model.localizedCaseInsensitiveContains(make) {
+                return model
+            }
+            return "\(make) \(model)"
+        }
+        return model.isEmpty ? make : model
+    }
+
+    private static func dateValue(_ map: Map, _ tags: String...) -> String {
+        MetadataDateFormat.display(get(map, tags))
+    }
+
+    private static func get(_ map: Map, _ tags: [String]) -> String {
+        for tag in tags {
+            if let value = map[tag], !value.trimmingCharacters(in: .whitespaces).isEmpty {
+                return value.trimmingCharacters(in: .whitespaces)
+            }
+        }
+        return ""
+    }
+
     private static let photoSpecs: [Spec] = [
-        Spec(label: "Created", mirror: false, resolve: { m, _ in get(m, "CreateDate", "CreationDate", "DateTimeOriginal", "CreationTime") }),
+        Spec(label: "Make", mirror: false, resolve: { m, _ in get(m, "Make") }),
+        Spec(label: "Model", mirror: false, resolve: { m, _ in get(m, "Model") }),
+        Spec(label: "Camera", mirror: false, resolve: { m, _ in camera(m) }),
         Spec(label: "Lens", mirror: false, resolve: { m, _ in get(m, "LensModel", "LensInfo", "LensMake", "Lens") }),
-        Spec(label: "GPS", mirror: false, resolve: { m, _ in gps(m) }),
+        Spec(label: "GPS Location", mirror: false, resolve: { m, _ in gps(m) }),
+        Spec(
+            label: "Date Created",
+            mirror: false,
+            resolve: { m, _ in dateValue(m, "DateTimeOriginal", "CreateDate", "CreationDate", "CreationTime", "FileCreateDate") }
+        ),
+        Spec(
+            label: "Date Modified",
+            mirror: false,
+            resolve: { m, _ in dateValue(m, "ModifyDate", "FileModifyDate") }
+        ),
         Spec(label: "Size", mirror: true, resolve: { m, _ in get(m, "FileSize") }),
-        Spec(label: "Modified", mirror: true, resolve: { m, _ in get(m, "ModifyDate", "FileModifyDate") }),
         Spec(label: "Resolution", mirror: true, resolve: { m, _ in resolution(m) }),
         Spec(label: "Type", mirror: true, resolve: { m, _ in get(m, "FileType", "MIMEType") })
     ]
 
     private static let videoSpecs: [Spec] = [
-        Spec(label: "Created", mirror: false, resolve: { m, _ in get(m, "CreateDate", "CreationDate") }),
+        Spec(label: "Make", mirror: false, resolve: { m, _ in get(m, "Make") }),
+        Spec(label: "Model", mirror: false, resolve: { m, _ in get(m, "Model") }),
+        Spec(label: "Camera", mirror: false, resolve: { m, _ in camera(m) }),
         Spec(label: "Lens", mirror: false, resolve: { m, _ in get(m, "LensModel", "Lens") }),
-        Spec(label: "GPS", mirror: false, resolve: { m, _ in gps(m) }),
+        Spec(label: "GPS Location", mirror: false, resolve: { m, _ in gps(m) }),
+        Spec(
+            label: "Date Created",
+            mirror: false,
+            resolve: { m, _ in dateValue(m, "CreateDate", "CreationDate", "DateTimeOriginal", "FileCreateDate") }
+        ),
+        Spec(
+            label: "Date Modified",
+            mirror: false,
+            resolve: { m, _ in dateValue(m, "ModifyDate", "FileModifyDate") }
+        ),
         Spec(label: "Size", mirror: true, resolve: { m, _ in get(m, "FileSize") }),
-        Spec(label: "Modified", mirror: true, resolve: { m, _ in get(m, "ModifyDate", "FileModifyDate") }),
         Spec(label: "Resolution", mirror: true, resolve: { m, _ in resolution(m) }),
         Spec(label: "Type", mirror: true, resolve: { m, _ in get(m, "FileType", "MIMEType") }),
         Spec(label: "Duration", mirror: true, resolve: { m, _ in get(m, "Duration", "MediaDuration", "TrackDuration") }),
