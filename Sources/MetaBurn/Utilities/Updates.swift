@@ -10,6 +10,17 @@ struct UpdateResult {
     let error: String?
 }
 
+enum UpdateError: LocalizedError {
+    case httpError(Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .httpError(let statusCode):
+            return "GitHub returned HTTP \(statusCode)"
+        }
+    }
+}
+
 final class Updates {
     static let cacheDuration: TimeInterval = 3600
     static let userAgent = "metaburn-update-checker/1.0"
@@ -34,35 +45,7 @@ final class Updates {
         defer { session.finishTasksAndInvalidate() }
 
         do {
-            let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse, http.statusCode < 400 else {
-                return UpdateResult(
-                    currentVersion: currentVersion,
-                    latestVersion: currentVersion,
-                    updateAvailable: false,
-                    downloadURL: nil,
-                    releaseNotes: nil,
-                    releaseDate: nil,
-                    error: "GitHub returned HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)"
-                )
-            }
-            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
-            let tag = (json["tag_name"] as? String ?? "").replacingOccurrences(of: "^v", with: "", options: .regularExpression)
-            let htmlURL = json["html_url"] as? String
-            let body = json["body"] as? String
-            let publishedAt = json["published_at"] as? String
-
-            writeCache(latestVersion: tag, downloadURL: htmlURL, releaseNotes: body, releaseDate: publishedAt)
-
-            return UpdateResult(
-                currentVersion: currentVersion,
-                latestVersion: tag,
-                updateAvailable: compareVersions(currentVersion, tag) < 0,
-                downloadURL: htmlURL,
-                releaseNotes: body,
-                releaseDate: publishedAt,
-                error: nil
-            )
+            return try await fetchLatestUpdate(session: session, request: request, currentVersion: currentVersion)
         } catch {
             return UpdateResult(
                 currentVersion: currentVersion,
@@ -74,6 +57,32 @@ final class Updates {
                 error: error.localizedDescription
             )
         }
+    }
+
+    private static func fetchLatestUpdate(session: URLSession, request: URLRequest, currentVersion: String) async throws -> UpdateResult {
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode < 400 else {
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            throw UpdateError.httpError(statusCode)
+        }
+
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+        let tag = (json["tag_name"] as? String ?? "").replacingOccurrences(of: "^v", with: "", options: .regularExpression)
+        let htmlURL = json["html_url"] as? String
+        let body = json["body"] as? String
+        let publishedAt = json["published_at"] as? String
+
+        writeCache(latestVersion: tag, downloadURL: htmlURL, releaseNotes: body, releaseDate: publishedAt)
+
+        return UpdateResult(
+            currentVersion: currentVersion,
+            latestVersion: tag,
+            updateAvailable: compareVersions(currentVersion, tag) < 0,
+            downloadURL: htmlURL,
+            releaseNotes: body,
+            releaseDate: publishedAt,
+            error: nil
+        )
     }
 
     static func readCache(currentVersion: String) -> UpdateResult? {
