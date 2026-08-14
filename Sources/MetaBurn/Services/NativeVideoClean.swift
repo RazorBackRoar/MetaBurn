@@ -127,8 +127,22 @@ enum NativeVideoClean {
             var seen = Set(entries.map { GroupTag(group: $0.group, tag: $0.tag) })
 
             let metadata = try await asset.load(.metadata)
-            for item in metadata {
-                guard let value = try? await item.load(.stringValue),
+            let metadataResults = await withTaskGroup(of: (Int, AVMetadataItem, String?).self) { group in
+                for (index, item) in metadata.enumerated() {
+                    group.addTask {
+                        let val = try? await item.load(.stringValue)
+                        return (index, item, val)
+                    }
+                }
+                var results: [(Int, AVMetadataItem, String?)] = []
+                for await result in group {
+                    results.append(result)
+                }
+                return results.sorted { $0.0 < $1.0 }
+            }
+
+            for (_, item, valueOpt) in metadataResults {
+                guard let value = valueOpt,
                       !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
                 let key = (item.commonKey?.rawValue ?? item.identifier?.rawValue ?? "Meta").trimmingCharacters(in: .whitespaces)
                 let tag = friendlyTag(for: key)
@@ -142,8 +156,22 @@ enum NativeVideoClean {
             let formats = try await asset.load(.availableMetadataFormats)
             for format in formats {
                 let items = try await asset.loadMetadata(for: format)
-                for item in items {
-                    guard let value = try? await item.load(.stringValue),
+                let itemsResults = await withTaskGroup(of: (Int, AVMetadataItem, String?).self) { group in
+                    for (index, item) in items.enumerated() {
+                        group.addTask {
+                            let val = try? await item.load(.stringValue)
+                            return (index, item, val)
+                        }
+                    }
+                    var results: [(Int, AVMetadataItem, String?)] = []
+                    for await result in group {
+                        results.append(result)
+                    }
+                    return results.sorted { $0.0 < $1.0 }
+                }
+
+                for (_, item, valueOpt) in itemsResults {
+                    guard let value = valueOpt,
                           !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
                     let key = (item.commonKey?.rawValue ?? item.identifier?.rawValue ?? "Meta")
                     let tag = friendlyTag(for: key)
