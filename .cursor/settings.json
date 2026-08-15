@@ -1,7 +1,1 @@
-{
-  "plugins": {
-    "cli-for-agent": {
-      "enabled": true
-    }
-  }
-}
+{}
