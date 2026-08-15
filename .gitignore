@@ -17,3 +17,7 @@ app-icon.png
 # Logs
 *.log
 tmp/*
+
+# Cursor local runtime (hook stamps/index; empty project plugin UI)
+.cursor/hooks/state/
+.cursor/settings.json
