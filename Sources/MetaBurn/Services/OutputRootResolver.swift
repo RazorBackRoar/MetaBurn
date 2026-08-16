@@ -16,16 +16,23 @@ enum OutputRootResolver {
         resolved(AdjacentOutput.skippableDirectory(forSourcePath: sourcePath), sourcePath: sourcePath, destination: destination)
     }
 
-    static func ensurePhotosDirectory(forSourcePath sourcePath: String, destination: OutputDestination) {
-        Paths.ensureDirectory(photosDirectory(forSourcePath: sourcePath, destination: destination))
+    static func ensurePhotosDirectory(forSourcePath sourcePath: String, destination: OutputDestination) throws {
+        let url = photosDirectory(forSourcePath: sourcePath, destination: destination)
+        try PathSafety.ensureDirectoryNoFollow(url, within: sourceParent(sourcePath))
     }
 
-    static func ensureVideosDirectory(forSourcePath sourcePath: String, destination: OutputDestination) {
-        Paths.ensureDirectory(videosDirectory(forSourcePath: sourcePath, destination: destination))
+    static func ensureVideosDirectory(forSourcePath sourcePath: String, destination: OutputDestination) throws {
+        let url = videosDirectory(forSourcePath: sourcePath, destination: destination)
+        try PathSafety.ensureDirectoryNoFollow(url, within: sourceParent(sourcePath))
     }
 
-    static func ensureSkippableDirectory(forSourcePath sourcePath: String, destination: OutputDestination) {
-        Paths.ensureDirectory(skippableDirectory(forSourcePath: sourcePath, destination: destination))
+    static func ensureSkippableDirectory(forSourcePath sourcePath: String, destination: OutputDestination) throws {
+        let url = skippableDirectory(forSourcePath: sourcePath, destination: destination)
+        try PathSafety.ensureDirectoryNoFollow(url, within: sourceParent(sourcePath))
+    }
+
+    private static func sourceParent(_ sourcePath: String) -> String {
+        URL(fileURLWithPath: sourcePath).deletingLastPathComponent().path
     }
 
     /// Heuristic: path lives under iCloud Drive / Mobile Documents.

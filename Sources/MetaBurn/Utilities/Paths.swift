@@ -86,7 +86,13 @@ enum Paths {
 
     /// Unique path under `directory` for `sourcePath`'s filename (`name.ext`, `name-1.ext`, …).
     static func uniqueOutputURL(forSourcePath sourcePath: String, in directory: URL) -> URL {
-        OutputNaming.uniqueURL(forSourcePath: sourcePath, in: directory)
+        OutputNaming.uniqueURL(
+            forSourcePath: sourcePath,
+            in: directory,
+            fileExists: { path in
+                FileManager.default.fileExists(atPath: path) || PathSafety.isSymlink(path)
+            }
+        )
     }
 
     /// Local cache work file (not on Desktop/iCloud) so cleaning never mid-writes the final path.

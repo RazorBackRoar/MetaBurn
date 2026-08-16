@@ -24,6 +24,14 @@ enum MetadataCleaner {
             return CleanResult(path: filePath, status: .skipped, reason: "container not safely writable")
         }
 
+        do {
+            try PathSafety.assertRegularFileNoFollow(at: filePath)
+        } catch PathSafetyError.symlink(_) {
+            return CleanResult(path: filePath, status: .skipped, reason: "symlink skipped for safety")
+        } catch {
+            return CleanResult(path: filePath, status: .failed, reason: "could not open source file")
+        }
+
         let convertHeic = info.kind == .photo && HeicJpegConverter.shouldConvert(filePath: filePath)
 
         do {
@@ -42,15 +50,29 @@ enum MetadataCleaner {
             )
         }
 
-        if info.kind == .photo {
-            OutputRootResolver.ensurePhotosDirectory(forSourcePath: filePath, destination: outputDestination)
-        } else {
-            OutputRootResolver.ensureVideosDirectory(forSourcePath: filePath, destination: outputDestination)
+        do {
+            if info.kind == .photo {
+                try OutputRootResolver.ensurePhotosDirectory(forSourcePath: filePath, destination: outputDestination)
+            } else {
+                try OutputRootResolver.ensureVideosDirectory(forSourcePath: filePath, destination: outputDestination)
+            }
+        } catch PathSafetyError.symlink(_) {
+            return CleanResult(path: filePath, status: .failed, reason: "output path is a symlink")
+        } catch {
+            return CleanResult(
+                path: filePath,
+                status: .failed,
+                reason: "could not create output folder: \(error.localizedDescription)"
+            )
         }
 
         let outputDir = info.kind == .photo
             ? OutputRootResolver.photosDirectory(forSourcePath: filePath, destination: outputDestination)
             : OutputRootResolver.videosDirectory(forSourcePath: filePath, destination: outputDestination)
+        let sourceDir = URL(fileURLWithPath: filePath).deletingLastPathComponent().path
+        if !PathSafety.isPhysicallyInside(outputDir.path, ancestor: sourceDir) {
+            return CleanResult(path: filePath, status: .failed, reason: "output path is outside the source folder")
+        }
 
         let finalURL: URL
         if convertHeic {
@@ -75,6 +97,7 @@ enum MetadataCleaner {
         let metadataBefore = await readMetadata(filePath: filePath, kind: info.kind)
 
         do {
+            try PathSafety.assertRegularFileNoFollow(at: filePath)
             try Task.checkCancellation()
 
             if convertHeic {
@@ -180,9 +203,8 @@ enum MetadataCleaner {
         if UbiquityGate.isUbiquitous(atPath: filePath) || UbiquityGate.needsDownload(atPath: filePath) {
             try await UbiquityGate.materialize(fromPath: filePath, to: destinationURL)
         } else {
-            let fm = FileManager.default
             safeRemove(at: destinationURL)
-            try fm.copyItem(atPath: filePath, toPath: destinationURL.path)
+            try PathSafety.copyNoFollow(from: filePath, to: destinationURL)
         }
     }
 
@@ -369,7 +391,11 @@ enum MetadataCleaner {
     }
 
     private static func promoteWorkFile(_ workURL: URL, to finalURL: URL) throws {
-        Paths.ensureDirectory(finalURL.deletingLastPathComponent())
+        if PathSafety.isSymlink(finalURL.path) {
+            throw PathSafetyError.symlink(finalURL.path)
+        }
+        let parent = finalURL.deletingLastPathComponent()
+        try PathSafety.ensureDirectoryNoFollow(parent, within: parent.path)
         let fm = FileManager.default
 
         let destIsICloud = UbiquityGate.isUbiquitous(atPath: finalURL.path)

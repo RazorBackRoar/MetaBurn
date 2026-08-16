@@ -104,9 +104,9 @@ struct OutputRootResolverTests {
         #expect(!FileManager.default.fileExists(atPath: expectedVideosURL.path))
         #expect(!FileManager.default.fileExists(atPath: expectedSkippableURL.path))
 
-        OutputRootResolver.ensurePhotosDirectory(forSourcePath: tempSourcePath, destination: .adjacent)
-        OutputRootResolver.ensureVideosDirectory(forSourcePath: tempSourcePath, destination: .adjacent)
-        OutputRootResolver.ensureSkippableDirectory(forSourcePath: tempSourcePath, destination: .adjacent)
+        try OutputRootResolver.ensurePhotosDirectory(forSourcePath: tempSourcePath, destination: .adjacent)
+        try OutputRootResolver.ensureVideosDirectory(forSourcePath: tempSourcePath, destination: .adjacent)
+        try OutputRootResolver.ensureSkippableDirectory(forSourcePath: tempSourcePath, destination: .adjacent)
 
         var isDir: ObjCBool = false
 

@@ -16,7 +16,6 @@ enum SkipExporter {
     ) throws -> Result? {
         guard !skipped.isEmpty else { return nil }
 
-        let fm = FileManager.default
         var copied = 0
         var lastFolder: URL?
 
@@ -35,14 +34,15 @@ enum SkipExporter {
 
         for (folderPath, entries) in groups {
             let folder = URL(fileURLWithPath: folderPath, isDirectory: true)
-            Paths.ensureDirectory(folder)
+            try PathSafety.ensureDirectoryNoFollow(
+                folder,
+                within: URL(fileURLWithPath: entries[0].path).deletingLastPathComponent().path
+            )
             lastFolder = folder
             if primaryFolder == nil { primaryFolder = folder }
 
             for entry in entries {
-                guard fm.fileExists(atPath: entry.path),
-                      (try? URL(fileURLWithPath: entry.path).resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
-                else { continue }
+                guard (try? PathSafety.identity(at: entry.path)) != nil else { continue }
 
                 // Best-effort: pull iCloud placeholders before copy.
                 if UbiquityGate.needsDownload(atPath: entry.path) {
@@ -54,7 +54,7 @@ enum SkipExporter {
                     if UbiquityGate.isUbiquitous(atPath: entry.path) {
                         try awaitableMaterializeSync(from: entry.path, to: dest)
                     } else {
-                        try fm.copyItem(atPath: entry.path, toPath: dest.path)
+                        try PathSafety.copyNoFollow(from: entry.path, to: dest)
                     }
                     copied += 1
                 } catch {
