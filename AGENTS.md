@@ -109,7 +109,7 @@ Unit tests live in `Tests/MetaBurnTests` against `MetaBurnCore` (`swift test`).
 - Metadata table primary order: Make, Model, Camera, Lens, GPS Location, Date Created, Date Modified, Size, Resolution, Type. Date Created and Date Modified display as `mm/dd/yyyy`. Always show Make/Model/Camera/GPS Location/Date Created/Date Modified (dash if missing). Never show Software.
 - Duplicate cleaned filenames use zero-padded sequential suffixes (`001`, `002`, `003`) — never `-1`/`-2` or trailing `X`/`XX`.
 - Privacy is the product priority, but never at the cost of visible quality loss or destroying the photo/video; prefer remux/strip over re-encode.
-- Prefer a slightly taller/wider default window and one step larger UI font across the app. Results view uses a compact drop strip so the list/detail split is the tall pane.
+- Prefer a slightly taller/wider default window and one step larger UI font across the app. Results view uses a compact drop strip so the list/detail split is the tall pane. File list and metadata detail share one compact window (in-content navigation); never a second window, sheet, or separate details window.
 - When rebuilding for the user to try: bump `Sources/MetaBurn/Resources/version.json` (patch), build in-repo (`build/Release/MetaBurn.dmg`), copy to `~/Desktop/MetaBurn <version>.dmg` (keep prior versioned DMGs; do not overwrite `MetaBurn.dmg` as the only copy), then **stop** — do not open/mount/launch. The user double-clicks the Desktop DMG, drags to Applications, and ejects manually. Never open a DMG twice. `scripts/open-dmg.sh` only if they explicitly ask to open it. Keep the locked 500×420 DMG layout.
 
 ## Learned Workspace Facts
