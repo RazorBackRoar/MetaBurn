@@ -126,9 +126,29 @@ fi
 rm -rf "$APP_PATH"
 
 if [[ -d "${HOME}/Desktop" && -z "${GITHUB_ACTIONS:-}" && -z "${CI:-}" ]]; then
-  DESKTOP_DMG="${HOME}/Desktop/${APP_NAME} ${VERSION}.dmg"
-  cp -f "$DMG_PATH" "$DESKTOP_DMG"
-  echo "✓ Desktop handoff: $DESKTOP_DMG"
+  # Keep a versioned copy and also replace the current Desktop DMG.
+  VERSIONED_DMG="${HOME}/Desktop/${APP_NAME} ${VERSION}.dmg"
+  cp -f "$DMG_PATH" "$VERSIONED_DMG"
+  echo "✓ Desktop versioned DMG: $VERSIONED_DMG"
+
+  CURRENT_DMG="${HOME}/Desktop/${APP_NAME}.dmg"
+  rm -f "$CURRENT_DMG"
+  cp -f "$DMG_PATH" "$CURRENT_DMG"
+  echo "✓ Desktop current DMG: $CURRENT_DMG"
+
+  # Mount the current DMG on the Desktop so the user can drag it to /Applications.
+  echo "Mounting Desktop DMG..."
+  if ! hdiutil attach "$CURRENT_DMG"; then
+    echo "Warning: $CURRENT_DMG may already be mounted; continuing." >&2
+  fi
+
+  # Back up the currently installed app before the user replaces it.
+  if [[ -d "/Applications/$APP_NAME.app" ]]; then
+    BACKUP_ZIP="$HOME/Desktop/$APP_NAME backup.zip"
+    rm -f "$BACKUP_ZIP"
+    echo "Backing up /Applications/$APP_NAME.app to $BACKUP_ZIP"
+    zip -r -y -q "$BACKUP_ZIP" "/Applications/$APP_NAME.app"
+  fi
 fi
 
 echo "Build complete: $DMG_PATH"
