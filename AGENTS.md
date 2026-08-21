@@ -64,7 +64,8 @@ Package a macOS `.app` and DMG with ad-hoc signing (or Developer ID + notarizati
 ./scripts/build-mac.sh
 ```
 
-Output is `build/Release/MetaBurn.dmg` only (the `.app` is consumed during packaging).
+Local output is `~/Desktop/MetaBurn.dmg` only (the `.app` and in-repo DMG are
+removed after packaging). CI keeps `build/Release/MetaBurn.dmg`.
 
 ## UI
 
@@ -110,14 +111,14 @@ Unit tests live in `Tests/MetaBurnTests` against `MetaBurnCore` (`swift test`).
 - Duplicate cleaned filenames use zero-padded sequential suffixes (`001`, `002`, `003`) — never `-1`/`-2` or trailing `X`/`XX`.
 - Privacy is the product priority, but never at the cost of visible quality loss or destroying the photo/video; prefer remux/strip over re-encode.
 - Prefer a slightly taller/wider default window and one step larger UI font across the app. Results view uses a compact drop strip so the list/detail split is the tall pane. File list and metadata detail share one compact window (in-content navigation); never a second window, sheet, or separate details window.
-- When rebuilding for the user to try: bump `Sources/MetaBurn/Resources/version.json` (patch), build in-repo (`build/Release/MetaBurn.dmg` only). `package-dmg.sh` replaces `~/Desktop/MetaBurn.dmg`, zips `/Applications/MetaBurn.app` (if present) to `~/Desktop/MetaBurn backup.zip`, installs into `/Applications`, and smoke-launches. Do not keep a second versioned Desktop DMG. Human UAT (notification permission, launch-at-login, sleep/wake) still happens before a GitHub Release. `scripts/open-dmg.sh` only if they explicitly ask to open it. Keep the locked 500×420 DMG layout.
+- When rebuilding for the user to try: bump `Sources/MetaBurn/Resources/version.json` (patch), then `razorbuild` / `./scripts/build-mac.sh`. `package-dmg.sh` replaces `~/Desktop/MetaBurn.dmg`, deletes `build/Release/MetaBurn.dmg`, zips `/Applications/MetaBurn.app` (if present) to `~/Desktop/MetaBurn backup.zip`, and mounts the Desktop DMG. Do not install into `/Applications`. Do not keep a second versioned Desktop DMG. Human UAT (notification permission, launch-at-login, sleep/wake) still happens before a GitHub Release. `scripts/open-dmg.sh` only if they explicitly ask to open it. Keep the locked 500×420 DMG layout.
 
 ## Learned Workspace Facts
 
 - Re-dropping the same folder must always finish every file; half-written destinations and leftover `.metaburn.tmp` work files are bugs — discard the work file on timeout/failure and never promote it.
 - Current product line is MetaBurn **2.2.6**; native ImageIO + AVFoundation only. JPEG/PNG/TIFF strips are lossless. HEIC convertAndStrip uses `kCGImageDestinationLossyCompressionQuality = 1.0`. Videos remux with passthrough only. iCloud is optional/secondary via `UbiquityGate`.
 - Cancel must interrupt in-flight AVFoundation exports; batch jobs must not stall mid-count.
-- In-repo package output is always `Apps/MetaBurn/build/Release/MetaBurn.dmg` (from `./scripts/build-mac.sh`).
+- Local package output is `~/Desktop/MetaBurn.dmg`; `build/Release/MetaBurn.dmg` is deleted after that copy. CI keeps the in-repo DMG.
 
 
 ## Jules Repository Contract
