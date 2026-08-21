@@ -92,7 +92,7 @@ mkdir -p "$RELEASE_DIR"
 # Versioned volume name so Finder does not reuse a remembered (broken) window size
 # from an older "MetaBurn" mount.
 VOLUME_NAME="$APP_NAME $VERSION"
-RAZORCORE_SKIP_DESKTOP_DMG=1 "$RAZORCORE_DIR/package-dmg.sh" \
+"$RAZORCORE_DIR/package-dmg.sh" \
   --app "$APP_PATH" \
   --dmg "$DMG_PATH" \
   --app-name "$APP_NAME" \
@@ -122,33 +122,15 @@ elif [ -n "$SIGN_IDENTITY" ]; then
     echo "Signed but not notarized (set NOTARYTOOL_KEYCHAIN_PROFILE or APPLE_ID/APPLE_TEAM_ID/APPLE_APP_SPECIFIC_PASSWORD)."
 fi
 
-# Package as a single DMG; do not leave the .app bundle in the app folder.
-rm -rf "$APP_PATH"
-
+# Keep a versioned Desktop copy; package-dmg.sh already replaced MetaBurn.dmg
+# and installed/launched locally.
 if [[ -d "${HOME}/Desktop" && -z "${GITHUB_ACTIONS:-}" && -z "${CI:-}" ]]; then
-  # Keep a versioned copy and also replace the current Desktop DMG.
   VERSIONED_DMG="${HOME}/Desktop/${APP_NAME} ${VERSION}.dmg"
   cp -f "$DMG_PATH" "$VERSIONED_DMG"
   echo "✓ Desktop versioned DMG: $VERSIONED_DMG"
-
-  CURRENT_DMG="${HOME}/Desktop/${APP_NAME}.dmg"
-  rm -f "$CURRENT_DMG"
-  cp -f "$DMG_PATH" "$CURRENT_DMG"
-  echo "✓ Desktop current DMG: $CURRENT_DMG"
-
-  # Mount the current DMG on the Desktop so the user can drag it to /Applications.
-  echo "Mounting Desktop DMG..."
-  if ! hdiutil attach "$CURRENT_DMG"; then
-    echo "Warning: $CURRENT_DMG may already be mounted; continuing." >&2
-  fi
-
-  # Back up the currently installed app before the user replaces it.
-  if [[ -d "/Applications/$APP_NAME.app" ]]; then
-    BACKUP_ZIP="$HOME/Desktop/$APP_NAME backup.zip"
-    rm -f "$BACKUP_ZIP"
-    echo "Backing up /Applications/$APP_NAME.app to $BACKUP_ZIP"
-    zip -r -y -q "$BACKUP_ZIP" "/Applications/$APP_NAME.app"
-  fi
 fi
+
+# Keep only the DMG in-tree — /Applications is the runnable copy.
+rm -rf "$APP_PATH" "$RELEASE_DIR/.previous-build"
 
 echo "Build complete: $DMG_PATH"
