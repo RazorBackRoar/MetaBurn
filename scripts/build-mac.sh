@@ -99,35 +99,30 @@ VOLUME_NAME="$APP_NAME $VERSION"
   --volname "$VOLUME_NAME"
 
 if [ -n "$SIGN_IDENTITY" ]; then
-    SIGN_TARGET="$DMG_PATH"
-    if [[ ! -f "$SIGN_TARGET" ]]; then
-      SIGN_TARGET="${HOME}/Desktop/${APP_NAME}.dmg"
-    fi
     echo "Signing $APP_NAME.dmg..."
-    codesign --force --sign "$SIGN_IDENTITY" "$SIGN_TARGET"
+    codesign --force --sign "$SIGN_IDENTITY" "$DMG_PATH"
 fi
 
 if [ -n "$SIGN_IDENTITY" ] && { [ -n "$NOTARY_PROFILE" ] || { [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ] && [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]; }; }; then
     echo "Submitting $APP_NAME.dmg for notarization..."
     if [ -n "$NOTARY_PROFILE" ]; then
-        xcrun notarytool submit "$SIGN_TARGET" --keychain-profile "$NOTARY_PROFILE" --wait
+        xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
     else
-        xcrun notarytool submit "$SIGN_TARGET" \
+        xcrun notarytool submit "$DMG_PATH" \
             --apple-id "$APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" \
             --password "$APPLE_APP_SPECIFIC_PASSWORD" \
             --wait
     fi
     echo "Stapling notarization ticket..."
-    xcrun stapler staple "$SIGN_TARGET"
-    xcrun stapler validate "$SIGN_TARGET"
+    xcrun stapler staple "$DMG_PATH"
+    xcrun stapler validate "$DMG_PATH"
     echo "Notarization complete."
 elif [ -n "$SIGN_IDENTITY" ]; then
     echo "Signed but not notarized (set NOTARYTOOL_KEYCHAIN_PROFILE or APPLE_ID/APPLE_TEAM_ID/APPLE_APP_SPECIFIC_PASSWORD)."
 fi
 
-# Delete the staging .app. Local handoff already moved the DMG to the Desktop.
-# package-dmg.sh already replaced ~/Desktop/MetaBurn.dmg (no versioned sidecar).
+# Delete the staging .app.
 rm -rf "$APP_PATH" "$RELEASE_DIR/.previous-build"
 
-echo "Build complete: ${HOME}/Desktop/${APP_NAME}.dmg"
+echo "Build complete: $DMG_PATH"

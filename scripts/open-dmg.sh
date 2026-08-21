@@ -1,7 +1,7 @@
 #!/bin/bash
 # Optional: open MetaBurn.dmg exactly once with the locked Finder layout.
-# Default rebuild policy (Apps/AGENTS.md): copy DMG to Desktop and STOP — do NOT call
-# this unless the user explicitly asks to open/mount the DMG.
+# Only when the user explicitly asks to open/mount a DMG — not part of the
+# normal build path. Default: in-repo build/Release/MetaBurn.dmg.
 # Prevents opening two windows (which happens with `open foo.dmg` + AppleScript `open disk`).
 set -euo pipefail
 
@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$SCRIPT_DIR/.."
 VERSION="$(sed -n 's/.*"version".*"\([^"]*\)".*/\1/p' "$PROJECT_DIR/Sources/MetaBurn/Resources/version.json")"
 VOLUME_NAME="MetaBurn ${VERSION}"
-DMG_PATH="${1:-$HOME/Desktop/MetaBurn.dmg}"
+DMG_PATH="${1:-$PROJECT_DIR/build/Release/MetaBurn.dmg}"
 LAUNCH_APP="${LAUNCH_APP:-1}"
 
 if [ ! -f "$DMG_PATH" ]; then
