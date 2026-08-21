@@ -122,15 +122,8 @@ elif [ -n "$SIGN_IDENTITY" ]; then
     echo "Signed but not notarized (set NOTARYTOOL_KEYCHAIN_PROFILE or APPLE_ID/APPLE_TEAM_ID/APPLE_APP_SPECIFIC_PASSWORD)."
 fi
 
-# Keep a versioned Desktop copy; package-dmg.sh already replaced MetaBurn.dmg
-# and installed/launched locally.
-if [[ -d "${HOME}/Desktop" && -z "${GITHUB_ACTIONS:-}" && -z "${CI:-}" ]]; then
-  VERSIONED_DMG="${HOME}/Desktop/${APP_NAME} ${VERSION}.dmg"
-  cp -f "$DMG_PATH" "$VERSIONED_DMG"
-  echo "✓ Desktop versioned DMG: $VERSIONED_DMG"
-fi
-
 # Keep only the DMG in-tree — /Applications is the runnable copy.
+# package-dmg.sh already replaced ~/Desktop/MetaBurn.dmg (no versioned sidecar).
 rm -rf "$APP_PATH" "$RELEASE_DIR/.previous-build"
 
 echo "Build complete: $DMG_PATH"
