@@ -104,18 +104,18 @@ Unit tests live in `Tests/MetaBurnTests` against `MetaBurnCore` (`swift test`).
 - The red **Remove audio** toggle lives at the far right of the footer; it permanently omits audio tracks so they cannot be recovered from the cleaned file.
 - The red **Open Files** button is centered in the footer and opens the in-app Photos/Videos workspace.
 - Originals are immutable inputs. Copy first, clean and verify only the private copy, then let the user export verified files by copy or drag-out. Never create `~/Desktop/MetaBurn` or `~/Pictures/MetaBurn`.
-- Current product line is MetaBurn **2.2.9**; native ImageIO + AVFoundation only (no ExifTool/ffmpeg/Homebrew runtime deps). JPEG/PNG/TIFF strips are lossless (orientation kept). HEIC/HEIF → stripped `.jpg` is a single Image I/O pass at quality **1.0**. iCloud Drive support is secondary (UbiquityGate; downloads can be slow).
+- Current product line is MetaBurn **2.2.10**; native ImageIO + AVFoundation only (no ExifTool/ffmpeg/Homebrew runtime deps). JPEG/PNG/TIFF strips are lossless (orientation kept). HEIC/HEIF → stripped `.jpg` is a single Image I/O pass at quality **1.0**. iCloud Drive support is secondary (UbiquityGate; downloads can be slow).
 - Metadata table primary order: Make, Model, Camera, Lens, GPS Location, Date Created, Date Modified, Size, Resolution, Type. Date Created and Date Modified display as `mm/dd/yyyy`. Always show Make/Model/Camera/GPS Location/Date Created/Date Modified (dash if missing). Never show Software.
 - Duplicate cleaned filenames use zero-padded sequential suffixes (`001`, `002`, `003`) — never `-1`/`-2` or trailing `X`/`XX`.
 - Privacy is the product priority, but never at the cost of visible quality loss or destroying the photo/video; prefer remux/strip over re-encode.
 - Match the screenshot-style single-window layout: centered MetaBurn header, large red dashed drop zone, simple cleaned-files list, footer status at left, Open Files centered, and Remove audio at far right. Open Files shows Photos/Videos folder cards and a native selectable file table in the same window; never use a second window, sheet, or file picker.
-- Do not repeat “MetaBurn” in the macOS titlebar; the in-window brand is sufficient. Keep the traffic lights and settings gear on a transparent, subtly red-black titlebar that blends into the window.
+- Do not repeat “MetaBurn” in the macOS titlebar; the in-window brand is sufficient. Keep the traffic lights at top-left and pin a native macOS settings gear to the top-right on a transparent, subtly red-black titlebar that blends into the window. Main branding and primary controls must be mathematically centered.
 - When rebuilding for the user to try: bump `Sources/MetaBurn/Resources/version.json` (patch), then `razorbuild` / `./scripts/build-mac.sh`. Output: `build/Release/MetaBurn.dmg`. Open that DMG yourself to install. Human UAT (notification permission, launch-at-login, sleep/wake) still happens before a GitHub Release. `scripts/open-dmg.sh` only if they explicitly ask to open it. Keep the locked 500×420 DMG layout.
 
 ## Learned Workspace Facts
 
 - Re-dropping the same folder must always finish every file; half-written destinations and leftover `.metaburn.tmp` work files are bugs — discard the work file on timeout/failure and never promote it.
-- Current product line is MetaBurn **2.2.9**; native ImageIO + AVFoundation only. JPEG/PNG/TIFF strips are lossless. HEIC convertAndStrip uses `kCGImageDestinationLossyCompressionQuality = 1.0`. Videos remux with passthrough only. iCloud is optional/secondary via `UbiquityGate`.
+- Current product line is MetaBurn **2.2.10**; native ImageIO + AVFoundation only. JPEG/PNG/TIFF strips are lossless. HEIC convertAndStrip uses `kCGImageDestinationLossyCompressionQuality = 1.0`. Videos remux with passthrough only. iCloud is optional/secondary via `UbiquityGate`.
 - Cancel must interrupt in-flight AVFoundation exports; batch jobs must not stall mid-count.
 - Local package output is `build/Release/MetaBurn.dmg`.
 

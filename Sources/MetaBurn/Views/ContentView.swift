@@ -729,13 +729,13 @@ struct MetaBurnSecondaryButtonStyle: ButtonStyle {
 
 struct RedSwitchToggleStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 8) {
-            configuration.label
-            Button {
-                withAnimation(.spring(response: 0.22, dampingFraction: 0.78)) {
-                    configuration.isOn.toggle()
-                }
-            } label: {
+        Button {
+            withAnimation(.spring(response: 0.22, dampingFraction: 0.78)) {
+                configuration.isOn.toggle()
+            }
+        } label: {
+            HStack(spacing: 8) {
+                configuration.label
                 Capsule()
                     .fill(configuration.isOn ? MetaBurnTheme.accent : Color(red: 0.55, green: 0.15, blue: 0.15))
                     .frame(width: 40, height: 22)
@@ -747,7 +747,8 @@ struct RedSwitchToggleStyle: ToggleStyle {
                         alignment: configuration.isOn ? .trailing : .leading
                     )
             }
-            .buttonStyle(.plain)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
     }
 }
