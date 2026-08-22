@@ -7,6 +7,8 @@ public enum OutputDestination: String, Sendable, CaseIterable {
     case desktop
     /// `dirname(source)/MetaBurn/{Photos,Videos,Skippable}` — next to the originals.
     case adjacent
+    /// MetaBurn's private copy-first workspace under Application Support.
+    case workspace
 }
 
 /// Pure path layout for adjacent (source-relative) output roots.

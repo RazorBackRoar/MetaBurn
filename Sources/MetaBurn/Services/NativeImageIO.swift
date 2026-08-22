@@ -223,7 +223,11 @@ enum NativeImageIO {
     }
 
     static func canHandle(filePath: String) -> Bool {
-        SupportedTypes.isPhoto(filePath: filePath)
+        let options: [CFString: Any] = [kCGImageSourceShouldCache: false]
+        return CGImageSourceCreateWithURL(
+            URL(fileURLWithPath: filePath) as CFURL,
+            options as CFDictionary
+        ) != nil
     }
 
     @preconcurrency private static let dateFormatter: DateFormatter = {

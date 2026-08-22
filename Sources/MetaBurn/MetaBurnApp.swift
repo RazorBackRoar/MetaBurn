@@ -9,7 +9,7 @@ struct MetaBurnApp: App {
         Window("MetaBurn", id: "main") {
             ContentView()
         }
-        .defaultSize(width: 980, height: 900)
+        .defaultSize(width: 980, height: 760)
         .windowResizability(.contentMinSize)
         .windowToolbarStyle(.unified(showsTitle: true))
 
@@ -24,6 +24,7 @@ struct MetaBurnApp: App {
         Paths.ensureDirectory(Paths.applicationSupportDirectory())
         Paths.ensureLogsDirectory()
         Paths.ensureCacheDirectory()
+        Paths.ensureWorkspaceDirectories()
         // Sweep legacy Desktop orphans + abandoned cache work files from prior crashes/cancels.
         let removed = Paths.cleanupOrphanWorkFiles()
         if !removed.isEmpty {
@@ -49,7 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.titleVisibility = .visible
             window.backgroundColor = .windowBackgroundColor
             window.isOpaque = true
-            window.minSize = NSSize(width: 900, height: 840)
+            window.minSize = NSSize(width: 780, height: 640)
         }
     }
 
@@ -79,6 +80,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
         editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
         editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(NSMenuItem.separator())
+        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         let editMenuItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
         editMenuItem.submenu = editMenu
         mainMenu.addItem(editMenuItem)

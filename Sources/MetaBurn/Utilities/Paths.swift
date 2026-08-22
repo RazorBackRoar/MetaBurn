@@ -3,6 +3,9 @@ import MetaBurnCore
 
 /// macOS path helpers aligned with the workspace `razorcore-api-spec.md`.
 enum Paths {
+    private static let outputReservationLock = NSLock()
+    private static var reservedOutputPaths: Set<String> = []
+
     static var appName: String { Brand.displayName }
 
     static var desktopOutputFolderName: String { OutputNaming.desktopFolderName }
@@ -21,6 +24,18 @@ enum Paths {
 
     static func logsDirectory() -> URL {
         applicationSupportDirectory().appendingPathComponent("logs", isDirectory: true)
+    }
+
+    static func workspaceDirectory() -> URL {
+        applicationSupportDirectory().appendingPathComponent("Open Files", isDirectory: true)
+    }
+
+    static func workspacePhotosDirectory() -> URL {
+        workspaceDirectory().appendingPathComponent(OutputNaming.photosFolderName, isDirectory: true)
+    }
+
+    static func workspaceVideosDirectory() -> URL {
+        workspaceDirectory().appendingPathComponent(OutputNaming.videosFolderName, isDirectory: true)
     }
 
     static func desktopDirectory() -> URL {
@@ -84,6 +99,12 @@ enum Paths {
         ensureDirectory(cacheDirectory())
     }
 
+    static func ensureWorkspaceDirectories() {
+        ensureDirectory(workspaceDirectory())
+        ensureDirectory(workspacePhotosDirectory())
+        ensureDirectory(workspaceVideosDirectory())
+    }
+
     /// Unique path under `directory` for `sourcePath`'s filename (`name.ext`, `name-1.ext`, …).
     static func uniqueOutputURL(forSourcePath sourcePath: String, in directory: URL) -> URL {
         OutputNaming.uniqueURL(
@@ -93,6 +114,33 @@ enum Paths {
                 FileManager.default.fileExists(atPath: path) || PathSafety.isSymlink(path)
             }
         )
+    }
+
+    static func reserveOutputURL(
+        forSourcePath sourcePath: String,
+        in directory: URL,
+        replacingExtension: String? = nil
+    ) -> URL {
+        outputReservationLock.lock()
+        defer { outputReservationLock.unlock() }
+        let url = OutputNaming.uniqueURL(
+            forSourcePath: sourcePath,
+            in: directory,
+            replacingExtension: replacingExtension,
+            fileExists: { path in
+                reservedOutputPaths.contains(path)
+                    || FileManager.default.fileExists(atPath: path)
+                    || PathSafety.isSymlink(path)
+            }
+        )
+        reservedOutputPaths.insert(url.path)
+        return url
+    }
+
+    static func releaseOutputURL(_ url: URL) {
+        outputReservationLock.lock()
+        reservedOutputPaths.remove(url.path)
+        outputReservationLock.unlock()
     }
 
     /// Local cache work file (not on Desktop/iCloud) so cleaning never mid-writes the final path.
@@ -119,7 +167,9 @@ enum Paths {
             skippableOutputDirectory(),
             forbiddenDesktopMetaBurnRoot().appendingPathComponent(OutputNaming.photosFolderName, isDirectory: true),
             forbiddenDesktopMetaBurnRoot().appendingPathComponent(OutputNaming.videosFolderName, isDirectory: true),
-            forbiddenDesktopMetaBurnRoot().appendingPathComponent(OutputNaming.skippableFolderName, isDirectory: true)
+            forbiddenDesktopMetaBurnRoot().appendingPathComponent(OutputNaming.skippableFolderName, isDirectory: true),
+            workspacePhotosDirectory(),
+            workspaceVideosDirectory()
         ]
         for dir in leftover {
             var isDir: ObjCBool = false

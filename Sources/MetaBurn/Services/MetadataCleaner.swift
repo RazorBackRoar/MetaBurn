@@ -1,5 +1,6 @@
 import Foundation
 import MetaBurnCore
+import UniformTypeIdentifiers
 
 enum MetadataCleaner {
     enum CleanStatus: String, Equatable { case cleaned, skipped, failed, partial }
@@ -15,7 +16,12 @@ enum MetadataCleaner {
             return CleanResult(path: filePath, status: .failed, reason: "cancelled")
         }
 
-        let info = SupportedTypes.classify(filePath: filePath)
+        let sourceURL = URL(fileURLWithPath: filePath)
+        let sourceValues = try? sourceURL.resourceValues(forKeys: [.contentTypeKey])
+        let info = SupportedTypes.classify(
+            filePath: filePath,
+            contentTypeIdentifier: sourceValues?.contentType?.identifier
+        )
 
         if info.kind == .unsupported {
             return CleanResult(path: filePath, status: .skipped, reason: "unsupported file type")
@@ -69,62 +75,44 @@ enum MetadataCleaner {
         let outputDir = info.kind == .photo
             ? OutputRootResolver.photosDirectory(forSourcePath: filePath, destination: outputDestination)
             : OutputRootResolver.videosDirectory(forSourcePath: filePath, destination: outputDestination)
-        let sourceDir = URL(fileURLWithPath: filePath).deletingLastPathComponent().path
-        if !PathSafety.isPhysicallyInside(outputDir.path, ancestor: sourceDir) {
-            return CleanResult(path: filePath, status: .failed, reason: "output path is outside the source folder")
+        let allowedRoot = OutputRootResolver.allowedRoot(
+            forSourcePath: filePath,
+            destination: outputDestination
+        )
+        if !PathSafety.isPhysicallyInside(outputDir.path, ancestor: allowedRoot.path) {
+            return CleanResult(path: filePath, status: .failed, reason: "output path is outside the allowed workspace")
         }
 
-        let finalURL: URL
-        if convertHeic {
-            finalURL = OutputNaming.uniqueURL(
-                forSourcePath: filePath,
-                in: outputDir,
-                replacingExtension: HeicRules.jpegExtension
-            )
-        } else {
-            finalURL = Paths.uniqueOutputURL(forSourcePath: filePath, in: outputDir)
-        }
+        let finalURL = Paths.reserveOutputURL(
+            forSourcePath: filePath,
+            in: outputDir,
+            replacingExtension: convertHeic ? HeicRules.jpegExtension : nil
+        )
+        defer { Paths.releaseOutputURL(finalURL) }
         let workURL = Paths.workURL(forFinal: finalURL)
         let workPath = workURL.path
 
         var promoted = false
+        var metadataBefore: [MetadataEntry] = []
         defer {
             if !promoted {
                 cleanupTemporaryFile(at: workURL)
             }
         }
 
-        let metadataBefore = await readMetadata(filePath: filePath, kind: info.kind)
-
         do {
             try PathSafety.assertRegularFileNoFollow(at: filePath)
             try Task.checkCancellation()
 
             if convertHeic {
-                // Phase D: single-pass JPEG+strip. Materialize iCloud HEIC to cache first.
-                var heicStage: URL?
-                defer {
-                    if let heicStage {
-                        cleanupTemporaryFile(at: heicStage)
-                    }
-                }
+                let sourceCopy = Paths.workURL(forFinal: URL(fileURLWithPath: filePath))
+                defer { cleanupTemporaryFile(at: sourceCopy) }
 
-                let convertSource: String
-                if UbiquityGate.isUbiquitous(atPath: filePath) || UbiquityGate.needsDownload(atPath: filePath) {
-                    let stage = Paths.workURL(
-                        forFinal: URL(fileURLWithPath: filePath)
-                            .deletingPathExtension()
-                            .appendingPathExtension("heic")
-                    )
-                    heicStage = stage
-                    try await stageSource(filePath: filePath, to: stage)
-                    _ = WorkFileSafety.stripStallingXattrs(atPath: stage.path)
-                    convertSource = stage.path
-                } else {
-                    convertSource = filePath
-                }
+                try await stageSource(filePath: filePath, to: sourceCopy)
+                metadataBefore = await readMetadata(filePath: sourceCopy.path, kind: info.kind)
+                _ = WorkFileSafety.stripStallingXattrs(atPath: sourceCopy.path)
 
-                switch HeicJpegConverter.convertAndStrip(from: convertSource, to: workURL) {
+                switch HeicJpegConverter.convertAndStrip(from: sourceCopy.path, to: workURL) {
                 case .success:
                     logInfo(
                         "HEIC→JPEG strip OK: \(URL(fileURLWithPath: filePath).lastPathComponent) → \(workURL.lastPathComponent)"
@@ -151,6 +139,7 @@ enum MetadataCleaner {
             }
 
             try await stageSource(filePath: filePath, to: workURL)
+            metadataBefore = await readMetadata(filePath: workPath, kind: info.kind)
             let stripped = WorkFileSafety.stripStallingXattrs(atPath: workPath)
             if !stripped.isEmpty {
                 logInfo(
@@ -406,7 +395,9 @@ enum MetadataCleaner {
             return
         }
 
-        safeRemove(at: finalURL)
+        guard !fm.fileExists(atPath: finalURL.path), !PathSafety.isSymlink(finalURL.path) else {
+            throw PathSafetyError.notRegularFile(finalURL.path)
+        }
         try fm.moveItem(at: workURL, to: finalURL)
     }
 

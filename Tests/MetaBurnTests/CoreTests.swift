@@ -8,7 +8,7 @@ struct SupportedTypesTests {
     func photos() {
         for path in [
             "a.jpg", "b.JPEG", "c.jpe", "d.jfif", "e.png", "f.heic", "g.heif",
-            "h.webp", "i.tiff", "j.tif", "k.bmp", "l.jp2", "m.j2k"
+            "h.webp", "i.tiff", "j.tif", "k.bmp", "l.jp2", "m.j2k", "n.dng"
         ] {
             let info = SupportedTypes.classify(filePath: path)
             #expect(info.kind == .photo)
@@ -139,6 +139,7 @@ struct AdjacentOutputTests {
     func destinationCases() {
         #expect(OutputDestination.desktop.rawValue == "desktop")
         #expect(OutputDestination.adjacent.rawValue == "adjacent")
+        #expect(OutputDestination.workspace.rawValue == "workspace")
     }
 }
 

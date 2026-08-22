@@ -106,9 +106,6 @@ final class TaskRunner: ObservableObject {
                 return
             }
 
-            // Park bypassed files in Skippable only when there are skips (creates that folder on demand).
-            _ = try? SkipExporter.export(skipped: scan.skipped, outputDestination: outputDestination)
-
             var kinds = TypeCounts()
             for file in scan.files {
                 kinds.recordTotal(for: file)
@@ -128,13 +125,9 @@ final class TaskRunner: ObservableObject {
 
             // Zero-file guard — no phantom cleaning job when the drop had nothing we can burn.
             if scan.files.isEmpty {
-                let skipNote: String
-                if scan.skipped.isEmpty {
-                    skipNote = "Drop photos, videos, or a folder that contains them."
-                } else {
-                    skipNote =
-                        "\(scan.skipped.count) skipped file(s) saved to \(OutputPreference.label(for: outputDestination))/\(OutputNaming.skippableFolderName) (see \(OutputNaming.skippedSummaryFileName))."
-                }
+                let skipNote = scan.skipped.isEmpty
+                    ? "Drop photos, videos, or a folder that contains them."
+                    : "\(scan.skipped.count) unsupported file(s) were not imported. Originals remain unchanged."
                 await setState(
                     .done,
                     message: "No supported photos or videos found. \(skipNote)"
@@ -243,7 +236,7 @@ final class TaskRunner: ObservableObject {
             if scan.skipped.count > 0 {
                 await setState(
                     .done,
-                    message: "\(scan.skipped.count) skipped file(s) saved to \(OutputPreference.label(for: outputDestination))/\(OutputNaming.skippableFolderName)."
+                    message: "\(scan.skipped.count) unsupported file(s) were not imported. Originals remain unchanged."
                 )
             } else {
                 await setState(.done)

@@ -37,6 +37,15 @@ struct PathsTests {
         #expect(url.path.contains("logs"))
     }
 
+    @Test("workspace directories reside in Application Support")
+    func workspaceDirectories() {
+        let root = Paths.workspaceDirectory()
+        #expect(root == Paths.applicationSupportDirectory().appendingPathComponent("Open Files", isDirectory: true))
+        #expect(Paths.workspacePhotosDirectory() == root.appendingPathComponent("Photos", isDirectory: true))
+        #expect(Paths.workspaceVideosDirectory() == root.appendingPathComponent("Videos", isDirectory: true))
+        #expect(!Paths.isForbiddenCollectedMetaBurn(root))
+    }
+
     @Test("desktopDirectory points to user's Desktop")
     func testDesktopDirectory() {
         let url = Paths.desktopDirectory()
@@ -91,6 +100,20 @@ struct PathsTests {
 
         let expectedURL = OutputNaming.uniqueURL(forSourcePath: sourcePath, in: dir)
         #expect(url == expectedURL)
+    }
+
+    @Test("output reservations prevent concurrent name collisions")
+    func outputReservations() {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("metaburn-reservations-\(UUID().uuidString)", isDirectory: true)
+        let first = Paths.reserveOutputURL(forSourcePath: "/one/photo.jpg", in: directory)
+        let second = Paths.reserveOutputURL(forSourcePath: "/two/photo.jpg", in: directory)
+        defer {
+            Paths.releaseOutputURL(first)
+            Paths.releaseOutputURL(second)
+        }
+        #expect(first.lastPathComponent == "photo.jpg")
+        #expect(second.lastPathComponent == "photo-001.jpg")
     }
 
     @Test("workURL generates a safe path in cache directory")

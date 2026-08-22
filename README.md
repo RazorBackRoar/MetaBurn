@@ -8,7 +8,7 @@
 
 **Strip EXIF, GPS, and device metadata from photos and videos — locally on macOS.**
 
-Drag files in. MetaBurn writes cleaned copies next to the originals. Originals stay untouched. Optional mute removes video audio. What’s visible in the frame is not altered.
+Click **Open Files**, then drag media into MetaBurn. The app copies each file into its private workspace before cleaning and verification. Originals are never moved, renamed, overwritten, deleted, or modified. Optional audio removal permanently omits video audio tracks.
 
 Photo cleans use Image I/O at **maximum practical JPEG quality** (`kCGImageDestinationLossyCompressionQuality = 1.0`) while stripping privacy metadata. HEIC/HEIF become cleaned `.jpg`. Videos prefer remux (no visual re-encode).
 
@@ -29,7 +29,7 @@ Photo cleans use Image I/O at **maximum practical JPEG quality** (`kCGImageDesti
 - **HEIC / HEIF → `.jpg`** — single-pass convert + strip (creator-friendly `.jpg` extension)
 - **EXIF / GPS / device tags** — stripped natively (ImageIO for photos, AVFoundation for videos)
 - **Optional video mute** — omit audio tracks from cleaned video copies (no quality re-encode when passthrough works)
-- **Output location** — next to the originals (`MetaBurn/Photos`, `Videos`, `Skippable`)
+- **Private workspace** — verified copies live under MetaBurn’s internal `Open Files/Photos` and `Open Files/Videos` folders
 - **iCloud Drive (optional)** — drops from iCloud work; online-only files download first (can be slow)
 - **Apple Silicon native** — Swift / SwiftUI · no Homebrew tools required
 
@@ -43,13 +43,13 @@ Requires macOS on Apple Silicon.
 
 ## Usage
 
-1. Open **MetaBurn**
+1. Open **MetaBurn** and click **Open Files**
 2. Drop photos and/or videos onto the window (mixed batches are fine)
-3. Find cleaned copies next to the originals (`<source>/MetaBurn/{Photos,Videos,Skippable}`)
-4. Enable mute when you also want audio removed from video copies
+3. Open **Photos** or **Videos** inside the private workspace
+4. Select one or more verified copies and drag or copy them wherever you want
+5. Enable **Remove audio** when cleaned video copies should contain no audio tracks
 
-Unsupported files (GIF, WebM, AVI, MKV, etc.) land in `Skippable/` with a
-`skipped-summary.txt` when applicable.
+Unsupported files (GIF, WebM, AVI, MKV, etc.) are not imported. Their originals remain untouched.
 
 ## Supported formats
 
@@ -57,7 +57,7 @@ Unsupported files (GIF, WebM, AVI, MKV, etc.) land in `Skippable/` with a
 |----------|------------|
 | Photos | jpg, jpeg, png, heic, heif, webp, tiff, bmp, jp2 |
 | Videos | mov, mp4, m4v |
-| Skippable | gif, webm, avi, mkv, and other unsupported types |
+| Unsupported | gif, webm, avi, mkv, and other types MetaBurn cannot clean safely |
 
 Duplicate output names use zero-padded suffixes (`photo-001.jpg`, not `-1`).
 

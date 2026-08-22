@@ -18,7 +18,7 @@ struct SettingsView: View {
             } header: {
                 Text("Appearance")
             } footer: {
-                Text("Cleaned copies are saved next to the originals. MetaBurn never writes to Pictures/MetaBurn or Desktop/MetaBurn. Originals are never overwritten. Drag and drop remains the only way to import files (including from iCloud Drive).")
+                Text("MetaBurn copies dropped media into its private Open Files workspace before cleaning. Originals are never moved, renamed, overwritten, deleted, or modified. Drag and drop remains the only way to import files, including from iCloud Drive.")
                     .font(.system(size: 11))
             }
         }

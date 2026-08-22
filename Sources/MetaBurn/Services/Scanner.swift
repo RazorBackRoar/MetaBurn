@@ -1,5 +1,6 @@
 import Foundation
 import MetaBurnCore
+import UniformTypeIdentifiers
 
 struct ScanResult {
     let files: [String]
@@ -18,7 +19,7 @@ enum Scanner {
             let url = URL(fileURLWithPath: dropped)
             if url.lastPathComponent.hasPrefix(".") { continue }
             do {
-                let values = try url.resourceValues(forKeys: [.isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey, .fileSizeKey])
+                let values = try url.resourceValues(forKeys: [.isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey, .fileSizeKey, .contentTypeKey])
                 if values.isSymbolicLink == true {
                     skipped.append((dropped, "symlink skipped for safety"))
                     continue
@@ -28,7 +29,13 @@ enum Scanner {
                     skipped.append(contentsOf: dirSkipped)
                 } else if values.isRegularFile == true {
                     let size = Int64(values.fileSize ?? 0)
-                    classifyAndBucket(url.path, size: size, fileSizes: &fileSizes, skipped: &skipped)
+                    classifyAndBucket(
+                        url.path,
+                        size: size,
+                        contentTypeIdentifier: values.contentType?.identifier,
+                        fileSizes: &fileSizes,
+                        skipped: &skipped
+                    )
                 } else {
                     skipped.append((dropped, "not a regular file or folder"))
                 }
@@ -45,10 +52,27 @@ enum Scanner {
     private static func classifyAndBucket(
         _ path: String,
         size: Int64,
+        contentTypeIdentifier: String?,
         fileSizes: inout [String: Int64],
         skipped: inout [(path: String, reason: String)]
     ) {
-        if let reason = SupportedTypes.skipReason(filePath: path) {
+        if PathSafety.isPhysicallyInside(path, ancestor: Paths.workspaceDirectory().path) {
+            skipped.append((path, "already belongs to the MetaBurn workspace"))
+            return
+        }
+        let info = SupportedTypes.classify(
+            filePath: path,
+            contentTypeIdentifier: contentTypeIdentifier
+        )
+        let reason: String?
+        if info.kind == .unsupported {
+            reason = "unsupported file type (\(info.ext.isEmpty ? "unknown type" : info.ext))"
+        } else if info.kind == .video && !info.writable {
+            reason = "video container not safely writable (\(info.ext.isEmpty ? "unknown type" : info.ext))"
+        } else {
+            reason = nil
+        }
+        if let reason {
             skipped.append((path, reason))
         } else {
             fileSizes[path] = size
@@ -63,7 +87,7 @@ enum Scanner {
         var walkSkipped: [(path: String, reason: String)] = []
         let enumerator = FileManager.default.enumerator(
             at: url,
-            includingPropertiesForKeys: [.isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey, .fileSizeKey],
+            includingPropertiesForKeys: [.isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey, .fileSizeKey, .contentTypeKey],
             options: [.skipsHiddenFiles],
             errorHandler: { url, error in
                 walkSkipped.append((url.path, "could not read: \(error.localizedDescription)"))
@@ -73,14 +97,20 @@ enum Scanner {
 
         while let item = enumerator?.nextObject() as? URL {
             do {
-                let values = try item.resourceValues(forKeys: [.isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey, .fileSizeKey])
+                let values = try item.resourceValues(forKeys: [.isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey, .fileSizeKey, .contentTypeKey])
                 if values.isSymbolicLink == true {
                     walkSkipped.append((item.path, "symlink skipped for safety"))
                     continue
                 }
                 if values.isRegularFile == true {
                     let size = Int64(values.fileSize ?? 0)
-                    classifyAndBucket(item.path, size: size, fileSizes: &fileSizes, skipped: &skipped)
+                    classifyAndBucket(
+                        item.path,
+                        size: size,
+                        contentTypeIdentifier: values.contentType?.identifier,
+                        fileSizes: &fileSizes,
+                        skipped: &skipped
+                    )
                 }
             } catch {
                 walkSkipped.append((item.path, "could not stat: \(error.localizedDescription)"))

@@ -63,6 +63,16 @@ struct OutputRootResolverTests {
         #expect(!Paths.isForbiddenPicturesMetaBurn(photos))
     }
 
+    @Test("workspace destination uses private Photos and Videos folders")
+    func workspaceDestination() {
+        let photos = OutputRootResolver.photosDirectory(forSourcePath: sampleSourcePath, destination: .workspace)
+        let videos = OutputRootResolver.videosDirectory(forSourcePath: sampleSourcePath, destination: .workspace)
+        #expect(photos == Paths.workspacePhotosDirectory())
+        #expect(videos == Paths.workspaceVideosDirectory())
+        #expect(OutputRootResolver.allowedRoot(forSourcePath: sampleSourcePath, destination: .workspace) == Paths.workspaceDirectory())
+        #expect(!PathSafety.isPhysicallyInside(photos.path, ancestor: URL(fileURLWithPath: sampleSourcePath).deletingLastPathComponent().path))
+    }
+
     @Test("pathLooksLikeICloud returns true for iCloud Drive paths")
     func testPathLooksLikeICloudTrue() {
         let path1 = URL(fileURLWithPath: "/Users/test/Library/Mobile Documents/com~apple~CloudDocs/photo.jpg")

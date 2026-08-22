@@ -1,4 +1,5 @@
 import Foundation
+import UniformTypeIdentifiers
 
 /// Pure classification of media paths by extension (no I/O).
 public enum SupportedTypes: Sendable {
@@ -35,20 +36,29 @@ public enum SupportedTypes: Sendable {
     /// Explicitly unsupported — always Skippable (never queued for cleaning).
     private static let alwaysUnsupportedExts: Set<String> = [".gif", ".webm"]
 
-    public static func classify(filePath: String) -> FileClassification {
+    public static func classify(filePath: String, contentTypeIdentifier: String? = nil) -> FileClassification {
         let ext = (filePath as NSString).pathExtension.lowercased()
         let dotted = ext.isEmpty ? "" : ".\(ext)"
 
         if alwaysUnsupportedExts.contains(dotted) {
             return FileClassification(ext: dotted, kind: .unsupported, writable: false)
         }
-        if photoExts.contains(dotted) {
-            return FileClassification(ext: dotted, kind: .photo, writable: true)
+        if nonWritableVideoExts.contains(dotted) {
+            return FileClassification(ext: dotted, kind: .video, writable: false)
         }
         if videoExts.contains(dotted) {
             return FileClassification(ext: dotted, kind: .video, writable: true)
         }
-        if nonWritableVideoExts.contains(dotted) {
+        if photoExts.contains(dotted) {
+            return FileClassification(ext: dotted, kind: .photo, writable: true)
+        }
+
+        let contentType = contentTypeIdentifier.flatMap(UTType.init)
+            ?? UTType(filenameExtension: ext)
+        if contentType?.conforms(to: .image) == true {
+            return FileClassification(ext: dotted, kind: .photo, writable: true)
+        }
+        if contentType?.conforms(to: .movie) == true || contentType?.conforms(to: .audiovisualContent) == true {
             return FileClassification(ext: dotted, kind: .video, writable: false)
         }
         return FileClassification(ext: dotted, kind: .unsupported, writable: false)

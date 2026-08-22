@@ -7,11 +7,13 @@ enum OutputPreference {
     static let storageKey = "outputDestination"
 
     static var stored: OutputDestination {
-        .adjacent
+        .workspace
     }
 
     static func label(for destination: OutputDestination) -> String {
         switch destination {
+        case .workspace:
+            return "the MetaBurn workspace"
         case .desktop, .adjacent:
             return "next to originals"
         }
