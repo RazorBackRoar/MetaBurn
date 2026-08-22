@@ -38,15 +38,6 @@ struct ContentView: View {
     var body: some View {
         mainView
             .preferredColorScheme(preferredScheme)
-            .navigationTitle("MetaBurn")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    SettingsLink {
-                        Image(systemName: "gearshape")
-                    }
-                    .help("Settings")
-                }
-            }
             .onAppear {
                 ThemePreference.applyAppAppearance(for: themeSource)
                 workspace.refresh()
@@ -61,7 +52,19 @@ struct ContentView: View {
             MetaBurnTheme.background
                 .ignoresSafeArea()
 
-            VStack(spacing: 14) {
+            VStack(spacing: 0) {
+                LinearGradient(
+                    colors: [MetaBurnTheme.titlebarTint, MetaBurnTheme.background],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 76)
+                Spacer(minLength: 0)
+            }
+            .ignoresSafeArea(edges: .top)
+            .allowsHitTesting(false)
+
+            VStack(spacing: 24) {
                 HeaderView(typeCounts: runner.typeCounts, processing: processing)
 
                 if let notice = dropNotice {
@@ -80,8 +83,8 @@ struct ContentView: View {
                 )
                 .frame(maxWidth: .infinity)
                 .frame(
-                    minHeight: showWorkspace ? 66 : (hasResults ? 190 : 250),
-                    maxHeight: showWorkspace ? 76 : (hasResults ? 230 : .infinity)
+                    minHeight: showWorkspace ? 66 : (hasResults ? 140 : 240),
+                    maxHeight: showWorkspace ? 76 : (hasResults ? 200 : .infinity)
                 )
 
                 if showWorkspace {
@@ -115,10 +118,9 @@ struct ContentView: View {
                     }
                 )
             }
-            .padding(.horizontal, 28)
-            .padding(.vertical, 20)
+            .padding(32)
         }
-        .frame(minWidth: 780, minHeight: 620)
+        .frame(minWidth: 900, minHeight: 720)
         .onDrop(of: [.fileURL], isTargeted: $isDragging) { providers in
             handleDrop(providers: providers)
         }
@@ -224,30 +226,34 @@ private struct HeaderView: View {
     let processing: Bool
 
     var body: some View {
-        VStack(spacing: 7) {
-            HStack(alignment: .center, spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(MetaBurnTheme.surface)
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.primary.opacity(0.15), lineWidth: 1)
-                    MetaBurnFireImage()
-                        .padding(8)
-                }
-                .frame(width: 50, height: 50)
+        VStack(spacing: 8) {
+            HStack {
+                Spacer(minLength: 0)
+                HStack(spacing: 14) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(MetaBurnTheme.surface)
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(Color.primary.opacity(0.15), lineWidth: 1)
+                        MetaBurnFireImage()
+                            .padding(7)
+                    }
+                    .frame(width: 52, height: 52)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    (Text("Meta").foregroundColor(.primary) + Text("Burn").foregroundColor(MetaBurnTheme.accent))
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
-                        .onTapGesture(count: 2) { showAbout() }
-                        .contextMenu {
-                            Button("Check for Updates…") { checkForUpdates() }
-                            Button("About MetaBurn") { showAbout() }
-                        }
-                    Text("Privacy protection for your photos and videos.")
-                        .font(.system(size: 13))
-                        .foregroundColor(MetaBurnTheme.secondaryText)
+                    VStack(alignment: .leading, spacing: 2) {
+                        (Text("Meta").foregroundColor(.primary) + Text("Burn").foregroundColor(MetaBurnTheme.accent))
+                            .font(.system(size: 34, weight: .bold, design: .rounded))
+                            .onTapGesture(count: 2) { showAbout() }
+                            .contextMenu {
+                                Button("Check for Updates…") { checkForUpdates() }
+                                Button("About MetaBurn") { showAbout() }
+                            }
+                        Text("Privacy protection for your photos and videos.")
+                            .font(.system(size: 14))
+                            .foregroundColor(MetaBurnTheme.secondaryText)
+                    }
                 }
+                Spacer(minLength: 0)
             }
 
             if typeCounts.hasAny {
@@ -271,19 +277,20 @@ private struct HeaderView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(typeCountsAccessibilityLabel)
+        .padding(.top, 4)
     }
 
     private func typeBubble(label: String, done: Int, total: Int) -> some View {
         HStack(spacing: 4) {
             Text(label)
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(MetaBurnTheme.secondaryText)
             Text(typeCountText(done: done, total: total))
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .font(.system(size: 13, weight: .bold, design: .rounded))
                 .monospacedDigit()
         }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
         .background(MetaBurnTheme.surface)
         .clipShape(Capsule())
         .overlay(Capsule().strokeBorder(MetaBurnTheme.hairline, lineWidth: 1))
@@ -371,12 +378,12 @@ private struct DropZoneView: View {
                 }
                 .padding(.horizontal, 16)
             } else {
-                VStack(spacing: 11) {
+                VStack(spacing: 14) {
                     dropGlyph
                     Text(primary)
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(size: 20, weight: .semibold))
                     Text(secondary)
-                        .font(.system(size: 12))
+                        .font(.system(size: 13))
                         .foregroundColor(MetaBurnTheme.secondaryText)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
@@ -385,17 +392,17 @@ private struct DropZoneView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: compact ? 10 : 14, style: .continuous)
+            RoundedRectangle(cornerRadius: compact ? 12 : 16, style: .continuous)
                 .fill(highlighted ? MetaBurnTheme.accent.opacity(0.10) : Color.clear)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: compact ? 10 : 14, style: .continuous)
+            RoundedRectangle(cornerRadius: compact ? 12 : 16, style: .continuous)
                 .strokeBorder(
-                    MetaBurnTheme.accent.opacity(highlighted ? 0.95 : 0.75),
-                    style: StrokeStyle(lineWidth: highlighted ? 2 : 1.4, dash: highlighted ? [] : [6, 5])
+                    MetaBurnTheme.accent.opacity(highlighted ? 0.95 : 0.6),
+                    style: StrokeStyle(lineWidth: highlighted ? 2 : 1.5, dash: highlighted ? [] : [6, 5])
                 )
         )
-        .contentShape(RoundedRectangle(cornerRadius: compact ? 10 : 14, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: compact ? 12 : 16, style: .continuous))
         .animation(.easeInOut(duration: 0.15), value: highlighted)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Drop zone")
@@ -410,7 +417,7 @@ private struct DropZoneView: View {
                 .tint(MetaBurnTheme.accent)
         } else {
             Image(systemName: highlighted ? "photo.stack.fill" : "photo.stack")
-                .font(.system(size: compact ? 21 : 42))
+                .font(.system(size: compact ? 22 : 46))
                 .foregroundStyle(MetaBurnTheme.accent)
         }
     }
@@ -428,23 +435,20 @@ private struct CleanedFilesPanel: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text("Cleaned Files")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold))
                 Spacer()
                 Button("Show in Finder", systemImage: "folder") { onReveal() }
                     .buttonStyle(GhostButtonStyle())
                     .disabled(!canReveal)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
-
-            Divider().overlay(MetaBurnTheme.hairline)
+            .padding(.bottom, 14)
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     if let currentFile {
                         fileRow(
                             path: currentFile,
-                            statusText: "Processing",
+                            statusText: "cleaning",
                             statusColor: .blue,
                             timestamp: nil,
                             showsProgress: true
@@ -466,13 +470,14 @@ private struct CleanedFilesPanel: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.primary.opacity(0.015))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(MetaBurnTheme.hairline, lineWidth: 1)
+            )
         }
-        .background(MetaBurnTheme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .strokeBorder(MetaBurnTheme.hairline, lineWidth: 1)
-        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private func fileRow(
@@ -482,7 +487,7 @@ private struct CleanedFilesPanel: View {
         timestamp: String?,
         showsProgress: Bool = false
     ) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             FileTypeIcon(path: path)
             Text(URL(fileURLWithPath: path).lastPathComponent)
                 .lineLimit(1)
@@ -490,12 +495,12 @@ private struct CleanedFilesPanel: View {
             Image(systemName: "arrow.right")
                 .foregroundColor(MetaBurnTheme.secondaryText)
             Text(statusText)
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 13))
                 .foregroundColor(statusColor)
             Spacer(minLength: 8)
             if let timestamp {
                 Text(timestamp)
-                    .font(.system(size: 11))
+                    .font(.system(size: 13))
                     .foregroundColor(MetaBurnTheme.secondaryText)
             }
             if showsProgress {
@@ -503,15 +508,15 @@ private struct CleanedFilesPanel: View {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.vertical, 14)
     }
 
     private func statusLabel(_ status: CleanStatus) -> String {
         switch status {
-        case .cleaned: "Metadata Cleared"
-        case .partial: "Unable to Fully Clear"
-        case .skipped: "Error"
-        case .failed: "Error"
+        case .cleaned: "cleaned"
+        case .partial: "leftovers"
+        case .skipped: "skipped"
+        case .failed: "failed"
         }
     }
 
@@ -530,11 +535,11 @@ private struct FileTypeIcon: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(Color.primary.opacity(0.06))
-                .frame(width: 28, height: 28)
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(MetaBurnTheme.surface)
+                .frame(width: 32, height: 32)
             Image(systemName: SupportedTypes.isVideo(filePath: path) ? "play.fill" : "photo.fill")
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.primary.opacity(0.75))
         }
     }
@@ -571,13 +576,13 @@ private struct FooterBar: View {
         HStack(spacing: 14) {
             HStack(spacing: 10) {
                 Image(systemName: shieldIcon)
-                    .font(.system(size: 21))
+                    .font(.system(size: 22))
                     .foregroundStyle(MetaBurnTheme.accent)
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 14, weight: .semibold))
                     Text(subtitle)
-                        .font(.system(size: 10))
+                        .font(.system(size: 12))
                         .foregroundColor(MetaBurnTheme.secondaryText)
                         .lineLimit(1)
                 }
@@ -596,12 +601,12 @@ private struct FooterBar: View {
             .frame(maxWidth: .infinity)
 
             Toggle(isOn: $removeAudio) {
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     Image(systemName: removeAudio ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(removeAudio ? MetaBurnTheme.accent : MetaBurnTheme.secondaryText)
                     Text("Remove audio")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: 13))
                 }
             }
             .toggleStyle(RedSwitchToggleStyle())
@@ -649,6 +654,15 @@ enum MetaBurnTheme {
     static let secondaryText = Color.primary.opacity(0.55)
     static let hairline = Color.primary.opacity(0.10)
 
+    static var titlebarTint: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
+                return NSColor(red: 0.12, green: 0.025, blue: 0.03, alpha: 1)
+            }
+            return NSColor(red: 0.30, green: 0.10, blue: 0.11, alpha: 1)
+        })
+    }
+
     static var background: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
@@ -673,15 +687,15 @@ enum MetaBurnTheme {
 struct GhostButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 11, weight: .medium))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .font(.system(size: 13, weight: .medium))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
             .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(Color.primary.opacity(configuration.isPressed ? 0.12 : 0.06))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(Color.primary.opacity(0.15), lineWidth: 1)
             )
     }
@@ -690,12 +704,12 @@ struct GhostButtonStyle: ButtonStyle {
 struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 12, weight: .semibold))
+            .font(.system(size: 14, weight: .semibold))
             .foregroundColor(.white)
             .padding(.horizontal, 18)
-            .padding(.vertical, 8)
+            .padding(.vertical, 10)
             .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(MetaBurnTheme.accent.opacity(configuration.isPressed ? 0.8 : 1))
             )
     }
@@ -715,7 +729,7 @@ struct MetaBurnSecondaryButtonStyle: ButtonStyle {
 
 struct RedSwitchToggleStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 7) {
+        HStack(spacing: 8) {
             configuration.label
             Button {
                 withAnimation(.spring(response: 0.22, dampingFraction: 0.78)) {
@@ -723,8 +737,8 @@ struct RedSwitchToggleStyle: ToggleStyle {
                 }
             } label: {
                 Capsule()
-                    .fill(configuration.isOn ? MetaBurnTheme.accent : Color(red: 0.48, green: 0.12, blue: 0.12))
-                    .frame(width: 34, height: 19)
+                    .fill(configuration.isOn ? MetaBurnTheme.accent : Color(red: 0.55, green: 0.15, blue: 0.15))
+                    .frame(width: 40, height: 22)
                     .overlay(
                         Circle()
                             .fill(Color.white)

@@ -9,9 +9,8 @@ struct MetaBurnApp: App {
         Window("MetaBurn", id: "main") {
             ContentView()
         }
-        .defaultSize(width: 980, height: 760)
+        .defaultSize(width: 960, height: 760)
         .windowResizability(.contentMinSize)
-        .windowToolbarStyle(.unified(showsTitle: true))
 
         Settings {
             SettingsView()
@@ -36,6 +35,8 @@ struct MetaBurnApp: App {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var settingsAccessories: [NSTitlebarAccessoryViewController] = []
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp?.mainMenu = buildMenu()
         ThemePreference.applyAppAppearance()
@@ -46,12 +47,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         for window in NSApp?.windows ?? [] {
-            window.titlebarAppearsTransparent = false
-            window.titleVisibility = .visible
-            window.backgroundColor = .windowBackgroundColor
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+            window.backgroundColor = NSColor(red: 0.08, green: 0.025, blue: 0.028, alpha: 1)
             window.isOpaque = true
-            window.minSize = NSSize(width: 780, height: 640)
+            window.minSize = NSSize(width: 900, height: 720)
+            installSettingsAccessory(on: window)
         }
+    }
+
+    private func installSettingsAccessory(on window: NSWindow) {
+        let accessory = NSTitlebarAccessoryViewController()
+        accessory.layoutAttribute = .right
+
+        let baseImage = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings") ?? NSImage()
+        let image = baseImage.withSymbolConfiguration(.init(pointSize: 14, weight: .medium)) ?? baseImage
+        let button = NSButton(image: image, target: self, action: #selector(showSettings))
+        button.bezelStyle = .texturedRounded
+        button.controlSize = .regular
+        button.imagePosition = .imageOnly
+        button.toolTip = "Settings"
+        button.setAccessibilityLabel("Settings")
+        button.frame = NSRect(x: 6, y: 1, width: 34, height: 28)
+
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 46, height: 30))
+        container.addSubview(button)
+        accessory.view = container
+        window.addTitlebarAccessoryViewController(accessory)
+        settingsAccessories.append(accessory)
     }
 
     private func buildMenu() -> NSMenu {
