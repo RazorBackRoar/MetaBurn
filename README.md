@@ -1,10 +1,16 @@
 # MetaBurn
 
 [![Download](https://img.shields.io/github/v/release/RazorBackRoar/MetaBurn?style=for-the-badge&label=Download%20DMG&color=d32f2f)](https://github.com/RazorBackRoar/MetaBurn/releases/latest)
+[![Version](https://img.shields.io/badge/version-2.2.10-blue?style=for-the-badge)](https://github.com/RazorBackRoar/MetaBurn/releases/tag/v2.2.10)
 [![CI](https://img.shields.io/github/actions/workflow/status/RazorBackRoar/MetaBurn/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/RazorBackRoar/MetaBurn/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blueviolet?style=for-the-badge)](LICENSE)
 [![Swift](https://img.shields.io/badge/Swift-F05138?style=for-the-badge&logo=swift&logoColor=white)](https://swift.org/)
 [![macOS](https://img.shields.io/badge/mac%20os-Apple%20Silicon-d32f2f?style=for-the-badge&logo=apple&logoColor=white)](https://support.apple.com/en-us/HT211814)
+
+<!-- Workspace Health Layer -->
+![Status](https://img.shields.io/badge/status-active-2ea44f?style=for-the-badge)
+![Tests](https://img.shields.io/badge/tests-present-2ea44f?style=for-the-badge)
+![Build](https://img.shields.io/badge/build-swift-F05138?style=for-the-badge)
 
 **Strip EXIF, GPS, and device metadata from photos and videos — locally on macOS.**
 
