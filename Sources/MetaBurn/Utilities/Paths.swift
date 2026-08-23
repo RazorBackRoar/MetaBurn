@@ -59,7 +59,7 @@ enum Paths {
         desktopDirectory().appendingPathComponent(desktopOutputFolderName, isDirectory: true)
     }
 
-    /// True for `~/Desktop/MetaBurn` or any path under it. Does not match `MetaBurn & L!bra Test`.
+    /// True for `~/Desktop/MetaBurn` or any path under it. Does not match `MetaBurn & Libra Test`.
     static func isForbiddenDesktopMetaBurn(_ url: URL) -> Bool {
         isUnderRoot(url, root: forbiddenDesktopMetaBurnRoot())
     }

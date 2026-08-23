@@ -140,7 +140,7 @@ struct PathsTests {
         #expect(Paths.isForbiddenPicturesMetaBurn(Paths.photosOutputDirectory()))
         #expect(Paths.isForbiddenCollectedMetaBurn(Paths.photosOutputDirectory()))
 
-        let testMedia = Paths.desktopDirectory().appendingPathComponent("MetaBurn & L!bra Test", isDirectory: true)
+        let testMedia = Paths.desktopDirectory().appendingPathComponent("MetaBurn & Libra Test", isDirectory: true)
         #expect(!Paths.isForbiddenDesktopMetaBurn(testMedia))
         #expect(!Paths.isForbiddenPicturesMetaBurn(testMedia))
         #expect(!Paths.isForbiddenCollectedMetaBurn(testMedia))

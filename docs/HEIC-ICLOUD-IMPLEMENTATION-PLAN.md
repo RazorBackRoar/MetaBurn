@@ -338,7 +338,7 @@ Implement folder access via **dropping folders from Finder** (including iCloud D
 2. `HeicJpegConverter` (quality 1.0, metadata copy, cache output)  
 3. Hook in `MetadataCleaner` before strip  
 4. Output naming `.jpg`  
-5. Manual tests under agent test tree: `/Users/home/Desktop/MetaBurn & L!bra Test/photos`  
+5. Manual tests under agent test tree: `/Users/home/Desktop/MetaBurn & Libra Test/photos`  
 6. Docs / README note  
 
 ### Phase B — Ubiquity read path ✅ implemented
