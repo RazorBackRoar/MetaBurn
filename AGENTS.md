@@ -87,7 +87,7 @@ Supported files are copied to a local cache work file before any metadata read o
 
 ## Testing
 
-Image/video testing uses **only** `/Users/home/Desktop/MetaBurn & L!bra Test` (`photos/` for images, `videos/` for videos). Never pull or process test media from Desktop/Downloads/Pictures/Movies/Workspace/elsewhere; generated outputs stay under that directory. Before any test, verify the source path starts with that prefix or stop.
+Image/video testing uses **only** `/Users/home/Desktop/MetaBurn & Libra Test` (`photos/` for images, `videos/` for videos). Never pull or process test media from Desktop/Downloads/Pictures/Movies/Workspace/elsewhere; generated outputs stay under that directory. Before any test, verify the source path starts with that prefix or stop.
 
 App runtime output writes only to the private Open Files workspace. Never write `~/Desktop/MetaBurn` or `~/Pictures/MetaBurn`.
 
