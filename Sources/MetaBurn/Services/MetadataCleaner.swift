@@ -27,15 +27,18 @@ enum MetadataCleaner {
             return CleanResult(path: filePath, status: .skipped, reason: "unsupported file type")
         }
         if info.kind == .video && !info.writable {
-            return CleanResult(path: filePath, status: .skipped, reason: "container not safely writable")
+            return CleanResult(
+                path: filePath, status: .skipped, reason: "container not safely writable")
         }
 
         do {
             try PathSafety.assertRegularFileNoFollow(at: filePath)
         } catch PathSafetyError.symlink(_) {
-            return CleanResult(path: filePath, status: .skipped, reason: "symlink skipped for safety")
+            return CleanResult(
+                path: filePath, status: .skipped, reason: "symlink skipped for safety")
         } catch {
-            return CleanResult(path: filePath, status: .failed, reason: "could not open source file")
+            return CleanResult(
+                path: filePath, status: .failed, reason: "could not open source file")
         }
 
         let convertHeic = info.kind == .photo && HeicJpegConverter.shouldConvert(filePath: filePath)
@@ -58,9 +61,11 @@ enum MetadataCleaner {
 
         do {
             if info.kind == .photo {
-                try OutputRootResolver.ensurePhotosDirectory(forSourcePath: filePath, destination: outputDestination)
+                try OutputRootResolver.ensurePhotosDirectory(
+                    forSourcePath: filePath, destination: outputDestination)
             } else {
-                try OutputRootResolver.ensureVideosDirectory(forSourcePath: filePath, destination: outputDestination)
+                try OutputRootResolver.ensureVideosDirectory(
+                    forSourcePath: filePath, destination: outputDestination)
             }
         } catch PathSafetyError.symlink(_) {
             return CleanResult(path: filePath, status: .failed, reason: "output path is a symlink")
@@ -72,15 +77,20 @@ enum MetadataCleaner {
             )
         }
 
-        let outputDir = info.kind == .photo
-            ? OutputRootResolver.photosDirectory(forSourcePath: filePath, destination: outputDestination)
-            : OutputRootResolver.videosDirectory(forSourcePath: filePath, destination: outputDestination)
+        let outputDir =
+            info.kind == .photo
+            ? OutputRootResolver.photosDirectory(
+                forSourcePath: filePath, destination: outputDestination)
+            : OutputRootResolver.videosDirectory(
+                forSourcePath: filePath, destination: outputDestination)
         let allowedRoot = OutputRootResolver.allowedRoot(
             forSourcePath: filePath,
             destination: outputDestination
         )
         if !PathSafety.isPhysicallyInside(outputDir.path, ancestor: allowedRoot.path) {
-            return CleanResult(path: filePath, status: .failed, reason: "output path is outside the allowed workspace")
+            return CleanResult(
+                path: filePath, status: .failed,
+                reason: "output path is outside the allowed workspace")
         }
 
         let finalURL = Paths.reserveOutputURL(
@@ -147,7 +157,9 @@ enum MetadataCleaner {
                 )
             }
         } catch is CancellationError {
-            return CleanResult(path: filePath, status: .failed, reason: "cancelled", metadataBefore: metadataBefore)
+            return CleanResult(
+                path: filePath, status: .failed, reason: "cancelled", metadataBefore: metadataBefore
+            )
         } catch let gate as UbiquityGate.GateError {
             return CleanResult(
                 path: filePath,
@@ -189,7 +201,9 @@ enum MetadataCleaner {
 
     /// Coordinated iCloud-safe copy into a local cache URL (or plain copy for local files).
     private static func stageSource(filePath: String, to destinationURL: URL) async throws {
-        if UbiquityGate.isUbiquitous(atPath: filePath) || UbiquityGate.needsDownload(atPath: filePath) {
+        if UbiquityGate.isUbiquitous(atPath: filePath)
+            || UbiquityGate.needsDownload(atPath: filePath)
+        {
             try await UbiquityGate.materialize(fromPath: filePath, to: destinationURL)
         } else {
             safeRemove(at: destinationURL)
@@ -220,11 +234,15 @@ enum MetadataCleaner {
         promoted: inout Bool
     ) async -> CleanResult {
         if Task.isCancelled {
-            return CleanResult(path: filePath, status: .failed, reason: "cancelled", metadataBefore: metadataBefore)
+            return CleanResult(
+                path: filePath, status: .failed, reason: "cancelled", metadataBefore: metadataBefore
+            )
         }
 
         if !alreadyStripped {
-            guard NativeImageIO.canHandle(filePath: filePath), NativeImageIO.stripMetadata(atPath: workPath) else {
+            guard NativeImageIO.canHandle(filePath: filePath),
+                NativeImageIO.stripMetadata(atPath: workPath)
+            else {
                 return CleanResult(
                     path: filePath,
                     status: .failed,
@@ -241,8 +259,12 @@ enum MetadataCleaner {
         let verified = MetadataRules.verify(
             interpreted: MetadataRules.InterpretResult(outcome: .cleaned),
             kind: .photo,
-            before: metadataBefore.map { MetadataRules.Tag(group: $0.group, tag: $0.tag, value: $0.value) },
-            after: metadataAfter.map { MetadataRules.Tag(group: $0.group, tag: $0.tag, value: $0.value) }
+            before: metadataBefore.map {
+                MetadataRules.Tag(group: $0.group, tag: $0.tag, value: $0.value)
+            },
+            after: metadataAfter.map {
+                MetadataRules.Tag(group: $0.group, tag: $0.tag, value: $0.value)
+            }
         )
 
         let status = CleanStatus(rawValue: verified.outcome) ?? .failed
@@ -263,8 +285,11 @@ enum MetadataCleaner {
             )
         }
 
+        let destinationPath: String
         do {
-            try promoteWorkFile(workURL, to: finalURL)
+            destinationPath = try promoteWithCollisionRetry(
+                workURL: workURL, finalURL: finalURL, sourcePath: filePath
+            ).path
             promoted = true
         } catch {
             return CleanResult(
@@ -277,7 +302,7 @@ enum MetadataCleaner {
         }
 
         return CleanResult(
-            path: finalURL.path,
+            path: destinationPath,
             status: status,
             reason: reason,
             metadataBefore: metadataBefore,
@@ -295,12 +320,16 @@ enum MetadataCleaner {
         promoted: inout Bool
     ) async -> CleanResult {
         if Task.isCancelled {
-            return CleanResult(path: filePath, status: .failed, reason: "cancelled", metadataBefore: metadataBefore)
+            return CleanResult(
+                path: filePath, status: .failed, reason: "cancelled", metadataBefore: metadataBefore
+            )
         }
 
         let cleaned = await NativeVideoClean.clean(atPath: workPath, muteAudio: muteAudio)
         if cleaned.reason == "cancelled" {
-            return CleanResult(path: filePath, status: .failed, reason: "cancelled", metadataBefore: metadataBefore)
+            return CleanResult(
+                path: filePath, status: .failed, reason: "cancelled", metadataBefore: metadataBefore
+            )
         }
         if !cleaned.success {
             return CleanResult(
@@ -315,8 +344,12 @@ enum MetadataCleaner {
         let verified = MetadataRules.verify(
             interpreted: MetadataRules.InterpretResult(outcome: .cleaned),
             kind: .video,
-            before: metadataBefore.map { MetadataRules.Tag(group: $0.group, tag: $0.tag, value: $0.value) },
-            after: metadataAfter.map { MetadataRules.Tag(group: $0.group, tag: $0.tag, value: $0.value) }
+            before: metadataBefore.map {
+                MetadataRules.Tag(group: $0.group, tag: $0.tag, value: $0.value)
+            },
+            after: metadataAfter.map {
+                MetadataRules.Tag(group: $0.group, tag: $0.tag, value: $0.value)
+            }
         )
 
         var status = CleanStatus(rawValue: verified.outcome) ?? .failed
@@ -327,7 +360,9 @@ enum MetadataCleaner {
             reason = "some removable metadata remains after cleaning"
         } else if status == .failed {
             let afterRemovable = MetadataRules.removableTags(
-                metadataAfter.map { MetadataRules.Tag(group: $0.group, tag: $0.tag, value: $0.value) },
+                metadataAfter.map {
+                    MetadataRules.Tag(group: $0.group, tag: $0.tag, value: $0.value)
+                },
                 kind: .video
             )
             let identifying = afterRemovable.filter { tag in
@@ -357,8 +392,11 @@ enum MetadataCleaner {
             )
         }
 
+        let destinationPath: String
         do {
-            try promoteWorkFile(workURL, to: finalURL)
+            destinationPath = try promoteWithCollisionRetry(
+                workURL: workURL, finalURL: finalURL, sourcePath: filePath
+            ).path
             promoted = true
         } catch {
             return CleanResult(
@@ -371,12 +409,51 @@ enum MetadataCleaner {
         }
 
         return CleanResult(
-            path: finalURL.path,
+            path: destinationPath,
             status: status,
             reason: reason,
             metadataBefore: metadataBefore,
             metadataAfter: metadataAfter
         )
+    }
+
+    /// Publishes `workURL` at `finalURL`. If a racing process claimed that exact name,
+    /// reserves the next unique sibling name and retries — bounded so a stubborn
+    /// collision fails honestly instead of looping or overwriting.
+    static func promoteWithCollisionRetry(
+        workURL: URL,
+        finalURL: URL,
+        sourcePath: String
+    ) throws -> URL {
+        let outputDir = finalURL.deletingLastPathComponent()
+        let sourceExt = (sourcePath as NSString).pathExtension.lowercased()
+        let finalExt = finalURL.pathExtension
+        let extOverride = finalExt.lowercased() == sourceExt ? nil : ".\(finalExt)"
+
+        var candidate = finalURL
+        var lastError: Error?
+        for _ in 0..<4 {
+            do {
+                try promoteWorkFile(workURL, to: candidate)
+                if candidate != finalURL {
+                    Paths.releaseOutputURL(candidate)
+                }
+                return candidate
+            } catch {
+                lastError = error
+                let next = Paths.reserveOutputURL(
+                    forSourcePath: sourcePath,
+                    in: outputDir,
+                    replacingExtension: extOverride
+                )
+                if next == candidate { break }
+                if candidate != finalURL {
+                    Paths.releaseOutputURL(candidate)
+                }
+                candidate = next
+            }
+        }
+        throw lastError ?? PathSafetyError.notRegularFile(finalURL.path)
     }
 
     private static func promoteWorkFile(_ workURL: URL, to finalURL: URL) throws {
@@ -387,7 +464,8 @@ enum MetadataCleaner {
         try PathSafety.ensureDirectoryNoFollow(parent, within: parent.path)
         let fm = FileManager.default
 
-        let destIsICloud = UbiquityGate.isUbiquitous(atPath: finalURL.path)
+        let destIsICloud =
+            UbiquityGate.isUbiquitous(atPath: finalURL.path)
             || OutputRootResolver.pathLooksLikeICloud(finalURL)
 
         if destIsICloud {
@@ -398,7 +476,20 @@ enum MetadataCleaner {
         guard !fm.fileExists(atPath: finalURL.path), !PathSafety.isSymlink(finalURL.path) else {
             throw PathSafetyError.notRegularFile(finalURL.path)
         }
-        try fm.moveItem(at: workURL, to: finalURL)
+        // Publish atomically: hard-link the work file into the final name — link fails
+        // instead of replacing if the name was claimed after the check above (e.g. a
+        // second MetaBurn instance racing the same output), where moveItem's rename
+        // would silently overwrite the winner's file.
+        do {
+            try fm.linkItem(at: workURL, to: finalURL)
+            try? fm.removeItem(at: workURL)
+        } catch {
+            // Hard links require same-volume; re-check then move for that edge case.
+            guard !fm.fileExists(atPath: finalURL.path), !PathSafety.isSymlink(finalURL.path) else {
+                throw PathSafetyError.notRegularFile(finalURL.path)
+            }
+            try fm.moveItem(at: workURL, to: finalURL)
+        }
     }
 
     private static func promoteICloudWorkFile(_ workURL: URL, to finalURL: URL) throws {
@@ -412,7 +503,10 @@ enum MetadataCleaner {
             error: &coordinatorError
         ) { writeURL in
             do {
-                safeRemove(at: writeURL)
+                // Never clobber: a file already here means another writer won the name.
+                guard !fm.fileExists(atPath: writeURL.path) else {
+                    throw PathSafetyError.notRegularFile(writeURL.path)
+                }
                 // Copy then remove work — move can fail across volumes / iCloud.
                 try fm.copyItem(at: workURL, to: writeURL)
                 cleanupTemporaryFile(at: workURL)
@@ -446,7 +540,8 @@ enum MetadataCleaner {
             if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileNoSuchFileError {
                 // Ignore if file doesn't exist
             } else {
-                logWarn("Could not safely remove file at \(url.path): \(error.localizedDescription)")
+                logWarn(
+                    "Could not safely remove file at \(url.path): \(error.localizedDescription)")
             }
         }
     }

@@ -1,5 +1,5 @@
-import SwiftUI
 import MetaBurnCore
+import SwiftUI
 
 struct FileDetailsView: View {
     let file: LogEntry
@@ -78,7 +78,7 @@ struct MetadataReport: View {
         "Camera",
         "GPS Location",
         "Date Created",
-        "Date Modified"
+        "Date Modified",
     ]
 
     private var strippedCount: Int {
@@ -160,8 +160,11 @@ struct MetadataReport: View {
             Image(systemName: "checkmark.shield")
                 .font(.system(size: 23))
                 .foregroundStyle(.green.opacity(0.85))
-            Text(entry.status == .cleaned ? "No removable metadata found" : "No metadata fields to compare")
-                .font(.system(size: 14, weight: .medium))
+            Text(
+                entry.status == .cleaned
+                    ? "No removable metadata found" : "No metadata fields to compare"
+            )
+            .font(.system(size: 14, weight: .medium))
             Text("This file had little or no EXIF/XMP to strip. Pixels were left unchanged.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
@@ -210,7 +213,8 @@ struct MetadataReport: View {
 
     private var messageFallback: String {
         switch entry.status {
-        case .partial: "Hidden tags were reduced, but at least one removable field is still present."
+        case .partial:
+            "Hidden tags were reduced, but at least one removable field is still present."
         default: "No additional details."
         }
     }
@@ -333,7 +337,9 @@ enum MetadataFieldBuilder {
         let resolve: (Map, String) -> String
     }
 
-    static func buildRows(filePath: String, before: [MetadataEntry], after: [MetadataEntry]) -> [FieldRow] {
+    static func buildRows(filePath: String, before: [MetadataEntry], after: [MetadataEntry])
+        -> [FieldRow]
+    {
         let kind: SupportedTypes.FileKind = SupportedTypes.classify(filePath: filePath).kind
         let isVideo = kind == .video
         let specs = isVideo ? videoSpecs : photoSpecs
@@ -422,21 +428,29 @@ enum MetadataFieldBuilder {
         Spec(label: "Make", mirror: false, resolve: { m, _ in get(m, "Make") }),
         Spec(label: "Model", mirror: false, resolve: { m, _ in get(m, "Model") }),
         Spec(label: "Camera", mirror: false, resolve: { m, _ in camera(m) }),
-        Spec(label: "Lens", mirror: false, resolve: { m, _ in get(m, "LensModel", "LensInfo", "LensMake", "Lens") }),
+        Spec(
+            label: "Lens", mirror: false,
+            resolve: { m, _ in get(m, "LensModel", "LensInfo", "LensMake", "Lens") }),
         Spec(label: "GPS Location", mirror: false, resolve: { m, _ in gps(m) }),
         Spec(
             label: "Date Created",
             mirror: false,
-            resolve: { m, _ in dateValue(m, "DateTimeOriginal", "CreateDate", "CreationDate", "CreationTime", "FileCreateDate") }
+            resolve: { m, _ in
+                dateValue(
+                    m, "DateTimeOriginal", "CreateDate", "CreationDate", "CreationTime",
+                    "FileCreateDate")
+            }
         ),
         Spec(
             label: "Date Modified",
             mirror: false,
             resolve: { m, _ in dateValue(m, "ModifyDate", "FileModifyDate") }
         ),
-        Spec(label: "Size", mirror: true, resolve: { m, _ in get(m, "FileSize") }),
+        // Size and Type change on real cleans (e.g. HEIC → JPG re-encodes), so they
+        // must resolve from the after-map — mirroring would display false no-change rows.
+        Spec(label: "Size", mirror: false, resolve: { m, _ in get(m, "FileSize") }),
         Spec(label: "Resolution", mirror: true, resolve: { m, _ in resolution(m) }),
-        Spec(label: "Type", mirror: true, resolve: { m, _ in get(m, "FileType", "MIMEType") })
+        Spec(label: "Type", mirror: false, resolve: { m, _ in get(m, "FileType", "MIMEType") }),
     ]
 
     private static let videoSpecs: [Spec] = [
@@ -448,17 +462,22 @@ enum MetadataFieldBuilder {
         Spec(
             label: "Date Created",
             mirror: false,
-            resolve: { m, _ in dateValue(m, "CreateDate", "CreationDate", "DateTimeOriginal", "FileCreateDate") }
+            resolve: { m, _ in
+                dateValue(m, "CreateDate", "CreationDate", "DateTimeOriginal", "FileCreateDate")
+            }
         ),
         Spec(
             label: "Date Modified",
             mirror: false,
             resolve: { m, _ in dateValue(m, "ModifyDate", "FileModifyDate") }
         ),
-        Spec(label: "Size", mirror: true, resolve: { m, _ in get(m, "FileSize") }),
+        Spec(label: "Size", mirror: false, resolve: { m, _ in get(m, "FileSize") }),
         Spec(label: "Resolution", mirror: true, resolve: { m, _ in resolution(m) }),
-        Spec(label: "Type", mirror: true, resolve: { m, _ in get(m, "FileType", "MIMEType") }),
-        Spec(label: "Duration", mirror: true, resolve: { m, _ in get(m, "Duration", "MediaDuration", "TrackDuration") }),
-        Spec(label: "FPS", mirror: true, resolve: { m, _ in get(m, "VideoFrameRate", "FrameRate") })
+        Spec(label: "Type", mirror: false, resolve: { m, _ in get(m, "FileType", "MIMEType") }),
+        Spec(
+            label: "Duration", mirror: true,
+            resolve: { m, _ in get(m, "Duration", "MediaDuration", "TrackDuration") }),
+        Spec(
+            label: "FPS", mirror: true, resolve: { m, _ in get(m, "VideoFrameRate", "FrameRate") }),
     ]
 }

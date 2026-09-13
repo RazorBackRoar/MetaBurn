@@ -1,7 +1,7 @@
 import Foundation
 import ImageIO
-import UniformTypeIdentifiers
 import MetaBurnCore
+import UniformTypeIdentifiers
 
 /// Converts HEIC/HEIF stills to max-quality JPEG via Image I/O for the active clean workflow.
 /// Originals are never modified; callers write into a local cache work URL.
@@ -22,12 +22,16 @@ enum HeicJpegConverter {
     }
 
     /// Write a JPEG to `destinationURL` from `sourcePath`, preserving metadata when possible.
-    static func convert(from sourcePath: String, to destinationURL: URL) -> Result<Void, ConversionError> {
+    static func convert(from sourcePath: String, to destinationURL: URL) -> Result<
+        Void, ConversionError
+    > {
         convert(from: sourcePath, to: destinationURL, stripPrivacyMetadata: false)
     }
 
     /// Single-pass HEIC/HEIF → max-quality JPEG **without** EXIF/GPS/IPTC/Maker bags (orientation kept).
-    static func convertAndStrip(from sourcePath: String, to destinationURL: URL) -> Result<Void, ConversionError> {
+    static func convertAndStrip(from sourcePath: String, to destinationURL: URL) -> Result<
+        Void, ConversionError
+    > {
         convert(from: sourcePath, to: destinationURL, stripPrivacyMetadata: true)
     }
 
@@ -42,7 +46,7 @@ enum HeicJpegConverter {
         let options: [CFString: Any] = [kCGImageSourceShouldCache: false]
 
         guard let source = CGImageSourceCreateWithURL(sourceURL as CFURL, options as CFDictionary),
-              CGImageSourceGetCount(source) >= 1
+            CGImageSourceGetCount(source) >= 1
         else {
             return .failure(.unreadable)
         }
@@ -51,20 +55,38 @@ enum HeicJpegConverter {
             return .failure(.notHeif)
         }
 
+        let imageCount = CGImageSourceGetCount(source)
+        if imageCount > 1 {
+            logWarn(
+                "HEIC contains \(imageCount) images — only the primary frame is written to JPEG: \(sourcePath)"
+            )
+        }
+
         let fm = FileManager.default
         if fm.fileExists(atPath: destinationURL.path) {
             try? fm.removeItem(at: destinationURL)
         }
 
         if stripPrivacyMetadata {
-            if convertStrippedDecoded(source: source, destinationURL: destinationURL, options: options) {
+            if convertStrippedDecoded(
+                source: source, destinationURL: destinationURL, options: options)
+            {
                 return .success(())
             }
         } else {
-            if convertViaAddFromSource(source: source, destinationURL: destinationURL) {
+            // Alpha cannot survive into JPEG — route through the decoded path, which
+            // composites onto white, instead of the pixel-preserving addFromSource path.
+            let frameZeroHasAlpha =
+                CGImageSourceCreateImageAtIndex(source, 0, options as CFDictionary)
+                .map(Self.imageHasAlpha) ?? false
+            if !frameZeroHasAlpha,
+                convertViaAddFromSource(source: source, destinationURL: destinationURL)
+            {
                 return .success(())
             }
-            if convertViaDecodedImage(source: source, destinationURL: destinationURL, options: options) {
+            if convertViaDecodedImage(
+                source: source, destinationURL: destinationURL, options: options)
+            {
                 return .success(())
             }
         }
@@ -106,7 +128,8 @@ enum HeicJpegConverter {
             kCGImageDestinationLossyCompressionQuality: compressionQuality
         ]
         if let sourceProps = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any],
-           let orientation = sourceProps[kCGImagePropertyOrientation as String] {
+            let orientation = sourceProps[kCGImagePropertyOrientation as String]
+        {
             props[kCGImagePropertyOrientation] = orientation
         }
         return props
@@ -116,12 +139,14 @@ enum HeicJpegConverter {
         source: CGImageSource,
         destinationURL: URL
     ) -> Bool {
-        guard let destination = CGImageDestinationCreateWithURL(
-            destinationURL as CFURL,
-            UTType.jpeg.identifier as CFString,
-            1,
-            nil
-        ) else {
+        guard
+            let destination = CGImageDestinationCreateWithURL(
+                destinationURL as CFURL,
+                UTType.jpeg.identifier as CFString,
+                1,
+                nil
+            )
+        else {
             return false
         }
         let props = writeProperties(from: source)
@@ -134,21 +159,26 @@ enum HeicJpegConverter {
         destinationURL: URL,
         options: [CFString: Any]
     ) -> Bool {
-        guard let image = CGImageSourceCreateImageAtIndex(source, 0, options as CFDictionary) else {
+        guard let decoded = CGImageSourceCreateImageAtIndex(source, 0, options as CFDictionary)
+        else {
             return false
         }
-        guard let destination = CGImageDestinationCreateWithURL(
-            destinationURL as CFURL,
-            UTType.jpeg.identifier as CFString,
-            1,
-            nil
-        ) else {
+        let image = compositeOntoWhiteIfNeeded(decoded, sourcePath: nil)
+        guard
+            let destination = CGImageDestinationCreateWithURL(
+                destinationURL as CFURL,
+                UTType.jpeg.identifier as CFString,
+                1,
+                nil
+            )
+        else {
             return false
         }
 
         var props = writeProperties(from: source)
         if let sourceProps = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any],
-           let orientation = sourceProps[kCGImagePropertyOrientation as String] {
+            let orientation = sourceProps[kCGImagePropertyOrientation as String]
+        {
             props[kCGImagePropertyOrientation] = orientation
         }
 
@@ -161,19 +191,69 @@ enum HeicJpegConverter {
         destinationURL: URL,
         options: [CFString: Any]
     ) -> Bool {
-        guard let image = CGImageSourceCreateImageAtIndex(source, 0, options as CFDictionary) else {
+        guard let decoded = CGImageSourceCreateImageAtIndex(source, 0, options as CFDictionary)
+        else {
             return false
         }
-        guard let destination = CGImageDestinationCreateWithURL(
-            destinationURL as CFURL,
-            UTType.jpeg.identifier as CFString,
-            1,
-            nil
-        ) else {
+        let image = compositeOntoWhiteIfNeeded(decoded, sourcePath: nil)
+        guard
+            let destination = CGImageDestinationCreateWithURL(
+                destinationURL as CFURL,
+                UTType.jpeg.identifier as CFString,
+                1,
+                nil
+            )
+        else {
             return false
         }
         let props = strippedWriteProperties(from: source)
         CGImageDestinationAddImage(destination, image, props as CFDictionary)
         return CGImageDestinationFinalize(destination)
+    }
+
+    /// True when the image carries real transparency (not just an ignorable alpha byte).
+    private static func imageHasAlpha(_ image: CGImage) -> Bool {
+        switch image.alphaInfo {
+        case .none, .noneSkipLast, .noneSkipFirst:
+            return false
+        case .last, .first, .premultipliedLast, .premultipliedFirst, .alphaOnly:
+            return true
+        @unknown default:
+            return false
+        }
+    }
+
+    /// JPEG has no alpha channel — composite transparent regions onto white so they
+    /// do not render as black in the cleaned output.
+    private static func compositeOntoWhiteIfNeeded(_ image: CGImage, sourcePath: String?) -> CGImage
+    {
+        guard imageHasAlpha(image) else { return image }
+        if let sourcePath {
+            logWarn("HEIC has an alpha channel — flattening onto white for JPEG: \(sourcePath)")
+        } else {
+            logWarn("HEIC has an alpha channel — flattening onto white for JPEG")
+        }
+        let rect = CGRect(x: 0, y: 0, width: image.width, height: image.height)
+        guard
+            let context = CGContext(
+                data: nil,
+                width: image.width,
+                height: image.height,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+            )
+        else {
+            return image
+        }
+        context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+        context.fill(rect)
+        context.draw(image, in: rect)
+        return context.makeImage() ?? image
+    }
+
+    private static func logWarn(_ message: String) {
+        Task { @MainActor in Log.shared.warn(message, scope: "cleaner") }
     }
 }

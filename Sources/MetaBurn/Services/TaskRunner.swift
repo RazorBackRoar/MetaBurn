@@ -11,6 +11,8 @@ final class TaskRunner: ObservableObject {
     @Published private(set) var log: [LogEntry] = []
     @Published private(set) var currentFile: String?
     @Published private(set) var currentFileNumber = 0
+    /// Files being cleaned in parallel right now — up to `cleanConcurrencyLimit`.
+    @Published private(set) var inFlightCount = 0
 
     private var activeJob: Task<Void, Never>?
     private var isCancelled = false
@@ -30,6 +32,7 @@ final class TaskRunner: ObservableObject {
         log = []
         currentFile = nil
         currentFileNumber = 0
+        inFlightCount = 0
 
         let jobId = UUID().uuidString
         let outputDestination = OutputPreference.stored
@@ -54,6 +57,7 @@ final class TaskRunner: ObservableObject {
             message = "Cancelled — in-flight export was stopped."
             currentFile = nil
             currentFileNumber = 0
+            inFlightCount = 0
         }
     }
 
@@ -71,6 +75,7 @@ final class TaskRunner: ObservableObject {
         log = []
         currentFile = nil
         currentFileNumber = 0
+        inFlightCount = 0
     }
 
     private func run(
@@ -85,7 +90,8 @@ final class TaskRunner: ObservableObject {
             return
         }
 
-        Log.shared.info("Starting job \(jobId) for \(droppedPaths.count) dropped path(s)", scope: "taskRunner")
+        Log.shared.info(
+            "Starting job \(jobId) for \(droppedPaths.count) dropped path(s)", scope: "taskRunner")
         let removedOrphans = await Task.detached {
             Paths.cleanupOrphanWorkFiles()
         }.value
@@ -125,7 +131,8 @@ final class TaskRunner: ObservableObject {
 
             // Zero-file guard — no phantom cleaning job when the drop had nothing we can burn.
             if scan.files.isEmpty {
-                let skipNote = scan.skipped.isEmpty
+                let skipNote =
+                    scan.skipped.isEmpty
                     ? "Drop photos, videos, or a folder that contains them."
                     : "\(scan.skipped.count) unsupported file(s) were not imported. Originals remain unchanged."
                 await setState(
@@ -162,7 +169,9 @@ final class TaskRunner: ObservableObject {
                         let file = files[index]
                         nextIndex += 1
                         inFlight += 1
-                        await noteProgress(file: file, number: min(total, completed + inFlight))
+                        await noteProgress(
+                            file: file, number: min(total, completed + inFlight),
+                            inFlight: inFlight)
                         let muteThis = muteVideos && SupportedTypes.isVideo(filePath: file)
                         if UbiquityGate.needsDownload(atPath: file) {
                             await setState(.downloading)
@@ -212,7 +221,7 @@ final class TaskRunner: ObservableObject {
                     }
 
                     let progressNumber = min(total, max(completed + inFlight, 1))
-                    noteProgress(file: file, number: progressNumber)
+                    noteProgress(file: file, number: progressNumber, inFlight: inFlight)
                     if shouldResumeCleaning() {
                         await setState(.cleaning)
                     }
@@ -220,7 +229,7 @@ final class TaskRunner: ObservableObject {
                         "[file-done] \(index + 1)/\(total): \(file) -> \(result.status.rawValue)"
                     )
                     await appendLog(result)
-                    noteProgress(file: file, number: progressNumber)
+                    noteProgress(file: file, number: progressNumber, inFlight: inFlight)
                     await enqueueIfPossible()
                 }
             }
@@ -236,7 +245,8 @@ final class TaskRunner: ObservableObject {
             if scan.skipped.count > 0 {
                 await setState(
                     .done,
-                    message: "\(scan.skipped.count) unsupported file(s) were not imported. Originals remain unchanged."
+                    message:
+                        "\(scan.skipped.count) unsupported file(s) were not imported. Originals remain unchanged."
                 )
             } else {
                 await setState(.done)
@@ -265,9 +275,10 @@ final class TaskRunner: ObservableObject {
         Task.isCancelled || isCancelled || token != runToken
     }
 
-    private func noteProgress(file: String, number: Int) {
+    private func noteProgress(file: String, number: Int, inFlight: Int) {
         currentFile = file
         currentFileNumber = number
+        inFlightCount = inFlight
     }
 
     private func shouldResumeCleaning() -> Bool {
@@ -321,6 +332,7 @@ final class TaskRunner: ObservableObject {
             isCancelled = false
             currentFile = nil
             currentFileNumber = 0
+            inFlightCount = 0
         }
     }
 }

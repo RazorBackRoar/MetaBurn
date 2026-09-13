@@ -19,13 +19,17 @@ enum Scanner {
             let url = URL(fileURLWithPath: dropped)
             if url.lastPathComponent.hasPrefix(".") { continue }
             do {
-                let values = try url.resourceValues(forKeys: [.isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey, .fileSizeKey, .contentTypeKey])
+                let values = try url.resourceValues(forKeys: [
+                    .isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey, .fileSizeKey,
+                    .contentTypeKey,
+                ])
                 if values.isSymbolicLink == true {
                     skipped.append((dropped, "symlink skipped for safety"))
                     continue
                 }
                 if values.isDirectory == true {
-                    let dirSkipped = try walkDirectory(url: url, fileSizes: &fileSizes, skipped: &skipped)
+                    let dirSkipped = try walkDirectory(
+                        url: url, fileSizes: &fileSizes, skipped: &skipped)
                     skipped.append(contentsOf: dirSkipped)
                 } else if values.isRegularFile == true {
                     let size = Int64(values.fileSize ?? 0)
@@ -60,18 +64,10 @@ enum Scanner {
             skipped.append((path, "already belongs to the MetaBurn workspace"))
             return
         }
-        let info = SupportedTypes.classify(
+        let reason = SupportedTypes.skipReason(
             filePath: path,
             contentTypeIdentifier: contentTypeIdentifier
         )
-        let reason: String?
-        if info.kind == .unsupported {
-            reason = "unsupported file type (\(info.ext.isEmpty ? "unknown type" : info.ext))"
-        } else if info.kind == .video && !info.writable {
-            reason = "video container not safely writable (\(info.ext.isEmpty ? "unknown type" : info.ext))"
-        } else {
-            reason = nil
-        }
         if let reason {
             skipped.append((path, reason))
         } else {
@@ -87,7 +83,10 @@ enum Scanner {
         var walkSkipped: [(path: String, reason: String)] = []
         let enumerator = FileManager.default.enumerator(
             at: url,
-            includingPropertiesForKeys: [.isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey, .fileSizeKey, .contentTypeKey],
+            includingPropertiesForKeys: [
+                .isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey, .fileSizeKey,
+                .contentTypeKey,
+            ],
             options: [.skipsHiddenFiles],
             errorHandler: { url, error in
                 walkSkipped.append((url.path, "could not read: \(error.localizedDescription)"))
@@ -97,7 +96,10 @@ enum Scanner {
 
         while let item = enumerator?.nextObject() as? URL {
             do {
-                let values = try item.resourceValues(forKeys: [.isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey, .fileSizeKey, .contentTypeKey])
+                let values = try item.resourceValues(forKeys: [
+                    .isSymbolicLinkKey, .isDirectoryKey, .isRegularFileKey, .fileSizeKey,
+                    .contentTypeKey,
+                ])
                 if values.isSymbolicLink == true {
                     walkSkipped.append((item.path, "symlink skipped for safety"))
                     continue

@@ -1,7 +1,7 @@
-import SwiftUI
 import AppKit
-import UniformTypeIdentifiers
 import MetaBurnCore
+import SwiftUI
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     @StateObject private var runner = TaskRunner()
@@ -17,7 +17,9 @@ struct ContentView: View {
     }
 
     private var hasResults: Bool {
-        !runner.log.isEmpty || (runner.state == .done && runner.counters.skipped > 0 && runner.counters.supported == 0)
+        !runner.log.isEmpty
+            || (runner.state == .done && runner.counters.skipped > 0
+                && runner.counters.supported == 0)
     }
 
     private var sortedLog: [LogEntry] {
@@ -70,7 +72,8 @@ struct ContentView: View {
                 if let notice = dropNotice {
                     noticeBanner(notice)
                 } else if let message = runner.message,
-                          runner.state == .done || runner.state == .failed || runner.state == .cancelled {
+                    runner.state == .done || runner.state == .failed || runner.state == .cancelled
+                {
                     noticeBanner(message)
                 }
 
@@ -96,6 +99,7 @@ struct ContentView: View {
                     CleanedFilesPanel(
                         files: sortedLog,
                         currentFile: runner.currentFile,
+                        inFlightCount: runner.inFlightCount,
                         canReveal: !revealableURLs.isEmpty,
                         onReveal: revealInFinder
                     )
@@ -149,7 +153,13 @@ struct ContentView: View {
                 return "Copying supported media into MetaBurn's private workspace"
             default:
                 if let current = runner.currentFile {
-                    return "Cleaning \(runner.currentFileNumber) of \(runner.counters.supported): \(URL(fileURLWithPath: current).lastPathComponent)"
+                    let name = URL(fileURLWithPath: current).lastPathComponent
+                    if runner.inFlightCount > 1 {
+                        return
+                            "Cleaning \(runner.inFlightCount) files at once — \(runner.currentFileNumber) of \(runner.counters.supported): \(name)"
+                    }
+                    return
+                        "Cleaning \(runner.currentFileNumber) of \(runner.counters.supported): \(name)"
                 }
                 return "Cleaning and verifying private copies"
             }
@@ -192,7 +202,8 @@ struct ContentView: View {
         var paths: [String] = []
         for provider in providers {
             group.enter()
-            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) {
+                item, _ in
                 defer { group.leave() }
                 let url: URL?
                 if let data = item as? Data {
@@ -241,7 +252,8 @@ private struct HeaderView: View {
                     .frame(width: 52, height: 52)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        (Text("Meta").foregroundColor(.primary) + Text("Burn").foregroundColor(MetaBurnTheme.accent))
+                        (Text("Meta").foregroundColor(.primary)
+                            + Text("Burn").foregroundColor(MetaBurnTheme.accent))
                             .font(.system(size: 34, weight: .bold, design: .rounded))
                             .onTapGesture(count: 2) { showAbout() }
                             .contextMenu {
@@ -303,13 +315,16 @@ private struct HeaderView: View {
     private var typeCountsAccessibilityLabel: String {
         var parts: [String] = []
         if typeCounts.images > 0 {
-            parts.append("Photos \(typeCountText(done: typeCounts.imagesDone, total: typeCounts.images))")
+            parts.append(
+                "Photos \(typeCountText(done: typeCounts.imagesDone, total: typeCounts.images))")
         }
         if typeCounts.videos > 0 {
-            parts.append("Videos \(typeCountText(done: typeCounts.videosDone, total: typeCounts.videos))")
+            parts.append(
+                "Videos \(typeCountText(done: typeCounts.videosDone, total: typeCounts.videos))")
         }
         if typeCounts.other > 0 {
-            parts.append("Other \(typeCountText(done: typeCounts.otherDone, total: typeCounts.other))")
+            parts.append(
+                "Other \(typeCountText(done: typeCounts.otherDone, total: typeCounts.other))")
         }
         return parts.joined(separator: ", ")
     }
@@ -323,7 +338,7 @@ private struct HeaderView: View {
             info.license,
             info.organization,
             info.architecture,
-            info.copyright
+            info.copyright,
         ].joined(separator: "\n")
         alert.alertStyle = .informational
         alert.addButton(withTitle: "OK")
@@ -341,7 +356,8 @@ private struct HeaderView: View {
                 alert.informativeText = error
             } else if result.updateAvailable {
                 alert.messageText = "Update available: \(result.latestVersion)"
-                alert.informativeText = "You have \(result.currentVersion).\(result.downloadURL.map { "\n\n\($0)" } ?? "")"
+                alert.informativeText =
+                    "You have \(result.currentVersion).\(result.downloadURL.map { "\n\n\($0)" } ?? "")"
             } else {
                 alert.messageText = "You're up to date"
                 alert.informativeText = "Current version: \(result.currentVersion)"
@@ -399,7 +415,8 @@ private struct DropZoneView: View {
             RoundedRectangle(cornerRadius: compact ? 12 : 16, style: .continuous)
                 .strokeBorder(
                     MetaBurnTheme.accent.opacity(highlighted ? 0.95 : 0.6),
-                    style: StrokeStyle(lineWidth: highlighted ? 2 : 1.5, dash: highlighted ? [] : [6, 5])
+                    style: StrokeStyle(
+                        lineWidth: highlighted ? 2 : 1.5, dash: highlighted ? [] : [6, 5])
                 )
         )
         .contentShape(RoundedRectangle(cornerRadius: compact ? 12 : 16, style: .continuous))
@@ -428,6 +445,7 @@ private struct DropZoneView: View {
 private struct CleanedFilesPanel: View {
     let files: [LogEntry]
     let currentFile: String?
+    let inFlightCount: Int
     let canReveal: Bool
     let onReveal: () -> Void
 
@@ -448,7 +466,8 @@ private struct CleanedFilesPanel: View {
                     if let currentFile {
                         fileRow(
                             path: currentFile,
-                            statusText: "cleaning",
+                            statusText: inFlightCount > 1
+                                ? "cleaning ×\(inFlightCount)" : "cleaning",
                             statusColor: .blue,
                             timestamp: nil,
                             showsProgress: true
@@ -604,7 +623,8 @@ private struct FooterBar: View {
                 HStack(spacing: 8) {
                     Image(systemName: removeAudio ? "speaker.slash.fill" : "speaker.wave.2.fill")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(removeAudio ? MetaBurnTheme.accent : MetaBurnTheme.secondaryText)
+                        .foregroundStyle(
+                            removeAudio ? MetaBurnTheme.accent : MetaBurnTheme.secondaryText)
                     Text("Remove audio")
                         .font(.system(size: 13))
                 }
@@ -627,7 +647,8 @@ private struct FooterBar: View {
 
     private var title: String {
         if processing {
-            return supported > 0 ? "Processing \(max(currentFileNumber, 1)) of \(supported)" : "Processing files…"
+            return supported > 0
+                ? "Processing \(max(currentFileNumber, 1)) of \(supported)" : "Processing files…"
         }
         if hasResults {
             return count == 1 ? "1 file cleaned" : "\(count) files cleaned"
@@ -655,30 +676,33 @@ enum MetaBurnTheme {
     static let hairline = Color.primary.opacity(0.10)
 
     static var titlebarTint: Color {
-        Color(nsColor: NSColor(name: nil) { appearance in
-            if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-                return NSColor(red: 0.12, green: 0.025, blue: 0.03, alpha: 1)
-            }
-            return NSColor(red: 0.30, green: 0.10, blue: 0.11, alpha: 1)
-        })
+        Color(
+            nsColor: NSColor(name: nil) { appearance in
+                if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
+                    return NSColor(red: 0.12, green: 0.025, blue: 0.03, alpha: 1)
+                }
+                return NSColor(red: 0.30, green: 0.10, blue: 0.11, alpha: 1)
+            })
     }
 
     static var background: Color {
-        Color(nsColor: NSColor(name: nil) { appearance in
-            if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-                return NSColor(red: 0.055, green: 0.06, blue: 0.065, alpha: 1)
-            }
-            return NSColor(red: 0.96, green: 0.96, blue: 0.97, alpha: 1)
-        })
+        Color(
+            nsColor: NSColor(name: nil) { appearance in
+                if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
+                    return NSColor(red: 0.055, green: 0.06, blue: 0.065, alpha: 1)
+                }
+                return NSColor(red: 0.96, green: 0.96, blue: 0.97, alpha: 1)
+            })
     }
 
     static var surface: Color {
-        Color(nsColor: NSColor(name: nil) { appearance in
-            if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-                return NSColor(red: 0.075, green: 0.08, blue: 0.085, alpha: 1)
-            }
-            return NSColor.black.withAlphaComponent(0.05)
-        })
+        Color(
+            nsColor: NSColor(name: nil) { appearance in
+                if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
+                    return NSColor(red: 0.075, green: 0.08, blue: 0.085, alpha: 1)
+                }
+                return NSColor.black.withAlphaComponent(0.05)
+            })
     }
 
     static var divider: Color { hairline }
@@ -737,7 +761,10 @@ struct RedSwitchToggleStyle: ToggleStyle {
             HStack(spacing: 8) {
                 configuration.label
                 Capsule()
-                    .fill(configuration.isOn ? MetaBurnTheme.accent : Color(red: 0.55, green: 0.15, blue: 0.15))
+                    .fill(
+                        configuration.isOn
+                            ? MetaBurnTheme.accent : Color(red: 0.55, green: 0.15, blue: 0.15)
+                    )
                     .frame(width: 40, height: 22)
                     .overlay(
                         Circle()

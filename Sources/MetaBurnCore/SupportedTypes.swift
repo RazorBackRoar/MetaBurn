@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import UniformTypeIdentifiers
 
 /// Pure classification of media paths by extension (no I/O).
@@ -20,15 +21,21 @@ public enum SupportedTypes: Sendable {
     }
 
     /// Standard still-image formats cleaned via ImageIO.
+    /// `.webp` is deliberately absent — ImageIO reads it but has no WebP destination.
     private static let photoExts: Set<String> = [
         ".jpg", ".jpeg", ".jpe", ".jfif",
         ".png",
         ".heic", ".heif",
-        ".webp",
         ".tif", ".tiff",
         ".bmp",
-        ".jp2", ".j2k"
+        ".jp2", ".j2k",
     ]
+    /// UTIs ImageIO can actually write as a destination on this platform — an image
+    /// type that reads fine but has no writer (WebP, camera RAW) cannot be cleaned.
+    private static let imageDestinationUTIs: Set<String> = {
+        let list = CGImageDestinationCopyTypeIdentifiers() as? [String] ?? []
+        return Set(list)
+    }()
     /// Writable video containers cleaned via AVFoundation remux.
     private static let videoExts: Set<String> = [".mov", ".mp4", ".m4v"]
     /// Known video-like types we refuse to rewrite (routed to Skippable).
@@ -36,7 +43,9 @@ public enum SupportedTypes: Sendable {
     /// Explicitly unsupported — always Skippable (never queued for cleaning).
     private static let alwaysUnsupportedExts: Set<String> = [".gif", ".webm"]
 
-    public static func classify(filePath: String, contentTypeIdentifier: String? = nil) -> FileClassification {
+    public static func classify(filePath: String, contentTypeIdentifier: String? = nil)
+        -> FileClassification
+    {
         let ext = (filePath as NSString).pathExtension.lowercased()
         let dotted = ext.isEmpty ? "" : ".\(ext)"
 
@@ -53,12 +62,19 @@ public enum SupportedTypes: Sendable {
             return FileClassification(ext: dotted, kind: .photo, writable: true)
         }
 
-        let contentType = contentTypeIdentifier.flatMap(UTType.init)
+        let contentType =
+            contentTypeIdentifier.flatMap(UTType.init)
             ?? UTType(filenameExtension: ext)
-        if contentType?.conforms(to: .image) == true {
-            return FileClassification(ext: dotted, kind: .photo, writable: true)
+        if let contentType, contentType.conforms(to: .image) {
+            return FileClassification(
+                ext: dotted,
+                kind: .photo,
+                writable: imageDestinationUTIs.contains(contentType.identifier)
+            )
         }
-        if contentType?.conforms(to: .movie) == true || contentType?.conforms(to: .audiovisualContent) == true {
+        if contentType?.conforms(to: .movie) == true
+            || contentType?.conforms(to: .audiovisualContent) == true
+        {
             return FileClassification(ext: dotted, kind: .video, writable: false)
         }
         return FileClassification(ext: dotted, kind: .unsupported, writable: false)
@@ -77,12 +93,15 @@ public enum SupportedTypes: Sendable {
     }
 
     /// Processable = photo/video we can safely clean. `nil` means queue for cleaning.
-    public static func skipReason(filePath: String) -> String? {
-        let info = classify(filePath: filePath)
+    public static func skipReason(filePath: String, contentTypeIdentifier: String? = nil) -> String?
+    {
+        let info = classify(filePath: filePath, contentTypeIdentifier: contentTypeIdentifier)
         let label = info.ext.isEmpty ? "unknown type" : info.ext
         switch info.kind {
         case .unsupported:
             return "unsupported file type (\(label))"
+        case .photo where !info.writable:
+            return "image format has no ImageIO writer (\(label))"
         case .video where !info.writable:
             return "video container not safely writable (\(label))"
         case .photo, .video:

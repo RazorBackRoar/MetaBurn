@@ -39,13 +39,17 @@ public enum OutputNaming: Sendable {
     }
 
     /// Work-file name for a final destination (kept out of the Desktop output folder by Paths).
-    public static func workFileName(forFinal finalURL: URL, uuid: String = SecureRandom.hexString()) -> String {
+    public static func workFileName(forFinal finalURL: URL, uuid: String = SecureRandom.hexString())
+        -> String
+    {
         let ext = finalURL.pathExtension
         return ext.isEmpty ? "\(uuid).\(workFileMarker)" : "\(uuid).\(workFileMarker).\(ext)"
     }
 
     /// Hidden sibling work file next to the final path (legacy layout; prefer cache-based Paths.workURL).
-    public static func workURL(forFinal finalURL: URL, uuid: String = SecureRandom.hexString()) -> URL {
+    public static func workURL(forFinal finalURL: URL, uuid: String = SecureRandom.hexString())
+        -> URL
+    {
         let name = workFileName(forFinal: finalURL, uuid: uuid)
         return finalURL.deletingLastPathComponent().appendingPathComponent(".\(name)")
     }
@@ -60,6 +64,9 @@ public enum OutputNaming: Sendable {
     }
 
     public static func isWorkFileName(_ name: String) -> Bool {
-        name.contains(workFileMarker)
+        // Marker must appear as a dotted component (`uuid.metaburn.tmp.jpg`) or as the
+        // final suffix (`uuid.metaburn.tmp`) — a bare substring match would also flag
+        // user files like `notes-metaburn.tmp-backup.txt`.
+        name.contains(".\(workFileMarker).") || name.hasSuffix(".\(workFileMarker)")
     }
 }

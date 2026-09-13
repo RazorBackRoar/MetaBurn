@@ -8,11 +8,24 @@ struct SupportedTypesTests {
     func photos() {
         for path in [
             "a.jpg", "b.JPEG", "c.jpe", "d.jfif", "e.png", "f.heic", "g.heif",
-            "h.webp", "i.tiff", "j.tif", "k.bmp", "l.jp2", "m.j2k", "n.dng"
+            "i.tiff", "j.tif", "k.bmp", "l.jp2", "m.j2k",
         ] {
             let info = SupportedTypes.classify(filePath: path)
             #expect(info.kind == .photo)
             #expect(info.writable)
+        }
+    }
+
+    @Test("webp and camera RAW classify as non-writable photos and are skipped")
+    func nonWritablePhotos() {
+        // ImageIO reads these but offers no destination writer — they must skip
+        // with a clear reason instead of being queued and failing mid-clean.
+        for path in ["h.webp", "n.dng"] {
+            let info = SupportedTypes.classify(filePath: path)
+            #expect(info.kind == .photo)
+            #expect(!info.writable)
+            #expect(SupportedTypes.skipReason(filePath: path) != nil)
+            #expect(!SupportedTypes.isProcessable(filePath: path))
         }
     }
 
@@ -32,9 +45,9 @@ struct SupportedTypesTests {
     func isVideo() {
         #expect(SupportedTypes.isVideo(filePath: "clip.mov"))
         #expect(SupportedTypes.isVideo(filePath: "clip.mp4"))
-        #expect(SupportedTypes.isVideo(filePath: "clip.mkv")) // non-writable but still video
+        #expect(SupportedTypes.isVideo(filePath: "clip.mkv"))  // non-writable but still video
         #expect(!SupportedTypes.isVideo(filePath: "photo.jpg"))
-        #expect(!SupportedTypes.isVideo(filePath: "anim.gif")) // unsupported
+        #expect(!SupportedTypes.isVideo(filePath: "anim.gif"))  // unsupported
     }
 
     @Test("gif and webm are unsupported and not processable")
@@ -60,7 +73,7 @@ struct SupportedTypesTests {
     func isSupportedCheck() {
         #expect(SupportedTypes.isSupported(filePath: "photo.jpg"))
         #expect(SupportedTypes.isSupported(filePath: "clip.mp4"))
-        #expect(SupportedTypes.isSupported(filePath: "clip.mkv")) // Supported as video, though non-writable
+        #expect(SupportedTypes.isSupported(filePath: "clip.mkv"))  // Supported as video, though non-writable
         #expect(!SupportedTypes.isSupported(filePath: "anim.gif"))
         #expect(!SupportedTypes.isSupported(filePath: "doc.txt"))
     }
@@ -68,7 +81,7 @@ struct SupportedTypesTests {
     @Test("isVideo returns true for video types")
     func isVideoCheck() {
         #expect(SupportedTypes.isVideo(filePath: "clip.mov"))
-        #expect(SupportedTypes.isVideo(filePath: "clip.mkv")) // It is a video, just non-writable
+        #expect(SupportedTypes.isVideo(filePath: "clip.mkv"))  // It is a video, just non-writable
         #expect(!SupportedTypes.isVideo(filePath: "photo.jpg"))
         #expect(!SupportedTypes.isVideo(filePath: "doc.txt"))
     }
@@ -108,7 +121,8 @@ struct AdjacentOutputTests {
     func layoutBesideSource() {
         let source = "/Users/home/Library/Mobile Documents/com~apple~CloudDocs/Trip/IMG_001.HEIC"
         let root = AdjacentOutput.root(forSourcePath: source)
-        #expect(root.path == "/Users/home/Library/Mobile Documents/com~apple~CloudDocs/Trip/MetaBurn")
+        #expect(
+            root.path == "/Users/home/Library/Mobile Documents/com~apple~CloudDocs/Trip/MetaBurn")
         #expect(root.hasDirectoryPath)
 
         let photos = AdjacentOutput.photosDirectory(forSourcePath: source)
@@ -150,7 +164,7 @@ struct OutputNamingTests {
         let dir = URL(fileURLWithPath: "/tmp/metaburn-test", isDirectory: true)
         let existing: Set<String> = [
             "/tmp/metaburn-test/shot.jpg",
-            "/tmp/metaburn-test/shot-001.jpg"
+            "/tmp/metaburn-test/shot-001.jpg",
         ]
         let url = OutputNaming.uniqueURL(
             forSourcePath: "/in/shot.jpg",
@@ -197,7 +211,7 @@ struct OutputNamingTests {
             "/tmp/metaburn-test/IMG_2667_plus.JPG",
             "/tmp/metaburn-test/IMG_2667_plus-001.JPG",
             "/tmp/metaburn-test/IMG_2667.jpeg",
-            "/tmp/metaburn-test/IMG_2667-001.jpeg"
+            "/tmp/metaburn-test/IMG_2667-001.jpeg",
         ]
         let plus = OutputNaming.uniqueURL(
             forSourcePath: "/in/IMG_2667_plus.JPG",
@@ -211,7 +225,12 @@ struct OutputNamingTests {
     func workFileMarker() {
         #expect(OutputNaming.isWorkFileName("ABC.metaburn.tmp.JPG"))
         #expect(OutputNaming.isWorkFileName(".ABC.metaburn.tmp.jpeg"))
+        #expect(OutputNaming.isWorkFileName("DEADBEEF.metaburn.tmp"))
         #expect(!OutputNaming.isWorkFileName("IMG_2667_plus.JPG"))
+        // Decoys containing the marker as a bare substring must not be swept.
+        #expect(!OutputNaming.isWorkFileName("notes-metaburn.tmp-backup.txt"))
+        #expect(!OutputNaming.isWorkFileName("metaburn.tmp.jpg"))
+        #expect(!OutputNaming.isWorkFileName("my.metaburn.tmpfile.jpg"))
     }
 
     @Test("skippable folder and summary names are stable")
@@ -225,7 +244,8 @@ struct OutputNamingTests {
 struct SkipSummaryTests {
     @Test("lines are numbered with file name and reason")
     func numberedLines() {
-        let line = SkipSummary.line(index: 1, filePath: "/in/photo.gif", reason: "unsupported file type (.gif)")
+        let line = SkipSummary.line(
+            index: 1, filePath: "/in/photo.gif", reason: "unsupported file type (.gif)")
         #expect(line == "1. photo.gif - unsupported file type (.gif)")
     }
 
@@ -234,7 +254,7 @@ struct SkipSummaryTests {
         let body = SkipSummary.document(entries: [
             (path: "/a/photo.gif", reason: "unsupported file type (.gif)"),
             (path: "/a/clip.webm", reason: "unsupported file type (.webm)"),
-            (path: "/a/notes.pdf", reason: "unsupported file type (.pdf)")
+            (path: "/a/notes.pdf", reason: "unsupported file type (.pdf)"),
         ])
         #expect(body.contains("Count: 3"))
         #expect(body.contains("1. photo.gif - unsupported file type (.gif)"))
@@ -251,7 +271,8 @@ struct WorkFileSafetyTests {
         let bad = URL(fileURLWithPath: "/Users/home/Desktop/MetaBurn/Photos/.ABC.metaburn.tmp.JPG")
         let good = URL(fileURLWithPath: "/Users/home/Library/Caches/MetaBurn/ABC.metaburn.tmp.JPG")
         #expect(WorkFileSafety.isWorkFileOnDesktopOutput(workURL: bad, desktopOutputRoot: desktop))
-        #expect(!WorkFileSafety.isWorkFileOnDesktopOutput(workURL: good, desktopOutputRoot: desktop))
+        #expect(
+            !WorkFileSafety.isWorkFileOnDesktopOutput(workURL: good, desktopOutputRoot: desktop))
     }
 
     @Test("cache workURL is never under the final Desktop photos folder")
@@ -262,7 +283,9 @@ struct WorkFileSafetyTests {
         let work = OutputNaming.workURL(in: cache, forFinal: final, uuid: "DEADBEEF")
         let desktopRoot = URL(fileURLWithPath: "/Users/me/Desktop/MetaBurn", isDirectory: true)
         #expect(work.path.contains("Library/Caches/MetaBurn"))
-        #expect(!WorkFileSafety.isWorkFileOnDesktopOutput(workURL: work, desktopOutputRoot: desktopRoot))
+        #expect(
+            !WorkFileSafety.isWorkFileOnDesktopOutput(workURL: work, desktopOutputRoot: desktopRoot)
+        )
         #expect(OutputNaming.isWorkFileName(work.lastPathComponent))
     }
 
@@ -274,10 +297,13 @@ struct WorkFileSafetyTests {
         defer { try? FileManager.default.removeItem(at: dir) }
 
         // Reproduce the smoking-gun name pattern from the stalled 4th file.
-        let work = dir.appendingPathComponent("647BB6F7-2A12-453D-9058-A36B2172D479.metaburn.tmp.JPG")
+        let work = dir.appendingPathComponent(
+            "647BB6F7-2A12-453D-9058-A36B2172D479.metaburn.tmp.JPG")
         try Data([0xFF, 0xD8, 0xFF, 0xD9]).write(to: work)
 
-        #expect(WorkFileSafety.setXattr(atPath: work.path, name: "com.apple.quarantine", value: "0081;test"))
+        #expect(
+            WorkFileSafety.setXattr(
+                atPath: work.path, name: "com.apple.quarantine", value: "0081;test"))
         #expect(WorkFileSafety.setXattr(atPath: work.path, name: "com.apple.macl", value: "x"))
         #expect(WorkFileSafety.hasXattr(atPath: work.path, name: "com.apple.quarantine"))
         #expect(WorkFileSafety.hasXattr(atPath: work.path, name: "com.apple.macl"))
@@ -302,15 +328,19 @@ struct WorkFileSafetyTests {
         let legacy = photos.appendingPathComponent(".647BB6F7.metaburn.tmp.JPG")
         let cached = cache.appendingPathComponent("AABBCC.metaburn.tmp.jpeg")
         let keep = photos.appendingPathComponent("IMG_2667_plus.JPG")
+        // A user file that merely contains the marker substring must survive the sweep.
+        let decoy = photos.appendingPathComponent("notes-metaburn.tmp-backup.txt")
         try Data([1]).write(to: legacy)
         try Data([2]).write(to: cached)
         try Data([3]).write(to: keep)
+        try Data([4]).write(to: decoy)
 
         let removed = WorkFileSafety.cleanupOrphanWorkFiles(in: [photos, cache])
         #expect(removed.count == 2)
         #expect(!FileManager.default.fileExists(atPath: legacy.path))
         #expect(!FileManager.default.fileExists(atPath: cached.path))
         #expect(FileManager.default.fileExists(atPath: keep.path))
+        #expect(FileManager.default.fileExists(atPath: decoy.path))
     }
 }
 
@@ -319,7 +349,10 @@ struct MetadataRulesTests {
     @Test("photo args restore ICC after stripping")
     func photoArgs() {
         let args = MetadataRules.buildArgs(kind: .photo, filePath: "/x.jpg")
-        #expect(args == ["-all=", "-tagsFromFile", "@", "-icc_profile:all", "-overwrite_original", "/x.jpg"])
+        #expect(
+            args == [
+                "-all=", "-tagsFromFile", "@", "-icc_profile:all", "-overwrite_original", "/x.jpg",
+            ])
     }
 
     @Test("video args strip all tags")
@@ -333,11 +366,13 @@ struct MetadataRulesTests {
         let cleaned = MetadataRules.interpretOutput(filePath: "a", output: "1 image files updated")
         #expect(cleaned.outcome == .cleaned)
 
-        let already = MetadataRules.interpretOutput(filePath: "a", output: "1 image files unchanged")
+        let already = MetadataRules.interpretOutput(
+            filePath: "a", output: "1 image files unchanged")
         #expect(already.outcome == .cleaned)
         #expect(already.reason == "already free of removable metadata")
 
-        let failed = MetadataRules.interpretOutput(filePath: "a", output: "Error: something bad\n0 image files updated")
+        let failed = MetadataRules.interpretOutput(
+            filePath: "a", output: "Error: something bad\n0 image files updated")
         #expect(failed.outcome == .failed)
     }
 
@@ -354,13 +389,14 @@ struct MetadataRulesTests {
     func verifyPartial() {
         let before = [
             MetadataRules.Tag(group: "GPS", tag: "GPSLatitude", value: "1"),
-            MetadataRules.Tag(group: "EXIF", tag: "Make", value: "Apple")
+            MetadataRules.Tag(group: "EXIF", tag: "Make", value: "Apple"),
         ]
         let after = [
             MetadataRules.Tag(group: "GPS", tag: "GPSLatitude", value: "1")
         ]
         let interpreted = MetadataRules.InterpretResult(outcome: .cleaned)
-        let result = MetadataRules.verify(interpreted: interpreted, kind: .photo, before: before, after: after)
+        let result = MetadataRules.verify(
+            interpreted: interpreted, kind: .photo, before: before, after: after)
         #expect(result.outcome == "partial")
     }
 }
