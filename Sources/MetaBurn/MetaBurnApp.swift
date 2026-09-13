@@ -1,5 +1,5 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
 @main
 struct MetaBurnApp: App {
@@ -42,7 +42,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ThemePreference.applyAppAppearance()
 
         if let iconURL = Resources.url(forResource: "AppIcon", withExtension: "icns"),
-           let image = NSImage(contentsOf: iconURL) {
+            let image = NSImage(contentsOf: iconURL)
+        {
             NSApp?.applicationIconImage = image
         }
 
@@ -53,6 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.isOpaque = true
             window.minSize = NSSize(width: 900, height: 720)
             installSettingsAccessory(on: window)
+            window.center()
         }
     }
 
@@ -60,10 +62,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let accessory = NSTitlebarAccessoryViewController()
         accessory.layoutAttribute = .right
 
-        let baseImage = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings") ?? NSImage()
-        let image = baseImage.withSymbolConfiguration(.init(pointSize: 14, weight: .medium)) ?? baseImage
+        let baseImage =
+            NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")
+            ?? NSImage()
+        let symbolConfig = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
+            .applying(.init(paletteColors: [NSColor(MetaBurnTheme.accent)]))
+        let image = baseImage.withSymbolConfiguration(symbolConfig) ?? baseImage
         let button = NSButton(image: image, target: self, action: #selector(showSettings))
         button.bezelStyle = .texturedRounded
+        button.contentTintColor = NSColor(MetaBurnTheme.accent)
         button.controlSize = .regular
         button.imagePosition = .imageOnly
         button.toolTip = "Settings"
@@ -81,13 +88,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let mainMenu = NSMenu(title: "MetaBurn")
 
         let appMenu = NSMenu(title: "MetaBurn")
-        appMenu.addItem(withTitle: "About MetaBurn", action: #selector(showAbout), keyEquivalent: "")
-        appMenu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        appMenu.addItem(
+            withTitle: "About MetaBurn", action: #selector(showAbout), keyEquivalent: "")
+        appMenu.addItem(
+            withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
         appMenu.addItem(NSMenuItem.separator())
-        appMenu.addItem(withTitle: "Preferences…", action: #selector(showSettings), keyEquivalent: ",")
+        appMenu.addItem(
+            withTitle: "Preferences…", action: #selector(showSettings), keyEquivalent: ",")
         appMenu.addItem(NSMenuItem.separator())
-        appMenu.addItem(withTitle: "Hide MetaBurn", action: #selector(NSApp?.hide(_:)), keyEquivalent: "h")
-        appMenu.addItem(withTitle: "Quit MetaBurn", action: #selector(NSApp?.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(
+            withTitle: "Hide MetaBurn", action: #selector(NSApp?.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(
+            withTitle: "Quit MetaBurn", action: #selector(NSApp?.terminate(_:)), keyEquivalent: "q")
 
         let appMenuItem = NSMenuItem(title: "MetaBurn", action: nil, keyEquivalent: "")
         appMenuItem.submenu = appMenu
@@ -102,9 +114,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
         editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
         editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(
+            withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         editMenu.addItem(NSMenuItem.separator())
-        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editMenu.addItem(
+            withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         let editMenuItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
         editMenuItem.submenu = editMenu
         mainMenu.addItem(editMenuItem)
@@ -126,7 +140,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             info.license,
             info.organization,
             info.architecture,
-            info.copyright
+            info.copyright,
         ].joined(separator: "\n")
         alert.addButton(withTitle: "OK")
         alert.runModal()
@@ -143,7 +157,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 alert.informativeText = error
             } else if result.updateAvailable {
                 alert.messageText = "Update available: \(result.latestVersion)"
-                alert.informativeText = "You have \(result.currentVersion).\(result.downloadURL.map { "\n\n\($0)" } ?? "")"
+                alert.informativeText =
+                    "You have \(result.currentVersion).\(result.downloadURL.map { "\n\n\($0)" } ?? "")"
             } else {
                 alert.messageText = "You're up to date"
                 alert.informativeText = "Current version: \(result.currentVersion)"
