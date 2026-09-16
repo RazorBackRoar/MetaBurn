@@ -9,7 +9,7 @@ struct FireUniforms {
     var burst: SIMD2<Float> = .zero
     var time: Float = 0
     var pointerStrength: Float = 0
-    var intensity: Float = 0.45
+    var intensity: Float = 0.22
     var isLight: Float = 0
     var burstAge: Float = 10
     var pad: Float = 0
@@ -63,7 +63,7 @@ enum FireShader {
     float fbm(float2 p) {
         float v = 0.0;
         float a = 0.5;
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 4; i++) {
             v += a * noise(p);
             p = p * 2.03 + float2(1.7, 9.2);
             a *= 0.5;
@@ -71,73 +71,40 @@ enum FireShader {
         return v;
     }
 
-    float3 firePalette(float t) {
-        t = saturate(t);
-        float3 c = float3(0.02, 0.008, 0.01);
-        c = mix(c, float3(0.42, 0.02, 0.00), smoothstep(0.00, 0.22, t));
-        c = mix(c, float3(0.90, 0.12, 0.04), smoothstep(0.18, 0.46, t));
-        c = mix(c, float3(1.00, 0.48, 0.06), smoothstep(0.42, 0.70, t));
-        c = mix(c, float3(1.00, 0.86, 0.32), smoothstep(0.66, 0.88, t));
-        c = mix(c, float3(1.00, 0.97, 0.90), smoothstep(0.86, 1.00, t));
-        return c;
-    }
-
     fragment float4 fire_fragment(VertexOut in [[stage_in]],
                                   constant FireUniforms &u [[buffer(0)]]) {
         float2 uv = in.uv;
-        float aspect = u.resolution.x / max(u.resolution.y, 1.0);
         float t = u.time;
-        float intensity = clamp(u.intensity, 0.0, 1.35);
+        float intensity = clamp(u.intensity, 0.0, 1.0);
 
-        float shimmer = fbm(float2(uv.x * 6.0, uv.y * 3.2 - t * 0.75));
-        uv.x += (shimmer - 0.5) * 0.028 * (1.0 - uv.y) * intensity;
+        float2 nUV = float2(uv.x * 2.4, uv.y * 1.6 - t * 0.12);
+        float n = fbm(nUV + fbm(nUV + float2(0.0, t * 0.05)) * 0.7);
 
-        float2 nUV = float2(uv.x * 3.8, uv.y * 2.35 - t * (0.32 + 0.58 * intensity));
-        float warp = fbm(nUV + float2(0.0, t * 0.12));
-        float n = fbm(nUV + warp * 1.35);
-        float n2 = fbm(float2(uv.x * 7.2 + 11.0, uv.y * 3.1 - t * 0.92));
+        float bowl = pow(saturate(1.0 - abs(uv.x - 0.5) * 1.35), 1.25);
+        float reach = (0.09 + 0.08 * intensity) * (0.55 + 0.45 * bowl);
+        float shape = pow(saturate((reach - uv.y) / max(reach, 0.001)), 2.1);
+        float heat = n * shape * (0.28 + 0.22 * intensity);
 
-        float bowl = pow(saturate(1.0 - abs(uv.x - 0.5) * 1.65), 1.15);
-        float reach = (0.42 + 0.68 * intensity) * (0.40 + 0.60 * bowl);
-        float shape = saturate((reach - uv.y) / max(reach, 0.001));
-        shape = pow(shape, 1.22);
-
-        float heat = saturate(n * shape * (0.9 + 0.5 * intensity));
-        heat = saturate(heat + n2 * shape * 0.22 * intensity);
-        heat = pow(heat, 1.12);
-
-        float2 ptr = u.pointer / max(u.resolution, float2(1.0, 1.0));
-        float2 d = uv - ptr;
-        d.x *= aspect;
-        d.y -= 0.016;
-        float flicker = 0.82 + 0.18 * fbm(float2(t * 8.5, ptr.x * 18.0));
-        d.x /= 0.020 + 0.004 * sin(t * 16.0);
-        d.y /= 0.052;
-        float r = length(float2(d.x, d.y - 0.18 * d.x * d.x));
-        float candle = pow(saturate((1.0 - r) * flicker), 1.35) * u.pointerStrength;
-        heat = max(heat, candle * 1.18);
-
-        if (u.burstAge >= 0.0 && u.burstAge < 2.2) {
+        if (u.burstAge >= 0.0 && u.burstAge < 1.6) {
+            float aspect = u.resolution.x / max(u.resolution.y, 1.0);
             float2 buv = u.burst / max(u.resolution, float2(1.0, 1.0));
-            float2 delta = float2((uv.x - buv.x) * aspect, uv.y - buv.y);
-            float dist = length(delta);
-            float radius = u.burstAge * 0.52;
-            float ring = exp(-abs(dist - radius) * 30.0) * exp(-u.burstAge * 1.7);
-            heat = saturate(heat + ring * 0.7);
+            float dist = length(float2((uv.x - buv.x) * aspect, uv.y - buv.y));
+            float radius = u.burstAge * 0.28;
+            float ring = exp(-abs(dist - radius) * 36.0) * exp(-u.burstAge * 2.2);
+            heat = saturate(heat + ring * 0.18);
         }
 
-        float3 darkBase = float3(0.026, 0.010, 0.012);
-        float3 lightBase = float3(0.94, 0.90, 0.85);
+        float3 darkBase = float3(0.090, 0.086, 0.090);
+        float3 lightBase = float3(0.965, 0.958, 0.950);
         float3 base = mix(darkBase, lightBase, u.isLight);
-        float floorGlow = pow(saturate(1.0 - uv.y), 2.15) * (0.22 + 0.58 * intensity);
-        base += float3(0.38, 0.05, 0.012) * floorGlow * (1.0 - 0.62 * u.isLight);
 
-        float fireAmount = saturate(heat * (u.isLight ? 0.70 : 1.0));
-        float3 col = mix(base, firePalette(heat), fireAmount);
+        float glow = pow(saturate(1.0 - uv.y / 0.42), 2.4) * (0.10 + 0.16 * intensity);
+        float3 ember = mix(float3(0.22, 0.04, 0.02), float3(0.55, 0.18, 0.06), n);
+        float3 peach = float3(0.92, 0.72, 0.58);
+        float3 wash = mix(ember, peach, u.isLight);
+        float amount = glow * (u.isLight ? 0.22 : 0.34) + heat * (u.isLight ? 0.16 : 0.28);
 
-        float vig = smoothstep(1.18, 0.32, length((uv - 0.5) * float2(1.18, 1.0)));
-        col *= mix(0.80, 1.0, vig);
-
+        float3 col = mix(base, wash, saturate(amount));
         return float4(col, 1.0);
     }
     """

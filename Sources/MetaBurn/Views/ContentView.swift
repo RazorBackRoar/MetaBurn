@@ -64,6 +64,10 @@ struct ContentView: View {
             .allowsHitTesting(false)
 
             chromeColumn
+
+            CursorTrailView(reduceMotion: reduceMotion)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
         }
         .frame(minWidth: 900, minHeight: 720)
         .onDrop(
@@ -437,7 +441,6 @@ private struct DropZoneView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(primary)
                             .font(.system(size: 14, weight: .semibold))
-                            .shadow(color: .black.opacity(0.45), radius: 5, y: 1)
                         Text(secondary)
                             .font(.system(size: 11))
                             .foregroundColor(MetaBurnTheme.secondaryText)
@@ -451,22 +454,19 @@ private struct DropZoneView: View {
                     dropGlyph
                     Text(primary)
                         .font(.system(size: 20, weight: .semibold))
-                        .shadow(color: .black.opacity(0.5), radius: 8, y: 1)
                     Text(secondary)
                         .font(.system(size: 13))
                         .foregroundColor(MetaBurnTheme.secondaryText)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
-                        .shadow(color: .black.opacity(0.45), radius: 6, y: 1)
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .metaBurnGlass(
             cornerRadius: compact ? 12 : 16,
-            tint: MetaBurnTheme.accent.opacity(highlighted ? 0.22 : 0.04),
-            interactive: true,
-            clear: true
+            tint: MetaBurnTheme.accent.opacity(highlighted ? 0.12 : 0),
+            interactive: true
         )
         .overlay(
             RoundedRectangle(cornerRadius: compact ? 12 : 16, style: .continuous)
@@ -547,7 +547,7 @@ private struct CleanedFilesPanel: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .metaBurnGlass(cornerRadius: 8, tint: MetaBurnTheme.accent.opacity(0.08))
+            .metaBurnGlass(cornerRadius: 8)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
@@ -617,7 +617,7 @@ private struct FileTypeIcon: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(.ultraThinMaterial)
+                .fill(MetaBurnTheme.panelFill)
                 .frame(width: 32, height: 32)
             Image(systemName: SupportedTypes.isVideo(filePath: path) ? "play.fill" : "photo.fill")
                 .font(.system(size: 13, weight: .medium))
@@ -699,11 +699,7 @@ private struct FooterBar: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .metaBurnGlass(
-            cornerRadius: 16,
-            tint: MetaBurnTheme.accent.opacity(0.16),
-            interactive: false
-        )
+        .metaBurnGlass(cornerRadius: 16)
     }
 
     private var shieldIcon: String {
@@ -741,16 +737,16 @@ private struct FooterBar: View {
 
 enum MetaBurnTheme {
     static let accent = Color(red: 0.90, green: 0.12, blue: 0.10)
-    static let secondaryText = Color.primary.opacity(0.55)
-    static let hairline = Color.primary.opacity(0.10)
+    static let secondaryText = Color.primary.opacity(0.72)
+    static let hairline = Color.primary.opacity(0.14)
 
     static var titlebarTint: Color {
         Color(
             nsColor: NSColor(name: nil) { appearance in
                 if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-                    return NSColor(red: 0.08, green: 0.018, blue: 0.02, alpha: 1)
+                    return NSColor(red: 0.10, green: 0.09, blue: 0.10, alpha: 1)
                 }
-                return NSColor(red: 0.32, green: 0.12, blue: 0.10, alpha: 1)
+                return NSColor(red: 0.96, green: 0.95, blue: 0.94, alpha: 1)
             })
     }
 
@@ -758,9 +754,9 @@ enum MetaBurnTheme {
         Color(
             nsColor: NSColor(name: nil) { appearance in
                 if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-                    return NSColor(red: 0.026, green: 0.010, blue: 0.012, alpha: 1)
+                    return NSColor(red: 0.090, green: 0.086, blue: 0.090, alpha: 1)
                 }
-                return NSColor(red: 0.94, green: 0.90, blue: 0.85, alpha: 1)
+                return NSColor(red: 0.965, green: 0.958, blue: 0.950, alpha: 1)
             })
     }
 
@@ -768,9 +764,19 @@ enum MetaBurnTheme {
         Color(
             nsColor: NSColor(name: nil) { appearance in
                 if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-                    return NSColor(red: 0.12, green: 0.04, blue: 0.04, alpha: 0.42)
+                    return NSColor(red: 0.16, green: 0.16, blue: 0.17, alpha: 0.94)
                 }
-                return NSColor(red: 1, green: 1, blue: 1, alpha: 0.42)
+                return NSColor(red: 1, green: 1, blue: 1, alpha: 0.94)
+            })
+    }
+
+    static var panelFill: Color {
+        Color(
+            nsColor: NSColor(name: nil) { appearance in
+                if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
+                    return NSColor(red: 0.145, green: 0.145, blue: 0.155, alpha: 0.94)
+                }
+                return NSColor(red: 1, green: 1, blue: 1, alpha: 0.94)
             })
     }
 

@@ -20,57 +20,51 @@ private struct MetaBurnGlassModifier: ViewModifier {
     }
 
     @ViewBuilder
+    private func materialBody(_ content: Content) -> some View {
+        switch shape {
+        case .rounded(let radius):
+            stacked(
+                content,
+                shape: RoundedRectangle(cornerRadius: radius, style: .continuous)
+            )
+        case .capsule:
+            stacked(content, shape: Capsule())
+        }
+    }
+
+    @ViewBuilder
+    private func stacked<S: InsettableShape>(_ content: Content, shape: S) -> some View {
+        let fill = clear ? MetaBurnTheme.panelFill.opacity(0.55) : MetaBurnTheme.panelFill
+        content
+            .background(fill, in: shape)
+            .overlay {
+                shape.strokeBorder(Color.white.opacity(0.22), lineWidth: 0.6)
+                    .blendMode(.plusLighter)
+                    .mask(
+                        LinearGradient(
+                            colors: [.white, .clear], startPoint: .top, endPoint: .center)
+                    )
+            }
+            .overlay {
+                shape.strokeBorder(MetaBurnTheme.hairline, lineWidth: 1)
+            }
+    }
+
+    @ViewBuilder
     @available(macOS 26.0, *)
     private func glassBody(_ content: Content) -> some View {
         let base = clear ? Glass.clear : Glass.regular
         let glass = base.tint(tint).interactive(interactive)
         switch shape {
         case .rounded(let radius):
-            content.glassEffect(
-                glass, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
-        case .capsule:
-            content.glassEffect(glass, in: Capsule())
-        }
-    }
-
-    @ViewBuilder
-    private func materialBody(_ content: Content) -> some View {
-        let fillOpacity = clear ? 0.28 : 1.0
-        switch shape {
-        case .rounded(let radius):
+            let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
             content
-                .background(
-                    .ultraThinMaterial.opacity(fillOpacity),
-                    in: RoundedRectangle(cornerRadius: radius, style: .continuous)
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: radius, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.22), lineWidth: 0.6)
-                        .blendMode(.plusLighter)
-                        .mask(
-                            LinearGradient(
-                                colors: [.white, .clear], startPoint: .top, endPoint: .center)
-                        )
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: radius, style: .continuous)
-                        .strokeBorder(MetaBurnTheme.hairline, lineWidth: 1)
-                }
+                .background(MetaBurnTheme.panelFill, in: shape)
+                .glassEffect(glass, in: shape)
         case .capsule:
             content
-                .background(.ultraThinMaterial, in: Capsule())
-                .overlay {
-                    Capsule()
-                        .strokeBorder(Color.white.opacity(0.22), lineWidth: 0.6)
-                        .blendMode(.plusLighter)
-                        .mask(
-                            LinearGradient(
-                                colors: [.white, .clear], startPoint: .top, endPoint: .center)
-                        )
-                }
-                .overlay {
-                    Capsule().strokeBorder(MetaBurnTheme.hairline, lineWidth: 1)
-                }
+                .background(MetaBurnTheme.panelFill, in: Capsule())
+                .glassEffect(glass, in: Capsule())
         }
     }
 }
@@ -126,6 +120,10 @@ struct GlassGhostButtonStyle: ButtonStyle {
                 .font(.system(size: 13, weight: .medium))
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
+                .background(
+                    MetaBurnTheme.panelFill,
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                )
                 .glassEffect(
                     .regular.interactive(),
                     in: RoundedRectangle(cornerRadius: 8, style: .continuous)

@@ -56,7 +56,7 @@ struct WorkspaceView: View {
                 folderBrowser
             }
         }
-        .metaBurnGlass(cornerRadius: 10, tint: MetaBurnTheme.accent.opacity(0.10))
+        .metaBurnGlass(cornerRadius: 10)
         .onAppear { store.refresh() }
     }
 
@@ -112,11 +112,7 @@ struct WorkspaceView: View {
                     .foregroundStyle(MetaBurnTheme.secondaryText)
             }
             .frame(width: 210, height: 130)
-            .metaBurnGlass(
-                cornerRadius: 12,
-                tint: MetaBurnTheme.accent.opacity(0.14),
-                interactive: true
-            )
+            .metaBurnGlass(cornerRadius: 12, interactive: true)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(folder.rawValue), \(count) files")

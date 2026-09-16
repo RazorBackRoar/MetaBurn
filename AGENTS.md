@@ -69,7 +69,7 @@ Local output: `build/Release/MetaBurn.dmg` only.
 ## UI
 
 - Drag-and-drop only — no browse / file-picker UI (never).
-- The window background is a living procedural fire stage (runtime Metal + ember/smoke emitters). UI chrome uses Liquid Glass on macOS 26+ (`glassEffect`) with an ultra-thin material fallback. A small red flame follows the cursor; dropping media triggers a smoke/ember burst. Keep Reduce Motion as a static fallback. Do not flatten this back to a solid fill.
+- The window background is a very subtle far-field fire (runtime Metal), never a foreground effect. UI chrome uses opaque Liquid Glass on macOS 26+ (`glassEffect`) with a solid panel fill so text stays readable in Auto / Light / Dark. A small fire-like cursor with a short smoke trail tracks the pointer exactly (no lag). Dropping media triggers a small smoke/ember burst. Reduce Motion: static gradient, system cursor, no trail.
 - While processing, show category count bubbles (Photos, Videos, etc.) with counts beside the title so progress is visible by media type.
 - Theme setting (Auto / Light / Dark) must apply to the main window — do not force dark mode.
 - Remove audio defaults on and lives at the far right of the footer; it permanently omits audio tracks from cleaned video copies.
@@ -103,7 +103,7 @@ Unit tests live in `Tests/MetaBurnTests` against `MetaBurnCore` (`swift test`).
 
 - Drag-and-drop only forever — never add browse/file-picker UI, and never auto-open Finder or Open panels to Desktop, Downloads, or output folders.
 - The red **Remove audio** toggle lives at the far right of the footer; it permanently omits audio tracks so they cannot be recovered from the cleaned file.
-- The red **Open Files** button is centered in the footer and opens the in-app Photos/Videos workspace.
+- The red **Open Files** button is centered in the footer, stays solid red (not glass), and opens the in-app Photos/Videos workspace.
 - Originals are immutable inputs. Copy first, clean and verify only the private copy, then let the user export verified files by copy or drag-out. Never create `~/Desktop/MetaBurn` or `~/Pictures/MetaBurn`.
 - Current product line is MetaBurn **2.2.10**; native ImageIO + AVFoundation only (no ExifTool/ffmpeg/Homebrew runtime deps). JPEG/PNG/TIFF strips are lossless (orientation kept). HEIC/HEIF → stripped `.jpg` is a single Image I/O pass at quality **1.0**. iCloud Drive support is secondary (UbiquityGate; downloads can be slow).
 - Metadata table primary order: Make, Model, Camera, Lens, GPS Location, Date Created, Date Modified, Size, Resolution, Type. Date Created and Date Modified display as `mm/dd/yyyy`. Always show Make/Model/Camera/GPS Location/Date Created/Date Modified (dash if missing). Never show Software.
@@ -112,6 +112,7 @@ Unit tests live in `Tests/MetaBurnTests` against `MetaBurnCore` (`swift test`).
 - Match the screenshot-style single-window layout: centered MetaBurn header, large red dashed drop zone, simple cleaned-files list, footer status at left, Open Files centered, and Remove audio at far right. Open Files shows Photos/Videos folder cards and a native selectable file table in the same window; never use a second window, sheet, or file picker.
 - Do not repeat “MetaBurn” in the macOS titlebar; the in-window brand is sufficient. Keep the traffic lights at top-left and pin a native macOS settings gear to the top-right on a transparent, subtly red-black titlebar that blends into the window. Main branding and primary controls must be mathematically centered.
 - When rebuilding for the user to try: bump `Sources/MetaBurn/Resources/version.json` (patch), then `razorbuild` / `./scripts/build-mac.sh`. Output: `build/Release/MetaBurn.dmg`. Open that DMG yourself to install. Human UAT (notification permission, launch-at-login, sleep/wake) still happens before a GitHub Release. `scripts/open-dmg.sh` only if they explicitly ask to open it. Keep the locked 500×420 DMG layout.
+- Fire belongs in the far background (subtle, never a foreground effect). UI chrome must stay readable in Auto, Light, and Dark. Cursor fire or smoke must track the pointer exactly with no lag.
 
 ## Learned Workspace Facts
 

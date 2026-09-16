@@ -9,17 +9,17 @@ enum FireMood {
 
     var intensity: Float {
         switch self {
-        case .idle: 0.58
-        case .dragging: 0.82
-        case .burning: 1.05
+        case .idle: 0.22
+        case .dragging: 0.34
+        case .burning: 0.42
         }
     }
 
     var emberBirthRate: Float {
         switch self {
-        case .idle: 7
-        case .dragging: 18
-        case .burning: 36
+        case .idle: 2
+        case .dragging: 4
+        case .burning: 6
         }
     }
 }
@@ -92,7 +92,6 @@ final class FireStageNSView: NSView {
     private let ambientEmber = CAEmitterCell()
     private let smokeCell = CAEmitterCell()
     private let burstEmber = CAEmitterCell()
-    private var monitor: Any?
     private var mood: FireMood = .idle
     private var isLight = false
     private var reduceMotion = false
@@ -111,13 +110,6 @@ final class FireStageNSView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        if window == nil {
-            removeMonitor()
-            renderer?.updatePausedState()
-            return
-        }
-        window?.acceptsMouseMovedEvents = true
-        installMonitor()
         renderer?.updatePausedState()
         layoutEmitters()
     }
@@ -160,7 +152,6 @@ final class FireStageNSView: NSView {
     }
 
     func teardown() {
-        removeMonitor()
         renderer?.delegate = nil
         renderer?.isPaused = true
     }
@@ -169,8 +160,8 @@ final class FireStageNSView: NSView {
         guard !reduceMotion else { return }
         renderer?.triggerBurst(at: point)
         burstLayer.emitterPosition = point
-        smokeCell.birthRate = Float(14 + min(count, 24) * 2)
-        burstEmber.birthRate = Float(20 + min(count, 24) * 3)
+        smokeCell.birthRate = Float(6 + min(count, 12))
+        burstEmber.birthRate = Float(8 + min(count, 12))
         burstLayer.birthRate = 1
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
             guard let self else { return }
@@ -248,17 +239,17 @@ final class FireStageNSView: NSView {
         cell.contents = FireParticles.glowImage(
             color: NSColor(red: 1.0, green: 0.55, blue: 0.12, alpha: 0.9))
         cell.birthRate = birthRate
-        cell.lifetime = 3.6
-        cell.lifetimeRange = 1.1
-        cell.velocity = 22
-        cell.velocityRange = 14
-        cell.yAcceleration = -28
+        cell.lifetime = 4.2
+        cell.lifetimeRange = 1.2
+        cell.velocity = 10
+        cell.velocityRange = 6
+        cell.yAcceleration = -14
         cell.emissionLongitude = .pi / 2
-        cell.emissionRange = 0.55
-        cell.scale = 0.09
-        cell.scaleRange = 0.06
-        cell.alphaSpeed = -0.22
-        cell.color = CGColor(red: 1, green: 0.45, blue: 0.08, alpha: 0.85)
+        cell.emissionRange = 0.4
+        cell.scale = 0.05
+        cell.scaleRange = 0.03
+        cell.alphaSpeed = -0.16
+        cell.color = CGColor(red: 1, green: 0.40, blue: 0.08, alpha: 0.35)
     }
 
     private func configureBurstEmber(_ cell: CAEmitterCell) {
@@ -287,41 +278,11 @@ final class FireStageNSView: NSView {
         cell.scaleRange = 0.18
         cell.scaleSpeed = 0.42
         cell.alphaSpeed = -0.48
-        cell.color = CGColor(red: 0.55, green: 0.52, blue: 0.50, alpha: 0.55)
-    }
-
-    private func handleMouse(_ event: NSEvent) {
-        guard let window, event.window == window else {
-            renderer?.pointerInside = false
-            return
-        }
-        let local = convert(event.locationInWindow, from: nil)
-        if bounds.contains(local) {
-            renderer?.targetPointer = local
-            renderer?.pointerInside = true
-        } else {
-            renderer?.pointerInside = false
-        }
-    }
-
-    private func installMonitor() {
-        removeMonitor()
-        monitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) {
-            [weak self] event in
-            self?.handleMouse(event)
-            return event
-        }
-    }
-
-    private func removeMonitor() {
-        if let monitor {
-            NSEvent.removeMonitor(monitor)
-            self.monitor = nil
-        }
+        cell.color = CGColor(red: 0.55, green: 0.52, blue: 0.50, alpha: 0.35)
     }
 }
 
-private enum FireParticles {
+enum FireParticles {
     static func glowImage(color: NSColor, size: CGFloat = 32) -> CGImage? {
         let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
             guard let gradient = NSGradient(colors: [color, color.withAlphaComponent(0)]) else {

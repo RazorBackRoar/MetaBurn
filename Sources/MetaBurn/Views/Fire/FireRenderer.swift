@@ -33,13 +33,13 @@ final class StaticFireView: NSView {
         gradient.endPoint = CGPoint(x: 0.5, y: 1)
         if isLight {
             gradient.colors = [
-                NSColor(red: 0.82, green: 0.38, blue: 0.16, alpha: 1).cgColor,
-                NSColor(red: 0.94, green: 0.90, blue: 0.85, alpha: 1).cgColor,
+                NSColor(red: 0.93, green: 0.84, blue: 0.78, alpha: 1).cgColor,
+                NSColor(red: 0.965, green: 0.958, blue: 0.950, alpha: 1).cgColor,
             ]
         } else {
             gradient.colors = [
-                NSColor(red: 0.42, green: 0.05, blue: 0.02, alpha: 1).cgColor,
-                NSColor(red: 0.026, green: 0.010, blue: 0.012, alpha: 1).cgColor,
+                NSColor(red: 0.16, green: 0.06, blue: 0.05, alpha: 1).cgColor,
+                NSColor(red: 0.090, green: 0.086, blue: 0.090, alpha: 1).cgColor,
             ]
         }
     }
@@ -48,9 +48,7 @@ final class StaticFireView: NSView {
 final class FireRenderer: MTKView, MTKViewDelegate {
     private(set) var isReady = false
 
-    var targetPointer = CGPoint.zero
-    var pointerInside = false
-    var targetIntensity: Float = 0.58
+    var targetIntensity: Float = 0.22
     var isLight = false
     var reduceMotion = false
 
@@ -59,10 +57,7 @@ final class FireRenderer: MTKView, MTKViewDelegate {
     private var startTime: CFTimeInterval = CACurrentMediaTime()
     private var burstOrigin = CGPoint.zero
     private var burstStart: CFTimeInterval = -100
-    private var pointer = SIMD2<Float>.zero
-    private var pointerVel = SIMD2<Float>.zero
-    private var strength: Float = 0
-    private var intensity: Float = 0.58
+    private var intensity: Float = 0.22
     private var occlusionObservers: [NSObjectProtocol] = []
 
     override init(frame frameRect: CGRect, device: MTLDevice?) {
@@ -122,27 +117,18 @@ final class FireRenderer: MTKView, MTKViewDelegate {
         else { return }
 
         let dt: Float = 1.0 / 60.0
-        let target = SIMD2<Float>(Float(targetPointer.x), Float(targetPointer.y))
-        let stiffness: Float = 42
-        let damping: Float = 11
-        let accel = (target - pointer) * stiffness - pointerVel * damping
-        pointerVel += accel * dt
-        pointer += pointerVel * dt
-
-        let strengthTarget: Float = pointerInside ? 1 : 0
-        strength += (strengthTarget - strength) * min(1, 6 * dt)
-        intensity += (targetIntensity - intensity) * min(1, 3.2 * dt)
+        intensity += (targetIntensity - intensity) * min(1, 2.4 * dt)
 
         var uniforms = FireUniforms()
         let size = drawableSize
         uniforms.resolution = SIMD2<Float>(Float(size.width), Float(size.height))
+        uniforms.pointer = .zero
+        uniforms.pointerStrength = 0
         let scaleX = bounds.width > 0 ? Float(size.width / bounds.width) : 1
         let scaleY = bounds.height > 0 ? Float(size.height / bounds.height) : 1
-        uniforms.pointer = SIMD2<Float>(pointer.x * scaleX, pointer.y * scaleY)
         uniforms.burst = SIMD2<Float>(
             Float(burstOrigin.x) * scaleX, Float(burstOrigin.y) * scaleY)
         uniforms.time = Float(CACurrentMediaTime() - startTime)
-        uniforms.pointerStrength = strength
         uniforms.intensity = intensity
         uniforms.isLight = isLight ? 1 : 0
         uniforms.burstAge = Float(CACurrentMediaTime() - burstStart)
@@ -159,7 +145,7 @@ final class FireRenderer: MTKView, MTKViewDelegate {
         framebufferOnly = true
         preferredFramesPerSecond = 60
         colorPixelFormat = .bgra8Unorm
-        clearColor = MTLClearColor(red: 0.026, green: 0.010, blue: 0.012, alpha: 1)
+        clearColor = MTLClearColor(red: 0.090, green: 0.086, blue: 0.090, alpha: 1)
         isPaused = false
         enableSetNeedsDisplay = false
         autoResizeDrawable = false

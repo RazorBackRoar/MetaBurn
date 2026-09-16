@@ -56,7 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         for window in NSApp?.windows ?? [] {
             window.titlebarAppearsTransparent = true
             window.titleVisibility = .hidden
-            window.backgroundColor = NSColor(red: 0.026, green: 0.010, blue: 0.012, alpha: 1)
+            window.backgroundColor = NSColor(red: 0.090, green: 0.086, blue: 0.090, alpha: 1)
             window.isOpaque = true
             window.acceptsMouseMovedEvents = true
             window.minSize = NSSize(width: 900, height: 720)
