@@ -64,10 +64,6 @@ struct ContentView: View {
             .allowsHitTesting(false)
 
             chromeColumn
-
-            CursorTrailView(reduceMotion: reduceMotion)
-                .ignoresSafeArea()
-                .allowsHitTesting(false)
         }
         .frame(minWidth: 900, minHeight: 720)
         .onDrop(
@@ -744,9 +740,9 @@ enum MetaBurnTheme {
         Color(
             nsColor: NSColor(name: nil) { appearance in
                 if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-                    return NSColor(red: 0.10, green: 0.09, blue: 0.10, alpha: 1)
+                    return NSColor(red: 0.06, green: 0.014, blue: 0.018, alpha: 1)
                 }
-                return NSColor(red: 0.96, green: 0.95, blue: 0.94, alpha: 1)
+                return NSColor(red: 0.18, green: 0.05, blue: 0.04, alpha: 1)
             })
     }
 
@@ -754,9 +750,9 @@ enum MetaBurnTheme {
         Color(
             nsColor: NSColor(name: nil) { appearance in
                 if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-                    return NSColor(red: 0.090, green: 0.086, blue: 0.090, alpha: 1)
+                    return NSColor(red: 0.05, green: 0.012, blue: 0.016, alpha: 1)
                 }
-                return NSColor(red: 0.965, green: 0.958, blue: 0.950, alpha: 1)
+                return NSColor(red: 0.16, green: 0.04, blue: 0.035, alpha: 1)
             })
     }
 

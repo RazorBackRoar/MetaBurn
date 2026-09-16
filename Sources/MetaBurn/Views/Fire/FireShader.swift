@@ -9,7 +9,7 @@ struct FireUniforms {
     var burst: SIMD2<Float> = .zero
     var time: Float = 0
     var pointerStrength: Float = 0
-    var intensity: Float = 0.22
+    var intensity: Float = 0.7
     var isLight: Float = 0
     var burstAge: Float = 10
     var pad: Float = 0
@@ -63,7 +63,7 @@ enum FireShader {
     float fbm(float2 p) {
         float v = 0.0;
         float a = 0.5;
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 5; i++) {
             v += a * noise(p);
             p = p * 2.03 + float2(1.7, 9.2);
             a *= 0.5;
@@ -71,40 +71,50 @@ enum FireShader {
         return v;
     }
 
+    float3 firePalette(float t) {
+        t = saturate(t);
+        float3 c = float3(0.035, 0.008, 0.010);
+        c = mix(c, float3(0.12, 0.015, 0.018), smoothstep(0.00, 0.22, t));
+        c = mix(c, float3(0.32, 0.025, 0.022), smoothstep(0.18, 0.42, t));
+        c = mix(c, float3(0.58, 0.07, 0.03), smoothstep(0.38, 0.68, t));
+        c = mix(c, float3(0.78, 0.14, 0.04), smoothstep(0.62, 0.88, t));
+        c = mix(c, float3(0.92, 0.32, 0.06), smoothstep(0.84, 1.00, t));
+        return c;
+    }
+
     fragment float4 fire_fragment(VertexOut in [[stage_in]],
                                   constant FireUniforms &u [[buffer(0)]]) {
         float2 uv = in.uv;
         float t = u.time;
-        float intensity = clamp(u.intensity, 0.0, 1.0);
+        float intensity = clamp(u.intensity, 0.0, 1.2);
 
-        float2 nUV = float2(uv.x * 2.4, uv.y * 1.6 - t * 0.12);
-        float n = fbm(nUV + fbm(nUV + float2(0.0, t * 0.05)) * 0.7);
+        float2 nUV = float2(uv.x * 3.2, uv.y * 2.4 - t * (0.18 + 0.22 * intensity));
+        float warp = fbm(nUV + float2(0.0, t * 0.08));
+        float n = fbm(nUV + warp * 1.25);
+        float n2 = fbm(float2(uv.x * 5.4 + 8.0, uv.y * 3.4 - t * 0.34));
+        float room = fbm(float2(uv.x * 1.15, uv.y * 0.85 + t * 0.035));
 
-        float bowl = pow(saturate(1.0 - abs(uv.x - 0.5) * 1.35), 1.25);
-        float reach = (0.09 + 0.08 * intensity) * (0.55 + 0.45 * bowl);
-        float shape = pow(saturate((reach - uv.y) / max(reach, 0.001)), 2.1);
-        float heat = n * shape * (0.28 + 0.22 * intensity);
+        float height = mix(0.42, 1.0, pow(saturate(1.0 - uv.y), 0.72));
+        float heat = saturate((n * 0.72 + n2 * 0.38) * height * (0.55 + 0.55 * intensity));
+        heat = pow(heat, 1.05);
 
-        if (u.burstAge >= 0.0 && u.burstAge < 1.6) {
+        if (u.burstAge >= 0.0 && u.burstAge < 1.8) {
             float aspect = u.resolution.x / max(u.resolution.y, 1.0);
             float2 buv = u.burst / max(u.resolution, float2(1.0, 1.0));
             float dist = length(float2((uv.x - buv.x) * aspect, uv.y - buv.y));
-            float radius = u.burstAge * 0.28;
-            float ring = exp(-abs(dist - radius) * 36.0) * exp(-u.burstAge * 2.2);
-            heat = saturate(heat + ring * 0.18);
+            float radius = u.burstAge * 0.34;
+            float ring = exp(-abs(dist - radius) * 28.0) * exp(-u.burstAge * 1.8);
+            heat = saturate(heat + ring * 0.28);
         }
 
-        float3 darkBase = float3(0.090, 0.086, 0.090);
-        float3 lightBase = float3(0.965, 0.958, 0.950);
-        float3 base = mix(darkBase, lightBase, u.isLight);
+        float3 col = firePalette(heat);
+        float3 furnace = mix(float3(0.05, 0.012, 0.014), float3(0.16, 0.03, 0.025), room);
+        col = mix(furnace, col, 0.55 + 0.45 * heat);
 
-        float glow = pow(saturate(1.0 - uv.y / 0.42), 2.4) * (0.10 + 0.16 * intensity);
-        float3 ember = mix(float3(0.22, 0.04, 0.02), float3(0.55, 0.18, 0.06), n);
-        float3 peach = float3(0.92, 0.72, 0.58);
-        float3 wash = mix(ember, peach, u.isLight);
-        float amount = glow * (u.isLight ? 0.22 : 0.34) + heat * (u.isLight ? 0.16 : 0.28);
+        if (u.isLight > 0.5) {
+            col = mix(col, col * float3(1.12, 1.04, 1.02) + float3(0.04, 0.01, 0.008), 0.22);
+        }
 
-        float3 col = mix(base, wash, saturate(amount));
         return float4(col, 1.0);
     }
     """

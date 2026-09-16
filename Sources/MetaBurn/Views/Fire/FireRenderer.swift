@@ -31,24 +31,19 @@ final class StaticFireView: NSView {
     private func updateGradient() {
         gradient.startPoint = CGPoint(x: 0.5, y: 0)
         gradient.endPoint = CGPoint(x: 0.5, y: 1)
-        if isLight {
-            gradient.colors = [
-                NSColor(red: 0.93, green: 0.84, blue: 0.78, alpha: 1).cgColor,
-                NSColor(red: 0.965, green: 0.958, blue: 0.950, alpha: 1).cgColor,
-            ]
-        } else {
-            gradient.colors = [
-                NSColor(red: 0.16, green: 0.06, blue: 0.05, alpha: 1).cgColor,
-                NSColor(red: 0.090, green: 0.086, blue: 0.090, alpha: 1).cgColor,
-            ]
-        }
+        gradient.colors = [
+            NSColor(red: 0.55, green: 0.08, blue: 0.03, alpha: 1).cgColor,
+            NSColor(red: 0.22, green: 0.03, blue: 0.03, alpha: 1).cgColor,
+            NSColor(red: 0.06, green: 0.012, blue: 0.016, alpha: 1).cgColor,
+        ]
+        gradient.locations = [0, 0.45, 1]
     }
 }
 
 final class FireRenderer: MTKView, MTKViewDelegate {
     private(set) var isReady = false
 
-    var targetIntensity: Float = 0.22
+    var targetIntensity: Float = 0.7
     var isLight = false
     var reduceMotion = false
 
@@ -57,7 +52,7 @@ final class FireRenderer: MTKView, MTKViewDelegate {
     private var startTime: CFTimeInterval = CACurrentMediaTime()
     private var burstOrigin = CGPoint.zero
     private var burstStart: CFTimeInterval = -100
-    private var intensity: Float = 0.22
+    private var intensity: Float = 0.7
     private var occlusionObservers: [NSObjectProtocol] = []
 
     override init(frame frameRect: CGRect, device: MTLDevice?) {
@@ -145,7 +140,7 @@ final class FireRenderer: MTKView, MTKViewDelegate {
         framebufferOnly = true
         preferredFramesPerSecond = 60
         colorPixelFormat = .bgra8Unorm
-        clearColor = MTLClearColor(red: 0.090, green: 0.086, blue: 0.090, alpha: 1)
+        clearColor = MTLClearColor(red: 0.05, green: 0.012, blue: 0.014, alpha: 1)
         isPaused = false
         enableSetNeedsDisplay = false
         autoResizeDrawable = false

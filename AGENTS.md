@@ -69,7 +69,7 @@ Local output: `build/Release/MetaBurn.dmg` only.
 ## UI
 
 - Drag-and-drop only — no browse / file-picker UI (never).
-- The window background is a very subtle far-field fire (runtime Metal), never a foreground effect. UI chrome uses opaque Liquid Glass on macOS 26+ (`glassEffect`) with a solid panel fill so text stays readable in Auto / Light / Dark. A small fire-like cursor with a short smoke trail tracks the pointer exactly (no lag). Dropping media triggers a small smoke/ember burst. Reduce Motion: static gradient, system cursor, no trail.
+- The window background is a full-window deep dark-red fire (runtime Metal), kept behind the chrome. UI chrome uses opaque Liquid Glass on macOS 26+ (`glassEffect`) with a solid panel fill so text stays readable in Auto / Light / Dark. No custom cursor or cursor-fire trail. Dropping media triggers a small smoke/ember burst. Reduce Motion: static dark-red gradient.
 - While processing, show category count bubbles (Photos, Videos, etc.) with counts beside the title so progress is visible by media type.
 - Theme setting (Auto / Light / Dark) must apply to the main window — do not force dark mode.
 - Remove audio defaults on and lives at the far right of the footer; it permanently omits audio tracks from cleaned video copies.
@@ -112,7 +112,7 @@ Unit tests live in `Tests/MetaBurnTests` against `MetaBurnCore` (`swift test`).
 - Match the screenshot-style single-window layout: centered MetaBurn header, large red dashed drop zone, simple cleaned-files list, footer status at left, Open Files centered, and Remove audio at far right. Open Files shows Photos/Videos folder cards and a native selectable file table in the same window; never use a second window, sheet, or file picker.
 - Do not repeat “MetaBurn” in the macOS titlebar; the in-window brand is sufficient. Keep the traffic lights at top-left and pin a native macOS settings gear to the top-right on a transparent, subtly red-black titlebar that blends into the window. Main branding and primary controls must be mathematically centered.
 - When rebuilding for the user to try: bump `Sources/MetaBurn/Resources/version.json` (patch), then `razorbuild` / `./scripts/build-mac.sh`. Output: `build/Release/MetaBurn.dmg`. Open that DMG yourself to install. Human UAT (notification permission, launch-at-login, sleep/wake) still happens before a GitHub Release. `scripts/open-dmg.sh` only if they explicitly ask to open it. Keep the locked 500×420 DMG layout.
-- Fire belongs in the far background (subtle, never a foreground effect). UI chrome must stay readable in Auto, Light, and Dark. Cursor fire or smoke must track the pointer exactly with no lag.
+- Fire fills the whole window as a deep dark-red background (not a bottom strip). UI chrome stays readable in Auto, Light, and Dark. No custom cursor or cursor-fire trail. Open Files stays solid red.
 
 ## Learned Workspace Facts
 

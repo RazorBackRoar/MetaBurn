@@ -9,17 +9,17 @@ enum FireMood {
 
     var intensity: Float {
         switch self {
-        case .idle: 0.22
-        case .dragging: 0.34
-        case .burning: 0.42
+        case .idle: 0.7
+        case .dragging: 0.85
+        case .burning: 1.05
         }
     }
 
     var emberBirthRate: Float {
         switch self {
-        case .idle: 2
-        case .dragging: 4
-        case .burning: 6
+        case .idle: 5
+        case .dragging: 9
+        case .burning: 14
         }
     }
 }
@@ -204,8 +204,8 @@ final class FireStageNSView: NSView {
     }
 
     private func configureEmitters() {
-        ambientLayer.emitterShape = .line
-        ambientLayer.emitterMode = .outline
+        ambientLayer.emitterShape = .rectangle
+        ambientLayer.emitterMode = .surface
         ambientLayer.renderMode = .additive
         configure(ambientEmber, birthRate: FireMood.idle.emberBirthRate)
         ambientLayer.emitterCells = [ambientEmber]
@@ -222,8 +222,9 @@ final class FireStageNSView: NSView {
     private func layoutEmitters() {
         ambientLayer.frame = particleHost.bounds
         burstLayer.frame = particleHost.bounds
-        ambientLayer.emitterPosition = CGPoint(x: bounds.midX, y: 10)
-        ambientLayer.emitterSize = CGSize(width: max(40, bounds.width * 0.92), height: 0)
+        ambientLayer.emitterPosition = CGPoint(x: bounds.midX, y: bounds.height * 0.38)
+        ambientLayer.emitterSize = CGSize(
+            width: max(40, bounds.width * 0.94), height: max(40, bounds.height * 0.7))
     }
 
     private func updateEmitterRates() {
