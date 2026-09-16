@@ -28,7 +28,12 @@ let package = Package(
             resources: [
                 .process("Resources")
             ],
-            swiftSettings: [.swiftLanguageMode(.v5)]
+            swiftSettings: [.swiftLanguageMode(.v5)],
+            linkerSettings: [
+                .linkedFramework("Metal"),
+                .linkedFramework("MetalKit"),
+                .linkedFramework("QuartzCore"),
+            ]
         ),
         .testTarget(
             name: "MetaBurnTests",

@@ -9,8 +9,12 @@ struct ContentView: View {
     @AppStorage(ThemePreference.storageKey) private var themeSource: String = "system"
     @State private var removeAudio = true
     @State private var isDragging = false
+    @State private var dropFlash = false
     @State private var dropNotice: String?
     @State private var showWorkspace = false
+    @State private var fire = FireStageController()
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var processing: Bool {
         runner.state == .scanning || runner.state == .downloading || runner.state == .cleaning
@@ -51,86 +55,112 @@ struct ContentView: View {
 
     private var mainView: some View {
         ZStack {
-            MetaBurnTheme.background
-                .ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                LinearGradient(
-                    colors: [MetaBurnTheme.titlebarTint, MetaBurnTheme.background],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 76)
-                Spacer(minLength: 0)
-            }
-            .ignoresSafeArea(edges: .top)
+            FireStageView(
+                controller: fire,
+                isLight: colorScheme == .light,
+                reduceMotion: reduceMotion
+            )
+            .ignoresSafeArea()
             .allowsHitTesting(false)
 
-            VStack(spacing: 24) {
-                HeaderView(typeCounts: runner.typeCounts, processing: processing)
-
-                if let notice = dropNotice {
-                    noticeBanner(notice)
-                } else if let message = runner.message,
-                    runner.state == .done || runner.state == .failed || runner.state == .cancelled
-                {
-                    noticeBanner(message)
-                }
-
-                DropZoneView(
-                    highlighted: isDragging,
-                    processing: processing,
-                    compact: showWorkspace,
-                    primary: dropPrimaryLabel,
-                    secondary: dropSecondaryLabel
-                )
-                .frame(maxWidth: .infinity)
-                .frame(
-                    minHeight: showWorkspace ? 66 : (hasResults ? 140 : 240),
-                    maxHeight: showWorkspace ? 76 : (hasResults ? 200 : .infinity)
-                )
-
-                if showWorkspace {
-                    WorkspaceView(store: workspace) {
-                        showWorkspace = false
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 260, maxHeight: .infinity)
-                } else if hasResults {
-                    CleanedFilesPanel(
-                        files: sortedLog,
-                        currentFile: runner.currentFile,
-                        inFlightCount: runner.inFlightCount,
-                        canReveal: !revealableURLs.isEmpty,
-                        onReveal: revealInFinder
-                    )
-                    .frame(maxWidth: .infinity, minHeight: 170, maxHeight: .infinity)
-                }
-
-                FooterBar(
-                    processing: processing,
-                    hasResults: hasResults,
-                    count: runner.counters.cleaned,
-                    currentFile: runner.currentFile,
-                    currentFileNumber: runner.currentFileNumber,
-                    supported: runner.counters.supported,
-                    state: runner.state,
-                    removeAudio: $removeAudio,
-                    onCancel: { runner.cancel() },
-                    onOpenFiles: {
-                        workspace.refresh()
-                        showWorkspace = true
-                    }
-                )
-            }
-            .padding(32)
+            chromeColumn
         }
         .frame(minWidth: 900, minHeight: 720)
-        .onDrop(of: [.fileURL], isTargeted: $isDragging) { providers in
-            handleDrop(providers: providers)
-        }
+        .onDrop(
+            of: [.fileURL],
+            delegate: FileDropDelegate(
+                processing: processing,
+                isDragging: $isDragging,
+                fire: fire,
+                onDrop: { paths, location in
+                    handleDrop(paths: paths, location: location)
+                }
+            )
+        )
         .onChange(of: runner.log.count) { _, _ in
             workspace.refresh()
         }
+        .onChange(of: isDragging) { _, _ in
+            refreshFireMood()
+        }
+        .onChange(of: runner.state) { _, newState in
+            refreshFireMood()
+            if newState == .done {
+                fire.celebrate()
+            }
+        }
+        .onAppear {
+            refreshFireMood()
+        }
+    }
+
+    @ViewBuilder
+    private var chromeColumn: some View {
+        if #available(macOS 26.0, *) {
+            GlassEffectContainer { mainColumn }
+        } else {
+            mainColumn
+        }
+    }
+
+    private var mainColumn: some View {
+        VStack(spacing: 24) {
+            HeaderView(typeCounts: runner.typeCounts, processing: processing)
+
+            if let notice = dropNotice {
+                noticeBanner(notice)
+            } else if let message = runner.message,
+                runner.state == .done || runner.state == .failed || runner.state == .cancelled
+            {
+                noticeBanner(message)
+            }
+
+            DropZoneView(
+                highlighted: isDragging || dropFlash,
+                processing: processing,
+                compact: showWorkspace,
+                primary: dropPrimaryLabel,
+                secondary: dropSecondaryLabel
+            )
+            .frame(maxWidth: .infinity)
+            .frame(
+                minHeight: showWorkspace ? 66 : (hasResults ? 140 : 240),
+                maxHeight: showWorkspace ? 76 : (hasResults ? 200 : .infinity)
+            )
+
+            if showWorkspace {
+                WorkspaceView(store: workspace) {
+                    showWorkspace = false
+                }
+                .frame(maxWidth: .infinity, minHeight: 260, maxHeight: .infinity)
+            } else if hasResults {
+                CleanedFilesPanel(
+                    files: sortedLog,
+                    currentFile: runner.currentFile,
+                    inFlightCount: runner.inFlightCount,
+                    canReveal: !revealableURLs.isEmpty,
+                    onReveal: revealInFinder
+                )
+                .frame(maxWidth: .infinity, minHeight: 170, maxHeight: .infinity)
+            }
+
+            FooterBar(
+                processing: processing,
+                hasResults: hasResults,
+                count: runner.counters.cleaned,
+                currentFile: runner.currentFile,
+                currentFileNumber: runner.currentFileNumber,
+                supported: runner.counters.supported,
+                state: runner.state,
+                removeAudio: $removeAudio,
+                onCancel: { runner.cancel() },
+                onOpenFiles: {
+                    workspace.refresh()
+                    showWorkspace = true
+                }
+            )
+        }
+        .padding(32)
     }
 
     private var dropPrimaryLabel: String {
@@ -191,12 +221,60 @@ struct ContentView: View {
             Spacer(minLength: 0)
         }
         .padding(9)
-        .background(Color.orange.opacity(0.12))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .metaBurnGlass(cornerRadius: 8, tint: Color.orange.opacity(0.28))
     }
 
-    private func handleDrop(providers: [NSItemProvider]) -> Bool {
+    private func refreshFireMood() {
+        if processing {
+            fire.setMood(.burning)
+        } else if isDragging {
+            fire.setMood(.dragging)
+        } else {
+            fire.setMood(.idle)
+        }
+    }
+
+    private func handleDrop(paths: [String], location: CGPoint) {
+        dropFlash = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            dropFlash = false
+        }
+        if paths.isEmpty {
+            dropNotice = "No files detected. Drop photos, videos, or a folder."
+            fire.burst(at: location, count: 1)
+            return
+        }
+        dropNotice = nil
+        fire.burst(at: location, count: paths.count)
+        runner.start(droppedPaths: paths, muteAudio: removeAudio)
+    }
+}
+
+private struct FileDropDelegate: DropDelegate {
+    let processing: Bool
+    @Binding var isDragging: Bool
+    let fire: FireStageController
+    let onDrop: ([String], CGPoint) -> Void
+
+    func validateDrop(info: DropInfo) -> Bool {
+        !processing && info.hasItemsConforming(to: [.fileURL])
+    }
+
+    func dropEntered(info: DropInfo) {
+        guard !processing else { return }
+        isDragging = true
+        fire.setMood(.dragging)
+    }
+
+    func dropExited(info: DropInfo) {
+        isDragging = false
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
         guard !processing else { return false }
+        isDragging = false
+        let providers = info.itemProviders(for: [.fileURL])
+        let location = info.location
         let group = DispatchGroup()
         let lock = NSLock()
         var paths: [String] = []
@@ -219,12 +297,7 @@ struct ContentView: View {
             }
         }
         group.notify(queue: .main) {
-            if paths.isEmpty {
-                dropNotice = "No files detected. Drop photos, videos, or a folder."
-            } else {
-                dropNotice = nil
-                runner.start(droppedPaths: paths, muteAudio: removeAudio)
-            }
+            onDrop(paths, location)
         }
         return true
     }
@@ -241,15 +314,14 @@ private struct HeaderView: View {
             HStack {
                 Spacer(minLength: 0)
                 HStack(spacing: 14) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(MetaBurnTheme.surface)
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(Color.primary.opacity(0.15), lineWidth: 1)
-                        MetaBurnFireImage()
-                            .padding(7)
-                    }
-                    .frame(width: 52, height: 52)
+                    MetaBurnFireImage()
+                        .padding(7)
+                        .frame(width: 52, height: 52)
+                        .metaBurnGlass(
+                            cornerRadius: 14,
+                            tint: MetaBurnTheme.accent.opacity(0.22),
+                            interactive: false
+                        )
 
                     VStack(alignment: .leading, spacing: 2) {
                         (Text("Meta").foregroundColor(.primary)
@@ -303,9 +375,7 @@ private struct HeaderView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
-        .background(MetaBurnTheme.surface)
-        .clipShape(Capsule())
-        .overlay(Capsule().strokeBorder(MetaBurnTheme.hairline, lineWidth: 1))
+        .metaBurnGlassCapsule(tint: MetaBurnTheme.accent.opacity(0.12))
     }
 
     private func typeCountText(done: Int, total: Int) -> String {
@@ -367,6 +437,7 @@ private struct DropZoneView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(primary)
                             .font(.system(size: 14, weight: .semibold))
+                            .shadow(color: .black.opacity(0.45), radius: 5, y: 1)
                         Text(secondary)
                             .font(.system(size: 11))
                             .foregroundColor(MetaBurnTheme.secondaryText)
@@ -380,18 +451,22 @@ private struct DropZoneView: View {
                     dropGlyph
                     Text(primary)
                         .font(.system(size: 20, weight: .semibold))
+                        .shadow(color: .black.opacity(0.5), radius: 8, y: 1)
                     Text(secondary)
                         .font(.system(size: 13))
                         .foregroundColor(MetaBurnTheme.secondaryText)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
+                        .shadow(color: .black.opacity(0.45), radius: 6, y: 1)
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: compact ? 12 : 16, style: .continuous)
-                .fill(highlighted ? MetaBurnTheme.accent.opacity(0.10) : Color.clear)
+        .metaBurnGlass(
+            cornerRadius: compact ? 12 : 16,
+            tint: MetaBurnTheme.accent.opacity(highlighted ? 0.22 : 0.04),
+            interactive: true,
+            clear: true
         )
         .overlay(
             RoundedRectangle(cornerRadius: compact ? 12 : 16, style: .continuous)
@@ -438,7 +513,7 @@ private struct CleanedFilesPanel: View {
                     .font(.system(size: 15, weight: .semibold))
                 Spacer()
                 Button("Show in Finder", systemImage: "folder") { onReveal() }
-                    .buttonStyle(GhostButtonStyle())
+                    .buttonStyle(GlassGhostButtonStyle())
                     .disabled(!canReveal)
             }
             .padding(.bottom, 14)
@@ -472,12 +547,7 @@ private struct CleanedFilesPanel: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.primary.opacity(0.015))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(MetaBurnTheme.hairline, lineWidth: 1)
-            )
+            .metaBurnGlass(cornerRadius: 8, tint: MetaBurnTheme.accent.opacity(0.08))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
@@ -547,7 +617,7 @@ private struct FileTypeIcon: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(MetaBurnTheme.surface)
+                .fill(.ultraThinMaterial)
                 .frame(width: 32, height: 32)
             Image(systemName: SupportedTypes.isVideo(filePath: path) ? "play.fill" : "photo.fill")
                 .font(.system(size: 13, weight: .medium))
@@ -603,7 +673,7 @@ private struct FooterBar: View {
             HStack(spacing: 8) {
                 if processing {
                     Button("Cancel") { onCancel() }
-                        .buttonStyle(GhostButtonStyle())
+                        .buttonStyle(GlassGhostButtonStyle())
                 }
                 Button("Open Files") { onOpenFiles() }
                     .buttonStyle(PrimaryButtonStyle())
@@ -627,6 +697,13 @@ private struct FooterBar: View {
             .accessibilityHint("When enabled, cleaned videos contain no audio tracks")
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .metaBurnGlass(
+            cornerRadius: 16,
+            tint: MetaBurnTheme.accent.opacity(0.16),
+            interactive: false
+        )
     }
 
     private var shieldIcon: String {
@@ -671,9 +748,9 @@ enum MetaBurnTheme {
         Color(
             nsColor: NSColor(name: nil) { appearance in
                 if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-                    return NSColor(red: 0.12, green: 0.025, blue: 0.03, alpha: 1)
+                    return NSColor(red: 0.08, green: 0.018, blue: 0.02, alpha: 1)
                 }
-                return NSColor(red: 0.30, green: 0.10, blue: 0.11, alpha: 1)
+                return NSColor(red: 0.32, green: 0.12, blue: 0.10, alpha: 1)
             })
     }
 
@@ -681,9 +758,9 @@ enum MetaBurnTheme {
         Color(
             nsColor: NSColor(name: nil) { appearance in
                 if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-                    return NSColor(red: 0.055, green: 0.06, blue: 0.065, alpha: 1)
+                    return NSColor(red: 0.026, green: 0.010, blue: 0.012, alpha: 1)
                 }
-                return NSColor(red: 0.96, green: 0.96, blue: 0.97, alpha: 1)
+                return NSColor(red: 0.94, green: 0.90, blue: 0.85, alpha: 1)
             })
     }
 
@@ -691,9 +768,9 @@ enum MetaBurnTheme {
         Color(
             nsColor: NSColor(name: nil) { appearance in
                 if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-                    return NSColor(red: 0.075, green: 0.08, blue: 0.085, alpha: 1)
+                    return NSColor(red: 0.12, green: 0.04, blue: 0.04, alpha: 0.42)
                 }
-                return NSColor.black.withAlphaComponent(0.05)
+                return NSColor(red: 1, green: 1, blue: 1, alpha: 0.42)
             })
     }
 
@@ -752,22 +829,33 @@ struct RedSwitchToggleStyle: ToggleStyle {
         } label: {
             HStack(spacing: 8) {
                 configuration.label
-                Capsule()
-                    .fill(
-                        configuration.isOn
-                            ? MetaBurnTheme.accent : Color(red: 0.55, green: 0.15, blue: 0.15)
-                    )
-                    .frame(width: 40, height: 22)
-                    .overlay(
-                        Circle()
-                            .fill(Color.white)
-                            .shadow(color: .black.opacity(0.3), radius: 1.5, x: 0, y: 1)
-                            .padding(2.5),
-                        alignment: configuration.isOn ? .trailing : .leading
-                    )
+                toggleTrack(isOn: configuration.isOn)
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func toggleTrack(isOn: Bool) -> some View {
+        let knob = Circle()
+            .fill(Color.white)
+            .shadow(color: .black.opacity(0.3), radius: 1.5, x: 0, y: 1)
+            .padding(2.5)
+        if #available(macOS 26.0, *) {
+            Capsule()
+                .fill(isOn ? MetaBurnTheme.accent.opacity(0.55) : Color.white.opacity(0.12))
+                .frame(width: 40, height: 22)
+                .glassEffect(
+                    .regular.tint(isOn ? MetaBurnTheme.accent : nil).interactive(),
+                    in: Capsule()
+                )
+                .overlay(knob, alignment: isOn ? .trailing : .leading)
+        } else {
+            Capsule()
+                .fill(isOn ? MetaBurnTheme.accent : Color(red: 0.55, green: 0.15, blue: 0.15))
+                .frame(width: 40, height: 22)
+                .overlay(knob, alignment: isOn ? .trailing : .leading)
+        }
     }
 }

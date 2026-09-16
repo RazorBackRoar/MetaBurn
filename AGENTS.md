@@ -69,6 +69,7 @@ Local output: `build/Release/MetaBurn.dmg` only.
 ## UI
 
 - Drag-and-drop only — no browse / file-picker UI (never).
+- The window background is a living procedural fire stage (runtime Metal + ember/smoke emitters). UI chrome uses Liquid Glass on macOS 26+ (`glassEffect`) with an ultra-thin material fallback. A small red flame follows the cursor; dropping media triggers a smoke/ember burst. Keep Reduce Motion as a static fallback. Do not flatten this back to a solid fill.
 - While processing, show category count bubbles (Photos, Videos, etc.) with counts beside the title so progress is visible by media type.
 - Theme setting (Auto / Light / Dark) must apply to the main window — do not force dark mode.
 - Remove audio defaults on and lives at the far right of the footer; it permanently omits audio tracks from cleaned video copies.

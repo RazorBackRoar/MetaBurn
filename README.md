@@ -1,7 +1,7 @@
 # MetaBurn
 
 [![Download](https://img.shields.io/github/v/release/RazorBackRoar/MetaBurn?style=for-the-badge&label=Download%20DMG&color=d32f2f)](https://github.com/RazorBackRoar/MetaBurn/releases/latest)
-[![Version](https://img.shields.io/badge/version-2.2.11-blue?style=for-the-badge)](https://github.com/RazorBackRoar/MetaBurn/releases/tag/v2.2.11)
+[![Version](https://img.shields.io/badge/version-2.2.12-blue?style=for-the-badge)](https://github.com/RazorBackRoar/MetaBurn/releases/tag/v2.2.12)
 [![CI](https://img.shields.io/github/actions/workflow/status/RazorBackRoar/MetaBurn/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/RazorBackRoar/MetaBurn/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blueviolet?style=for-the-badge)](LICENSE)
 [![Swift](https://img.shields.io/badge/Swift-F05138?style=for-the-badge&logo=swift&logoColor=white)](https://swift.org/)

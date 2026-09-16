@@ -56,12 +56,7 @@ struct WorkspaceView: View {
                 folderBrowser
             }
         }
-        .background(MetaBurnTheme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(MetaBurnTheme.hairline, lineWidth: 1)
-        )
+        .metaBurnGlass(cornerRadius: 10, tint: MetaBurnTheme.accent.opacity(0.10))
         .onAppear { store.refresh() }
     }
 
@@ -86,7 +81,7 @@ struct WorkspaceView: View {
                     .foregroundStyle(MetaBurnTheme.secondaryText)
             }
             Button("Back to Results") { onClose() }
-                .buttonStyle(GhostButtonStyle())
+                .buttonStyle(GlassGhostButtonStyle())
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -117,11 +112,10 @@ struct WorkspaceView: View {
                     .foregroundStyle(MetaBurnTheme.secondaryText)
             }
             .frame(width: 210, height: 130)
-            .background(Color.primary.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(MetaBurnTheme.hairline, lineWidth: 1)
+            .metaBurnGlass(
+                cornerRadius: 12,
+                tint: MetaBurnTheme.accent.opacity(0.14),
+                interactive: true
             )
         }
         .buttonStyle(.plain)
