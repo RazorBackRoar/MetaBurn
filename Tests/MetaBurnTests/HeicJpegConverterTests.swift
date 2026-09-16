@@ -116,10 +116,12 @@ struct HeicJpegConverterTests {
         }
 
         let jpg = dir.appendingPathComponent("alpha-out.jpg")
-        guard case .success = HeicJpegConverter.convertAndStrip(from: heic.path, to: jpg) else {
+        guard case .success(let info) = HeicJpegConverter.convertAndStrip(from: heic.path, to: jpg)
+        else {
             Issue.record("convertAndStrip failed")
             return
         }
+        #expect(info.flattenedAlpha)
 
         // Top-left sits in the transparent half: must be near-white, not black.
         let transparentSide = try Self.pixel(jpg, x: 0, y: 0)
@@ -131,5 +133,64 @@ struct HeicJpegConverterTests {
         let opaqueSide = try Self.pixel(jpg, x: 6, y: 0)
         #expect(opaqueSide.0 > 150)
         #expect(opaqueSide.1 < 100)
+    }
+
+    @Test("multi-image HEIC reports its frame count and writes one JPEG")
+    func multiImageReportsCount() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("metaburn-heic-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        // Two frames with different colors so a wrong frame would be detectable.
+        let heic = dir.appendingPathComponent("multi-src.heic")
+        guard
+            let dest = CGImageDestinationCreateWithURL(
+                heic as CFURL, UTType.heic.identifier as CFString, 2, nil)
+        else {
+            Issue.record("no HEIC destination on this platform")
+            return
+        }
+        for rgb: (UInt8, UInt8, UInt8) in [(200, 40, 40), (40, 40, 200)] {
+            var bytes: [UInt8] = []
+            for _ in 0..<64 { bytes += [rgb.0, rgb.1, rgb.2, 255] }
+            guard
+                let provider = CGDataProvider(data: Data(bytes) as CFData),
+                let image = CGImage(
+                    width: 8, height: 8,
+                    bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: 32,
+                    space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                    bitmapInfo: CGBitmapInfo(
+                        rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                    provider: provider, decode: nil,
+                    shouldInterpolate: false, intent: .defaultIntent
+                )
+            else {
+                Issue.record("could not build frame image")
+                return
+            }
+            CGImageDestinationAddImage(dest, image, nil)
+        }
+        guard CGImageDestinationFinalize(dest) else {
+            Issue.record("multi-image HEIC encode failed")
+            return
+        }
+
+        let jpg = dir.appendingPathComponent("multi-out.jpg")
+        guard case .success(let info) = HeicJpegConverter.convertAndStrip(from: heic.path, to: jpg)
+        else {
+            Issue.record("convertAndStrip failed")
+            return
+        }
+        #expect(info.imageCount == 2)
+        #expect(!info.flattenedAlpha)
+
+        // Exactly one frame was written, and it is the first (reddish), not the second.
+        if let outSource = CGImageSourceCreateWithURL(jpg as CFURL, nil) {
+            #expect(CGImageSourceGetCount(outSource) == 1)
+        }
+        let px = try Self.pixel(jpg, x: 4, y: 4)
+        #expect(px.0 > 120)
+        #expect(px.2 < 120)
     }
 }

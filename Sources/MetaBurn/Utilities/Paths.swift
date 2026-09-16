@@ -6,18 +6,50 @@ enum Paths {
     private static let outputReservationLock = NSLock()
     private static var reservedOutputPaths: Set<String> = []
 
+    /// Test isolation: inside a test process, every app-owned directory resolves
+    /// under a per-process temporary root so sweeps, staging and workspace listings
+    /// can never touch the live Application Support/Caches data. `METABURN_TEST_ROOT`
+    /// pins an explicit root when a suite needs a known location.
+    private static let processTestRoot: URL? = {
+        let env = ProcessInfo.processInfo.environment
+        if let explicit = env["METABURN_TEST_ROOT"], !explicit.isEmpty {
+            return URL(fileURLWithPath: explicit, isDirectory: true)
+        }
+        let isTestProcess =
+            env["XCTestBundlePath"] != nil
+            || env["XCTestConfigurationFilePath"] != nil
+            || Bundle.allBundles.contains { $0.bundleURL.lastPathComponent.hasSuffix(".xctest") }
+        guard isTestProcess else { return nil }
+        return FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "metaburn-tests-\(ProcessInfo.processInfo.processIdentifier)", isDirectory: true)
+    }()
+
+    /// Where app-owned state lives for this process (nil outside test bundles).
+    static var isolatedTestRoot: URL? { processTestRoot }
+
     static var appName: String { Brand.displayName }
 
     static var desktopOutputFolderName: String { OutputNaming.desktopFolderName }
 
     static func applicationSupportDirectory() -> URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        if let root = processTestRoot {
+            return root.appendingPathComponent("Application Support", isDirectory: true)
+                .appendingPathComponent(appName, isDirectory: true)
+        }
+        let base =
+            FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
         return base.appendingPathComponent(appName, isDirectory: true)
     }
 
     static func cacheDirectory() -> URL {
-        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+        if let root = processTestRoot {
+            return root.appendingPathComponent("Caches", isDirectory: true)
+                .appendingPathComponent(appName, isDirectory: true)
+        }
+        let base =
+            FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
         return base.appendingPathComponent(appName, isDirectory: true)
     }
@@ -31,11 +63,13 @@ enum Paths {
     }
 
     static func workspacePhotosDirectory() -> URL {
-        workspaceDirectory().appendingPathComponent(OutputNaming.photosFolderName, isDirectory: true)
+        workspaceDirectory().appendingPathComponent(
+            OutputNaming.photosFolderName, isDirectory: true)
     }
 
     static func workspaceVideosDirectory() -> URL {
-        workspaceDirectory().appendingPathComponent(OutputNaming.videosFolderName, isDirectory: true)
+        workspaceDirectory().appendingPathComponent(
+            OutputNaming.videosFolderName, isDirectory: true)
     }
 
     static func desktopDirectory() -> URL {
@@ -83,12 +117,14 @@ enum Paths {
     }
 
     static func skippableOutputDirectory() -> URL {
-        desktopOutputRoot().appendingPathComponent(OutputNaming.skippableFolderName, isDirectory: true)
+        desktopOutputRoot().appendingPathComponent(
+            OutputNaming.skippableFolderName, isDirectory: true)
     }
 
     static func ensureDirectory(_ url: URL) {
         guard !isForbiddenCollectedMetaBurn(url) else { return }
-        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true, attributes: nil)
+        try? FileManager.default.createDirectory(
+            at: url, withIntermediateDirectories: true, attributes: nil)
     }
 
     static func ensureLogsDirectory() {
@@ -165,11 +201,14 @@ enum Paths {
             photosOutputDirectory(),
             videosOutputDirectory(),
             skippableOutputDirectory(),
-            forbiddenDesktopMetaBurnRoot().appendingPathComponent(OutputNaming.photosFolderName, isDirectory: true),
-            forbiddenDesktopMetaBurnRoot().appendingPathComponent(OutputNaming.videosFolderName, isDirectory: true),
-            forbiddenDesktopMetaBurnRoot().appendingPathComponent(OutputNaming.skippableFolderName, isDirectory: true),
+            forbiddenDesktopMetaBurnRoot().appendingPathComponent(
+                OutputNaming.photosFolderName, isDirectory: true),
+            forbiddenDesktopMetaBurnRoot().appendingPathComponent(
+                OutputNaming.videosFolderName, isDirectory: true),
+            forbiddenDesktopMetaBurnRoot().appendingPathComponent(
+                OutputNaming.skippableFolderName, isDirectory: true),
             workspacePhotosDirectory(),
-            workspaceVideosDirectory()
+            workspaceVideosDirectory(),
         ]
         for dir in leftover {
             var isDir: ObjCBool = false

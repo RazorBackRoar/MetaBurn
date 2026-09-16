@@ -11,6 +11,13 @@ struct MetaBurnApp: App {
         }
         .defaultSize(width: 960, height: 760)
         .windowResizability(.contentMinSize)
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") {
+                    Task { await Updates.checkAndPresentUpdateAlert() }
+                }
+            }
+        }
 
         Settings {
             SettingsView()

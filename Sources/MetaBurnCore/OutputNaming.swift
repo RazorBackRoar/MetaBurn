@@ -8,6 +8,14 @@ public enum OutputNaming: Sendable {
     public static let skippableFolderName = "Skippable"
     public static let skippedSummaryFileName = "skipped-summary.txt"
     public static let workFileMarker = "metaburn.tmp"
+    /// NativeImageIO atomic-replace temp files (hidden siblings of the work file).
+    public static let nativeWorkFileMarker = "metaburn.native.tmp"
+    /// NativeVideoClean remux temp files (hidden siblings of the work file).
+    public static let videoWorkFileMarker = "metaburn.video.tmp"
+    /// Every marker an orphaned work/temp file can carry — the sweep must cover all of them.
+    public static let workFileMarkers: [String] = [
+        workFileMarker, nativeWorkFileMarker, videoWorkFileMarker,
+    ]
 
     /// Unique path under `directory` (`name.ext`, then `name-001.ext`, `name-002.ext`, …).
     /// Pass `replacingExtension` (e.g. `"jpg"`) to rewrite the extension — used when HEIC/HEIF
@@ -66,7 +74,10 @@ public enum OutputNaming: Sendable {
     public static func isWorkFileName(_ name: String) -> Bool {
         // Marker must appear as a dotted component (`uuid.metaburn.tmp.jpg`) or as the
         // final suffix (`uuid.metaburn.tmp`) — a bare substring match would also flag
-        // user files like `notes-metaburn.tmp-backup.txt`.
-        name.contains(".\(workFileMarker).") || name.hasSuffix(".\(workFileMarker)")
+        // user files like `notes-metaburn.tmp-backup.txt`. All three producer markers
+        // (cache work files, ImageIO native temps, video remux temps) are covered.
+        workFileMarkers.contains { marker in
+            name.contains(".\(marker).") || name.hasSuffix(".\(marker)")
+        }
     }
 }

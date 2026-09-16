@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import MetaBurnCore
 import UniformTypeIdentifiers
 
@@ -122,8 +123,17 @@ enum MetadataCleaner {
                 metadataBefore = await readMetadata(filePath: sourceCopy.path, kind: info.kind)
                 _ = WorkFileSafety.stripStallingXattrs(atPath: sourceCopy.path)
 
+                var conversionNote: String?
                 switch HeicJpegConverter.convertAndStrip(from: sourceCopy.path, to: workURL) {
-                case .success:
+                case .success(let info):
+                    var notes: [String] = []
+                    if info.imageCount > 1 {
+                        notes.append("primary frame only (\(info.imageCount)-image source)")
+                    }
+                    if info.flattenedAlpha {
+                        notes.append("alpha flattened to white")
+                    }
+                    conversionNote = notes.isEmpty ? nil : notes.joined(separator: "; ")
                     logInfo(
                         "HEIC→JPEG strip OK: \(URL(fileURLWithPath: filePath).lastPathComponent) → \(workURL.lastPathComponent)"
                     )
@@ -144,6 +154,7 @@ enum MetadataCleaner {
                     finalURL: finalURL,
                     metadataBefore: metadataBefore,
                     alreadyStripped: true,
+                    resultNote: conversionNote,
                     promoted: &promoted
                 )
             }
@@ -231,6 +242,7 @@ enum MetadataCleaner {
         finalURL: URL,
         metadataBefore: [MetadataEntry],
         alreadyStripped: Bool,
+        resultNote: String? = nil,
         promoted: inout Bool
     ) async -> CleanResult {
         if Task.isCancelled {
@@ -239,7 +251,17 @@ enum MetadataCleaner {
             )
         }
 
+        var resultNote = resultNote
         if !alreadyStripped {
+            // Multi-page sources (e.g. TIFF) strip to the first image only — surface it.
+            if resultNote == nil,
+                let source = CGImageSourceCreateWithURL(workURL as CFURL, nil)
+            {
+                let imageCount = CGImageSourceGetCount(source)
+                if imageCount > 1 {
+                    resultNote = "primary frame only (\(imageCount)-image source)"
+                }
+            }
             guard NativeImageIO.canHandle(filePath: filePath),
                 NativeImageIO.stripMetadata(atPath: workPath)
             else {
@@ -270,9 +292,13 @@ enum MetadataCleaner {
         let status = CleanStatus(rawValue: verified.outcome) ?? .failed
         var reason = verified.reason
         if status == .cleaned {
-            reason = nil
+            // Caveat notes (multi-frame, flattened alpha) ride along on cleaned results.
+            reason = resultNote
         } else if status == .partial {
             reason = "some removable metadata remains after cleaning"
+            if let resultNote {
+                reason = "\(reason!); \(resultNote)"
+            }
         }
 
         if status == .failed {
@@ -484,11 +510,14 @@ enum MetadataCleaner {
             try fm.linkItem(at: workURL, to: finalURL)
             try? fm.removeItem(at: workURL)
         } catch {
-            // Hard links require same-volume; re-check then move for that edge case.
+            // Cross-volume (e.g. adjacent output on an external drive) can't hard-link.
+            // copyItem still refuses to replace an existing name — unlike moveItem's
+            // rename, which would silently overwrite a racer's file in the gap.
             guard !fm.fileExists(atPath: finalURL.path), !PathSafety.isSymlink(finalURL.path) else {
                 throw PathSafetyError.notRegularFile(finalURL.path)
             }
-            try fm.moveItem(at: workURL, to: finalURL)
+            try fm.copyItem(at: workURL, to: finalURL)
+            try? fm.removeItem(at: workURL)
         }
     }
 

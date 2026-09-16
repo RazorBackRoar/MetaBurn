@@ -226,11 +226,17 @@ struct OutputNamingTests {
         #expect(OutputNaming.isWorkFileName("ABC.metaburn.tmp.JPG"))
         #expect(OutputNaming.isWorkFileName(".ABC.metaburn.tmp.jpeg"))
         #expect(OutputNaming.isWorkFileName("DEADBEEF.metaburn.tmp"))
+        // NativeImageIO atomic-replace temps and NativeVideoClean remux temps.
+        #expect(OutputNaming.isWorkFileName(".AB12CD.metaburn.native.tmp.heic"))
+        #expect(OutputNaming.isWorkFileName("AB12CD.metaburn.native.tmp"))
+        #expect(OutputNaming.isWorkFileName(".EF34AB.metaburn.video.tmp.mov"))
+        #expect(OutputNaming.isWorkFileName("EF34AB.metaburn.video.tmp"))
         #expect(!OutputNaming.isWorkFileName("IMG_2667_plus.JPG"))
         // Decoys containing the marker as a bare substring must not be swept.
         #expect(!OutputNaming.isWorkFileName("notes-metaburn.tmp-backup.txt"))
         #expect(!OutputNaming.isWorkFileName("metaburn.tmp.jpg"))
         #expect(!OutputNaming.isWorkFileName("my.metaburn.tmpfile.jpg"))
+        #expect(!OutputNaming.isWorkFileName("backup.metaburn.native.tmpx.heic"))
     }
 
     @Test("skippable folder and summary names are stable")
@@ -327,18 +333,25 @@ struct WorkFileSafetyTests {
 
         let legacy = photos.appendingPathComponent(".647BB6F7.metaburn.tmp.JPG")
         let cached = cache.appendingPathComponent("AABBCC.metaburn.tmp.jpeg")
+        // Abandoned ImageIO / video-remux temps use their own markers — same sweep.
+        let nativeTmp = cache.appendingPathComponent(".B7C2.metaburn.native.tmp.heic")
+        let videoTmp = cache.appendingPathComponent(".D9E4.metaburn.video.tmp.mov")
         let keep = photos.appendingPathComponent("IMG_2667_plus.JPG")
         // A user file that merely contains the marker substring must survive the sweep.
         let decoy = photos.appendingPathComponent("notes-metaburn.tmp-backup.txt")
         try Data([1]).write(to: legacy)
         try Data([2]).write(to: cached)
+        try Data([5]).write(to: nativeTmp)
+        try Data([6]).write(to: videoTmp)
         try Data([3]).write(to: keep)
         try Data([4]).write(to: decoy)
 
         let removed = WorkFileSafety.cleanupOrphanWorkFiles(in: [photos, cache])
-        #expect(removed.count == 2)
+        #expect(removed.count == 4)
         #expect(!FileManager.default.fileExists(atPath: legacy.path))
         #expect(!FileManager.default.fileExists(atPath: cached.path))
+        #expect(!FileManager.default.fileExists(atPath: nativeTmp.path))
+        #expect(!FileManager.default.fileExists(atPath: videoTmp.path))
         #expect(FileManager.default.fileExists(atPath: keep.path))
         #expect(FileManager.default.fileExists(atPath: decoy.path))
     }

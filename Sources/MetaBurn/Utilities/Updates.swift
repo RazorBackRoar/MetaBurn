@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 struct UpdateResult {
@@ -119,6 +120,27 @@ final class Updates {
         if let data = try? JSONSerialization.data(withJSONObject: payload, options: .prettyPrinted) {
             try? data.write(to: cacheURL(), options: .atomic)
         }
+    }
+
+    @MainActor
+    static func checkAndPresentUpdateAlert() async {
+        let info = AppInfoProvider.current()
+        let result = await checkForUpdates(currentVersion: info.version)
+        let alert = NSAlert()
+        alert.alertStyle = result.error != nil ? .warning : .informational
+        if let error = result.error {
+            alert.messageText = "Update check failed"
+            alert.informativeText = error
+        } else if result.updateAvailable {
+            alert.messageText = "Update available: \(result.latestVersion)"
+            alert.informativeText =
+                "You have \(result.currentVersion).\(result.downloadURL.map { "\n\n\($0)" } ?? "")"
+        } else {
+            alert.messageText = "You're up to date"
+            alert.informativeText = "Current version: \(result.currentVersion)"
+        }
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     static func compareVersions(_ a: String, _ b: String) -> Int {

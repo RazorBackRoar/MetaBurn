@@ -19,7 +19,7 @@ enum NativeVideoClean {
         }
 
         let tempURL = sourceURL.deletingLastPathComponent()
-            .appendingPathComponent(".\(SecureRandom.hexString()).metaburn.video.tmp.\(ext)")
+            .appendingPathComponent(".\(SecureRandom.hexString()).\(OutputNaming.videoWorkFileMarker).\(ext)")
         let fm = FileManager.default
         var replaced = false
         defer {

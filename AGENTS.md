@@ -115,6 +115,7 @@ Unit tests live in `Tests/MetaBurnTests` against `MetaBurnCore` (`swift test`).
 ## Learned Workspace Facts
 
 - Re-dropping the same folder must always finish every file; half-written destinations and leftover `.metaburn.tmp` work files are bugs — discard the work file on timeout/failure and never promote it.
+- Before calling any gate/helper/classifier change done, grep it for call sites — this codebase has repeatedly shipped "implemented but never wired" code (`SupportedTypes.skipReason` existed and was tested but Scanner reimplemented the gate inline; `MetadataRules.buildArgs`/`interpretOutput`; the `MetadataReport`/`FileDetailsView` views have zero call sites since the WorkspaceView refactor). Zero-call-site code is dead by default — fix the wiring or the code.
 - Current product line is MetaBurn **2.2.10**; native ImageIO + AVFoundation only. JPEG/PNG/TIFF strips are lossless. HEIC convertAndStrip uses `kCGImageDestinationLossyCompressionQuality = 1.0`. Videos remux with passthrough only. iCloud is optional/secondary via `UbiquityGate`.
 - Cancel must interrupt in-flight AVFoundation exports; batch jobs must not stall mid-count.
 - Local package output is `build/Release/MetaBurn.dmg`.

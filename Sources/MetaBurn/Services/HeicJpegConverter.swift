@@ -13,6 +13,12 @@ enum HeicJpegConverter {
         case finalizeFailed
     }
 
+    /// Facts about the source that matter to the caller's result note.
+    struct ConversionInfo: Sendable {
+        let imageCount: Int
+        let flattenedAlpha: Bool
+    }
+
     /// Highest practical JPEG quality using public Image I/O APIs (enables Apple’s 4:4:4 path).
     static let compressionQuality: Double = 1.0
 
@@ -23,14 +29,14 @@ enum HeicJpegConverter {
 
     /// Write a JPEG to `destinationURL` from `sourcePath`, preserving metadata when possible.
     static func convert(from sourcePath: String, to destinationURL: URL) -> Result<
-        Void, ConversionError
+        ConversionInfo, ConversionError
     > {
         convert(from: sourcePath, to: destinationURL, stripPrivacyMetadata: false)
     }
 
     /// Single-pass HEIC/HEIF → max-quality JPEG **without** EXIF/GPS/IPTC/Maker bags (orientation kept).
     static func convertAndStrip(from sourcePath: String, to destinationURL: URL) -> Result<
-        Void, ConversionError
+        ConversionInfo, ConversionError
     > {
         convert(from: sourcePath, to: destinationURL, stripPrivacyMetadata: true)
     }
@@ -41,7 +47,7 @@ enum HeicJpegConverter {
         from sourcePath: String,
         to destinationURL: URL,
         stripPrivacyMetadata: Bool
-    ) -> Result<Void, ConversionError> {
+    ) -> Result<ConversionInfo, ConversionError> {
         let sourceURL = URL(fileURLWithPath: sourcePath)
         let options: [CFString: Any] = [kCGImageSourceShouldCache: false]
 
@@ -68,10 +74,11 @@ enum HeicJpegConverter {
         }
 
         if stripPrivacyMetadata {
-            if convertStrippedDecoded(
+            if let flattenedAlpha = convertStrippedDecoded(
                 source: source, destinationURL: destinationURL, options: options)
             {
-                return .success(())
+                return .success(
+                    ConversionInfo(imageCount: imageCount, flattenedAlpha: flattenedAlpha))
             }
         } else {
             // Alpha cannot survive into JPEG — route through the decoded path, which
@@ -82,12 +89,13 @@ enum HeicJpegConverter {
             if !frameZeroHasAlpha,
                 convertViaAddFromSource(source: source, destinationURL: destinationURL)
             {
-                return .success(())
+                return .success(ConversionInfo(imageCount: imageCount, flattenedAlpha: false))
             }
-            if convertViaDecodedImage(
+            if let flattenedAlpha = convertViaDecodedImage(
                 source: source, destinationURL: destinationURL, options: options)
             {
-                return .success(())
+                return .success(
+                    ConversionInfo(imageCount: imageCount, flattenedAlpha: flattenedAlpha))
             }
         }
 
@@ -154,15 +162,17 @@ enum HeicJpegConverter {
         return CGImageDestinationFinalize(destination)
     }
 
+    /// Returns whether frame zero had real alpha, or nil when conversion failed.
     private static func convertViaDecodedImage(
         source: CGImageSource,
         destinationURL: URL,
         options: [CFString: Any]
-    ) -> Bool {
+    ) -> Bool? {
         guard let decoded = CGImageSourceCreateImageAtIndex(source, 0, options as CFDictionary)
         else {
-            return false
+            return nil
         }
+        let flattenedAlpha = imageHasAlpha(decoded)
         let image = compositeOntoWhiteIfNeeded(decoded, sourcePath: nil)
         guard
             let destination = CGImageDestinationCreateWithURL(
@@ -172,7 +182,7 @@ enum HeicJpegConverter {
                 nil
             )
         else {
-            return false
+            return nil
         }
 
         var props = writeProperties(from: source)
@@ -183,18 +193,20 @@ enum HeicJpegConverter {
         }
 
         CGImageDestinationAddImage(destination, image, props as CFDictionary)
-        return CGImageDestinationFinalize(destination)
+        return CGImageDestinationFinalize(destination) ? flattenedAlpha : nil
     }
 
+    /// Returns whether frame zero had real alpha, or nil when conversion failed.
     private static func convertStrippedDecoded(
         source: CGImageSource,
         destinationURL: URL,
         options: [CFString: Any]
-    ) -> Bool {
+    ) -> Bool? {
         guard let decoded = CGImageSourceCreateImageAtIndex(source, 0, options as CFDictionary)
         else {
-            return false
+            return nil
         }
+        let flattenedAlpha = imageHasAlpha(decoded)
         let image = compositeOntoWhiteIfNeeded(decoded, sourcePath: nil)
         guard
             let destination = CGImageDestinationCreateWithURL(
@@ -204,11 +216,11 @@ enum HeicJpegConverter {
                 nil
             )
         else {
-            return false
+            return nil
         }
         let props = strippedWriteProperties(from: source)
         CGImageDestinationAddImage(destination, image, props as CFDictionary)
-        return CGImageDestinationFinalize(destination)
+        return CGImageDestinationFinalize(destination) ? flattenedAlpha : nil
     }
 
     /// True when the image carries real transparency (not just an ignorable alpha byte).

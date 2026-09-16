@@ -90,7 +90,7 @@ struct MetadataReport: View {
             header
             Divider().overlay(MetaBurnTheme.divider)
 
-            if entry.status == .failed || entry.status == .skipped || entry.status == .partial {
+            if entry.status != .cleaned || entry.reason != nil {
                 messageBlock
                 Divider().overlay(MetaBurnTheme.divider)
             }

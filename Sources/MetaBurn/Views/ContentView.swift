@@ -346,25 +346,7 @@ private struct HeaderView: View {
     }
 
     private func checkForUpdates() {
-        Task {
-            let info = AppInfoProvider.current()
-            let result = await Updates.checkForUpdates(currentVersion: info.version)
-            let alert = NSAlert()
-            alert.alertStyle = result.error != nil ? .warning : .informational
-            if let error = result.error {
-                alert.messageText = "Update check failed"
-                alert.informativeText = error
-            } else if result.updateAvailable {
-                alert.messageText = "Update available: \(result.latestVersion)"
-                alert.informativeText =
-                    "You have \(result.currentVersion).\(result.downloadURL.map { "\n\n\($0)" } ?? "")"
-            } else {
-                alert.messageText = "You're up to date"
-                alert.informativeText = "Current version: \(result.currentVersion)"
-            }
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
-        }
+        Task { await Updates.checkAndPresentUpdateAlert() }
     }
 }
 
@@ -479,6 +461,7 @@ private struct CleanedFilesPanel: View {
                         fileRow(
                             path: file.path,
                             statusText: statusLabel(file.status),
+                            note: file.status == .cleaned ? file.reason : nil,
                             statusColor: statusColor(file.status),
                             timestamp: FileTimestamp.display(file.finishedAt)
                         )
@@ -502,6 +485,7 @@ private struct CleanedFilesPanel: View {
     private func fileRow(
         path: String,
         statusText: String,
+        note: String? = nil,
         statusColor: Color,
         timestamp: String?,
         showsProgress: Bool = false
@@ -516,6 +500,14 @@ private struct CleanedFilesPanel: View {
             Text(statusText)
                 .font(.system(size: 13))
                 .foregroundColor(statusColor)
+            // Caveat notes on cleaned files stay muted — never the status color, so
+            // a note can't be misread as a failure reason.
+            if let note {
+                Text("· \(note)")
+                    .font(.system(size: 13))
+                    .foregroundColor(MetaBurnTheme.secondaryText)
+                    .lineLimit(1)
+            }
             Spacer(minLength: 8)
             if let timestamp {
                 Text(timestamp)

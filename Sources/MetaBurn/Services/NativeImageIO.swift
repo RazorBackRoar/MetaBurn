@@ -32,7 +32,7 @@ enum NativeImageIO {
 
     private static func replaceFile(at url: URL, with data: Data) -> Bool {
         let tempURL = url.deletingLastPathComponent()
-            .appendingPathComponent(".\(SecureRandom.hexString()).metaburn.native.tmp.\(url.pathExtension)")
+            .appendingPathComponent(".\(SecureRandom.hexString()).\(OutputNaming.nativeWorkFileMarker).\(url.pathExtension)")
         do {
             try data.write(to: tempURL, options: .atomic)
             let fm = FileManager.default
@@ -54,7 +54,7 @@ enum NativeImageIO {
         replacing url: URL
     ) -> Bool {
         let tempURL = url.deletingLastPathComponent()
-            .appendingPathComponent(".\(SecureRandom.hexString()).metaburn.native.tmp.\(url.pathExtension)")
+            .appendingPathComponent(".\(SecureRandom.hexString()).\(OutputNaming.nativeWorkFileMarker).\(url.pathExtension)")
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
         guard let destination = CGImageDestinationCreateWithURL(tempURL as CFURL, uti, 1, nil) else {
@@ -91,7 +91,7 @@ enum NativeImageIO {
         replacing url: URL
     ) -> Bool {
         let tempURL = url.deletingLastPathComponent()
-            .appendingPathComponent(".\(SecureRandom.hexString()).metaburn.native.tmp.\(url.pathExtension)")
+            .appendingPathComponent(".\(SecureRandom.hexString()).\(OutputNaming.nativeWorkFileMarker).\(url.pathExtension)")
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
         guard let destination = CGImageDestinationCreateWithURL(tempURL as CFURL, uti, 1, nil) else {
